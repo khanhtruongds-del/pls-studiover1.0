@@ -12,7 +12,7 @@
     const list = B.blocks(S.book, buoi, S.brand);
     const dv = I.curDevice ? I.curDevice() : null;
     const running = ((S.spec && S.spec.lesson) || '').toUpperCase();
-    book = B.paginate(list, { size, brand: S.brand, stage: stage(), running, prep: el => { if (S.fontMode === 'safe') E.applyExportFonts(el, S.brand, dv && dv.font ? dv : null); } });
+    book = B.paginate(list, { size, brand: S.brand, stage: stage(), running, prep: null });   // sách in ra PDF: Chrome nhúng font web của brand vào PDF → giữ đủ độ đậm 400 / 600 / 700 / 900 (font an toàn của PPTX chỉ có thường / đậm → mất phân cấp)
     book.blocks = list.length; draw(); return book;
   }
   function draw() {
