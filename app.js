@@ -29,11 +29,51 @@
           <li class="dark"><span class="ic">▶</span><b>Hiệu ứng & ghi chú</b><span>Bộ hiệu ứng nhanh (khoanh đáp án, nối dây) và ghi chú giảng dưới slide</span></li>
           <li class="dark"><span class="ic">▤</span><b>Sách A4 / 19×27</b><span>Dàn trang, đáp án theo bài kèm giải thích, xuất PDF</span></li>
         </ol></section>
-        <section class="w-side"><p class="muted" style="margin:0 0 2px;font-size:12px">Cần chuẩn bị</p><h2>Trước khi nhập</h2><p class="sub">Để máy dựng đúng ngay lần đầu.</p>
-          <div class="item"><b>File S6 có các tab "S6-…"</b><span class="muted">Cột "Lên PPT" / "Lên PDF" = Không sẽ được bỏ qua</span><span class="tag" style="--c:var(--ui-accent)">Bắt buộc</span></div>
-          <div class="item"><b>File S5 có timeline buổi</b><span class="muted">"1. Mở đầu: 5p…" để xếp thứ tự slide và số phút</span><span class="tag" style="--c:var(--ui-yellow)">Nên có</span></div>
-          <div class="item"><b>Cột "Giải thích" của câu hỏi</b><span class="muted">Đi vào đáp án sách và ghi chú giảng</span><span class="tag" style="--c:#2f8a55">Tốt hơn</span></div></section></div>`;
+        <section class="w-side"><p class="muted" style="margin:0 0 2px;font-size:12px">Mở lại</p><h2>File gần đây</h2><p class="sub">Các bộ Excel đã nhập trên máy này – bấm để mở lại đúng buổi, đúng brand.</p>
+          <div id="wRecent"><p class="muted">Đang tải…</p></div></section></div>`;
     $('#wImport').onclick = () => $('#xlsx').click();
+    drawRecent();
+  }
+  // FILE GẦN ĐÂY (người dùng chốt 23/10): lưu bộ Excel đã nhập (đã đọc thành dữ liệu) trong IndexedDB của trình duyệt – chỉ trên máy này, tối đa 6 bộ
+  const RECENT_MAX = 6;
+  const RDB = (() => { let dbp;
+    const open = () => dbp || (dbp = new Promise((res, rej) => { const q = indexedDB.open('pls-studio', 1); q.onupgradeneeded = () => q.result.createObjectStore('recent', { keyPath: 'id' }); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }));
+    const run = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('recent', mode); const q = fn(t.objectStore('recent')); t.oncomplete = () => res(q && 'result' in q ? q.result : undefined); t.onerror = () => rej(t.error); }); };
+    return { all: () => run('readonly', st => st.getAll()), get: id => run('readonly', st => st.get(id)), put: r => run('readwrite', st => st.put(r)), del: id => run('readwrite', st => st.delete(id)) }; })();
+  async function saveRecent(books, names) {
+    try { const id = names.slice().sort().join(' + '); const old = await RDB.get(id);
+      await RDB.put({ id, names, books, at: Date.now(), buoi: old && old.buoi, brand: old && old.brand }); state.recentId = id;
+      const all = (await RDB.all()).sort((a, b) => b.at - a.at); for (const r of all.slice(RECENT_MAX)) await RDB.del(r.id);
+    } catch (e) { console.warn('[PLS] không lưu được file gần đây', e); } }
+  async function touchRecent() {   // nhớ buổi + brand đang mở để lần sau mở lại đúng chỗ
+    if (!state.recentId) return; try { const r = await RDB.get(state.recentId); if (r) { r.buoi = +$('#buoi').value; r.brand = state.brand; r.at = Date.now(); await RDB.put(r); } } catch (e) { /* bỏ qua */ } }
+  const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'vừa xong' : m < 60 ? m + ' phút trước' : m < 1440 ? Math.round(m / 60) + ' giờ trước' : Math.round(m / 1440) + ' ngày trước'; };
+  async function drawRecent() {
+    const box = $('#wRecent'); if (!box) return; let rs = [];
+    try { rs = (await RDB.all()).sort((a, b) => b.at - a.at); } catch (e) { box.innerHTML = '<p class="muted">Trình duyệt này không cho lưu file gần đây.</p>'; return; }
+    if (!rs.length) { box.innerHTML = '<div class="w-empty"><b>Chưa có file nào</b><span class="muted">Bộ Excel bạn nhập sẽ hiện ở đây để mở lại lần sau.</span></div>'; return; }
+    box.innerHTML = '';
+    rs.forEach(r => { const it = document.createElement('div'); it.className = 'item recent';
+      const course = ((r.books.s6 || {})['S6-Thông tin khoá'] || []).find(x => /Tên khoá/.test(x['Mục'] || '')) || {};
+      const open = document.createElement('button'); open.type = 'button'; open.className = 'rc-open';
+      open.innerHTML = `<b></b><span class="muted"></span><span class="tag" style="--c:var(--ui-accent)"></span>`;
+      open.querySelector('b').textContent = course['Nội dung'] || r.names.join(' + ');
+      open.querySelector('.muted').textContent = r.names.join(' · ');
+      open.querySelector('.tag').textContent = [r.buoi ? 'Buổi ' + r.buoi : '', r.brand || '', ago(r.at)].filter(Boolean).join(' · ');
+      open.onclick = () => { if (r.brand) { state.brand = r.brand; $('#brand').value = r.brand; } openBooks(r.books, r.names, r.buoi, true); state.recentId = r.id; };
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'rc-del'; del.textContent = '×'; del.title = 'Bỏ khỏi danh sách'; del.setAttribute('aria-label', 'Bỏ ' + r.id + ' khỏi danh sách');
+      del.onclick = async () => { await RDB.del(r.id); drawRecent(); };
+      it.append(open, del); box.appendChild(it); });
+  }
+  // mở 1 bộ Excel đã đọc (nhập mới hoặc từ File gần đây)
+  function openBooks(books, names, buoi, fromRecent) {
+    state.book = books;
+    const bs = window.PLS_IMPORT.sessions(books.s6); const bsel = $('#buoi'); bsel.innerHTML = '';
+    bs.forEach(x => bsel.add(new Option(`Buổi ${x.buoi} · ${x.name.replace(/^Bài\s*\d+\s*[–-]\s*/, '')}`, x.buoi)));
+    bsel.hidden = $('#buoiLabel').hidden = false; bsel.onchange = () => fromExcel();
+    const first = bs.find(x => /học/i.test(x.type)) || bs[0]; bsel.value = buoi && bs.some(x => x.buoi === +buoi) ? buoi : first.buoi;
+    if (!fromRecent && state.brand === 'Betreux' && /toeic|english|ielts/i.test(names[0] || '')) { state.brand = 'Creative English'; $('#brand').value = state.brand; }
+    return fromExcel();
   }
   async function build() {
     if (!state.spec) { showEmpty(); return; }
@@ -407,7 +447,7 @@
   function fromExcel() {
     const r = window.PLS_IMPORT.buildSpec(state.book.s6, state.book.s5, +$('#buoi').value, state.brand);
     state.importWarns = r.warns; $('#lessonName').textContent = r.spec.lesson;
-    state.spec = r.spec; state.overrides = {}; state.imgOv = {}; state.choice = {}; state.sel = 0;
+    state.spec = r.spec; state.overrides = {}; state.imgOv = {}; state.choice = {}; state.sel = 0; touchRecent();
     return build();
   }
 
@@ -430,7 +470,7 @@
     setImage(slide, slotKey, value) { const r = state.slides[slide - 1]; const k = r.src + '/' + r.part; (state.imgOv[k] = state.imgOv[k] || {})['img:' + slotKey] = value; return build(); },
     get spec() { return state.spec; },
     _modelForTest: () => E.toModel(state.slides.map(r => r.host), {}),
-    _int: { state, setSlot, build, curDevice, stdCtx, select(i) { state.sel = i; state.fxStep = null; drawList(); drawMain(); drawPanel(); }, redraw() { drawPanel(); }, setStatus }
+    _int: { state, setSlot, build, curDevice, stdCtx, openBooks, saveRecent, select(i) { state.sel = i; state.fxStep = null; drawList(); drawMain(); drawPanel(); }, redraw() { drawPanel(); }, setStatus }
   };
 
   // ---------- khởi động ----------
@@ -444,13 +484,9 @@
         const books = {};
         for (const f of ev.target.files) { const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' }); const b = window.PLS_IMPORT.readWorkbook(wb, XLSX); if (Object.keys(b).some(k => /^S6-/.test(k))) books.s6 = b; else if (b['S5']) books.s5 = b; }
         if (!books.s6) throw new Error('không thấy file S6 (các tab "S6-…")');
-        state.book = books;
-        const bs = window.PLS_IMPORT.sessions(books.s6); const bsel = $('#buoi'); bsel.innerHTML = '';
-        bs.forEach(s => bsel.add(new Option(`Buổi ${s.buoi} · ${s.name.replace(/^Bài\s*\d+\s*[–-]\s*/, '')}`, s.buoi)));
-        bsel.hidden = $('#buoiLabel').hidden = false; bsel.onchange = () => fromExcel();
-        const firstLesson = bs.find(s => /học/i.test(s.type)) || bs[0]; bsel.value = firstLesson.buoi;
-        if (state.brand === 'Betreux' && /toeic|english|ielts/i.test(ev.target.files[0].name)) { state.brand = 'Creative English'; sel.value = state.brand; }
-        fromExcel();
+        const names = [...ev.target.files].map(f => f.name);
+        await saveRecent(books, names);
+        openBooks(books, names);
       } catch (e) { setStatus('Không đọc được Excel: ' + e.message); }
     };
     $('#btnBuild').onclick = () => build();
