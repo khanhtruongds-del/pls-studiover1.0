@@ -4,6 +4,8 @@
 // chỉ thay phần trong thẻ → đổi khung trong Figma thì mẫu mới đổi theo. Màu / chữ / bo góc lấy từ biến brand (tokens.css).
 // Đợt 1: Pronunciation Linking (nối âm), Grammar Rule Split (quy tắc 35/65), Dialogue Bubbles (hội thoại bong bóng),
 //        Summary Homework (tổng kết + BTVN gộp 1 slide).
+// Đợt 2: Pronunciation Steps (phát âm từng bước), Focus Question (câu hỏi trọng tâm), nhấn cột bảng ngữ pháp, dòng thời gian dọc.
+// Đợt 3: Vocab Picture (chữ + minh hoạ lớn), Vocab Map (sơ đồ quan hệ từ: đồng nghĩa / trái nghĩa).
 (function (root) {
   'use strict';
   const T = root.PLS_TPL; if (!T || typeof document === 'undefined') return;
@@ -105,5 +107,71 @@
       if (wb) wb.style.backgroundColor = right ? C.dark : C.fill;
       if (bb) { bb.style.backgroundColor = right ? C.white : C.soft; bb.style.boxShadow = right ? `inset 0 0 0 2px ${C.primary}` : 'none'; } });
   };
-  root.PLS_TPL_EXTRA = ['Slide/Pronunciation Linking', 'Slide/Grammar Rule Split', 'Slide/Dialogue Bubbles', 'Slide/Summary Homework'];
+
+  // ================= ĐỢT 2 =================
+  // 5) PHÁT ÂM TỪNG BƯỚC: ví dụ là cụm / câu (ngữ điệu, trọng âm câu, dạng yếu) → 3 thẻ Nghe → Chú ý → Đọc lại + dải "Luyện thêm"
+  build('Slide/Pronunciation Steps',
+    div('steps', 'flex:0 0 auto;align-self:stretch;display:flex;flex-direction:row;gap:32px;align-items:stretch',
+      range(3).map(i => div(`step_${i}`, `flex:1 1 0px;min-width:0;display:flex;flex-direction:column;gap:16px;padding:36px;border-radius:16px;background-color:${C.soft};align-items:flex-start`,
+        div('head_row', 'flex:0 0 auto;display:flex;flex-direction:row;gap:16px;align-items:center',
+          circle('no_box', 56, C.fill, C.inv, String(i)) + txt('head', 'bold', 36, C.ink, ['Nghe', 'Chú ý', 'Đọc lại'][i - 1], false)) +
+        txt('text', i === 1 ? 'native' : 'body', i === 1 ? 40.5 : 34, C.text, 'Nội dung', true) + txt('sub', 'body', 30, C.muted, '', true))).join('')) +
+    div('more_box', `flex:0 0 auto;align-self:stretch;display:flex;flex-direction:row;flex-wrap:wrap;gap:16px;align-items:center;padding:20px 28px;border-radius:16px;box-shadow:inset 0 0 0 1.5px ${C.border}`,
+      txt('more', 'bold', 30, C.ink, 'Luyện thêm:', false) +
+      range(5).map(i => div(`chip_${i}`, `flex:0 0 auto;display:flex;flex-direction:row;align-items:center;padding:10px 22px;border-radius:16px;background-color:${C.soft}`, txt('text', 'native', 32, C.text, 'phrase', false))).join('')), 'gap:36px');
+
+  // 6) CÂU HỎI TRỌNG TÂM: 1 câu hỏi lớn giữa slide + nghĩa + các từ thay thế dạng chip (phần Nói)
+  build('Slide/Focus Question',
+    div('center', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:column;gap:28px;justify-content:center;align-items:center',
+      txt('question', 'native', 79.5, C.ink, 'What time is it?', true, 'text-align:center') + txt('question.vi', 'body', 36, C.muted, 'Mấy giờ rồi?', true, 'text-align:center') +
+      txt('hint', 'bold', 30, C.text, 'Thay bằng:', false, 'text-align:center') +
+      div('chips', 'flex:0 0 auto;align-self:stretch;display:flex;flex-direction:row;flex-wrap:wrap;gap:20px;justify-content:center;align-items:center',
+        range(6).map(i => div(`chip_${i}`, `flex:0 0 auto;display:flex;flex-direction:row;align-items:center;padding:14px 28px;border-radius:16px;background-color:${C.white};box-shadow:inset 0 0 0 2px ${C.primary}`, txt('text', 'native', 36, C.text, 'What day is it?', false))).join(''))));
+
+  // ================= ĐỢT 3 =================
+  // 7) CHỮ + MINH HOẠ LỚN: 3–5 từ dùng chung 1 ảnh (cột "Hình minh hoạ" giống nhau) → danh sách trái, ảnh lớn phải
+  build('Slide/Vocab Picture',
+    div('columns', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:row;gap:48px;align-items:stretch',
+      div('items', 'flex:1 1 0px;min-width:0;display:flex;flex-direction:column;gap:24px;justify-content:center;align-items:stretch',
+        range(5).map(i => div(`item_${i}`, 'flex:0 0 auto;display:flex;flex-direction:row;gap:20px;align-items:flex-start',
+          circle('no_box', 52, C.fill, C.inv, String(i)) +
+          div('body', 'flex:1 1 0px;min-width:0;display:flex;flex-direction:column;gap:2px;align-items:flex-start',
+            txt('de', 'native', 40.5, C.text, 'word', true) + txt('vi', 'body', 32, C.muted, 'nghĩa', true)))).join('')) +
+      div('img', `flex:0 0 46%;align-self:stretch;border-radius:16px;background-color:${C.soft}`, '')));
+
+  // 8) SƠ ĐỒ QUAN HỆ TỪ: cặp đồng nghĩa (=) / trái nghĩa (≠) trong bài → sơ đồ nối bên trái, khung "Từ khoá" bên phải
+  build('Slide/Vocab Map',
+    div('columns', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:row;gap:48px;align-items:stretch',
+      div('map', 'flex:1 1 0px;min-width:0;display:flex;flex-direction:column;gap:22px;justify-content:flex-start;align-items:stretch',
+        range(6).map(i => div(`pair_${i}`, 'flex:0 0 auto;display:flex;flex-direction:row;gap:0px;align-items:center',
+          div('a_box', `flex:1 1 0px;min-width:0;display:flex;flex-direction:row;justify-content:center;padding:14px 20px;border-radius:16px;background-color:${C.soft}`, txt('a', 'native', 36, C.text, 'happy', false, 'text-align:center')) +
+          div('link', 'flex:0 0 120px;height:56px;display:flex;flex-direction:row;justify-content:center;align-items:center',
+            `<div data-n="line" style="${BOX}position:absolute;left:0px;top:26px;width:120px;height:4px;background-color:${C.primary}"></div>` +
+            div('rel_box', `flex:0 0 auto;width:56px;height:56px;display:flex;flex-direction:row;justify-content:center;align-items:center;border-radius:50%;background-color:${C.fill}`, txt('rel', 'bold', 32, C.inv, '≠', false, 'text-align:center;line-height:1'))) +
+          div('b_box', `flex:1 1 0px;min-width:0;display:flex;flex-direction:row;justify-content:center;padding:14px 20px;border-radius:16px;background-color:${C.white};box-shadow:inset 0 0 0 2px ${C.primary}`, txt('b', 'native', 36, C.text, 'unhappy', false, 'text-align:center')))).join('') +
+        txt('legend', 'body', 28, C.muted, '=  đồng nghĩa     ≠  trái nghĩa', false)) +
+      div('key_box', `flex:0 0 34%;align-self:flex-start;display:flex;flex-direction:column;gap:14px;padding:36px;border-radius:16px;background-color:${C.soft};align-items:flex-start`,
+        txt('label', 'bold', 30, C.ink, 'Từ khoá', false) +
+        range(8).map(i => div(`kv_${i}`, 'flex:0 0 auto;display:flex;flex-direction:row;gap:12px;align-items:baseline;flex-wrap:wrap', txt('de', 'native', 32, C.text, 'word', false) + txt('vi', 'body', 28, C.muted, 'nghĩa', true))).join(''))));
+
+  // ---------- nâng cấp mẫu Figma có sẵn (không đổi file mẫu, chỉ chỉnh sau khi đổ chữ) ----------
+  // Bảng ngữ pháp: tô nhấn cả CỘT TRỌNG TÂM (cột cuối: "Cấu trúc" / "Đúng") – nền nhạt + chữ đậm, ô tiêu đề màu brand
+  root.PLS_TPL_HOOKS['Slide/Grammar Table'] = function (rootEl) {
+    const rows = [...rootEl.querySelectorAll('[data-n^="row_"]')].filter(r => /^row_\d+$/.test(r.dataset.n) && !r.dataset.hid);
+    const cols = rows[0] ? [...rows[0].children].filter(c => /^c\d+_cell$/.test(c.dataset.n || '') && !c.dataset.hid).map(c => c.dataset.n) : [];
+    if (cols.length < 2) return; const focus = cols[cols.length - 1];
+    rows.forEach((r, i) => { const cell = [...r.children].find(c => c.dataset.n === focus); if (!cell) return;
+      if (i === 0) cell.style.backgroundColor = C.fill;
+      else { cell.style.backgroundColor = C.soft; const t = cell.querySelector('[data-text]'); if (t) t.style.fontWeight = '700'; } });
+  };
+  // Mục tiêu & lộ trình: ≤ 5 bước → dòng thời gian dọc (số tròn nối bằng đường kẻ), các bước xếp sát từ trên xuống
+  root.PLS_TPL_HOOKS['Slide/Lesson Overview'] = function (rootEl, data) {
+    const n = Object.keys(data).filter(k => /^step_\d+\.text$/.test(k) && String(data[k]).trim()).length; if (!n || n > 5) return;
+    const box = rootEl.querySelector('[data-n="steps"]'); if (!box) return;
+    Object.assign(box.style, { justifyContent: 'flex-start', gap: '28px', rowGap: '28px' });
+    for (let i = 1; i <= n; i++) { const st = rootEl.querySelector(`[data-n="step_${i}"]`); if (!st) continue; st.style.alignItems = 'flex-start'; st.style.position = 'relative';
+      const nb = st.querySelector(`[data-n="step_${i}.no_box"]`); if (nb) { nb.style.position = 'relative'; nb.style.zIndex = '1'; }
+      if (i < n) st.insertAdjacentHTML('afterbegin', `<div data-n="step_${i}.line" style="${BOX}position:absolute;left:42px;top:71px;width:4px;height:calc(100% - 28px);background-color:${C.primary};z-index:0"></div>`); }
+  };
+  root.PLS_TPL_EXTRA = ['Slide/Pronunciation Linking', 'Slide/Grammar Rule Split', 'Slide/Dialogue Bubbles', 'Slide/Summary Homework', 'Slide/Pronunciation Steps', 'Slide/Focus Question', 'Slide/Vocab Picture', 'Slide/Vocab Map'];
 })(typeof window !== 'undefined' ? window : globalThis);
