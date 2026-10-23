@@ -127,6 +127,8 @@
         if (L) Object.assign(L.style, { flex: '0 0 auto', height: 'auto', minHeight: '0', fontSize: '30px', lineHeight: '1', textAlign: 'left' });
         if (T) Object.assign(T.style, { flex: '1 1 0px', height: 'auto', minHeight: '0', fontSize: '24px', lineHeight: '1.15', color: 'var(--color-primary, #406864)' });
         Object.assign(el.style, { alignItems: 'center', gap: '12px', paddingBottom: '8px' }); }
+      // Lesson Header: ô "Bài N" và khung tên bài cao bằng nhau (mẫu để ô bài cao 72 cố định, khung tên cao theo chữ → lệch)
+      if (b.comp === 'Block/Lesson Header') { el.style.alignItems = 'stretch'; el.querySelectorAll('[data-n="lesson_box"], [data-n="title_box"]').forEach(x => { x.style.height = 'auto'; x.style.minHeight = '72px'; x.style.alignSelf = 'stretch'; }); }
       // ô đánh số không có dữ liệu (vd ex_6 của khối Phát âm khi chỉ có 5 ví dụ) → ẩn, khỏi lộ chữ mẫu Figma ("fünf")
       el.querySelectorAll('[data-text]').forEach(x => { const n = x.dataset.n || ''; const m = n.match(/^([a-z]+_)\d+\.[\w.]+$/); if (m && !(n in (b.data || {})) && keys.some(k => k.startsWith(m[1]))) { x.style.display = 'none'; x.dataset.hid = '1'; } });
       if (opt.prep) opt.prep(el); return el; };
