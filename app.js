@@ -318,6 +318,7 @@
       E.typoLayout(x);
       x.fitLog = E.fitText(x); E.typoSpread(x); x.issues = E.audit(x).filter(i => i.code !== 'noImage'); x.slide = i + 1;
       E.planFx(x, state.fx);
+      x.spec = r.spec; { const pk = r.src + '/' + r.part; if (state.fxp[pk] && window.PLS_FXP) window.PLS_FXP.apply(x, state.fxp[pk]); }   // bộ hiệu ứng nhanh cũng vào file xuất
       return x;
     });
   }
