@@ -71,6 +71,7 @@
     // nút loa (ex_n.audio_box): PPTX không kèm âm thanh → không có file tiếng thì ẩn hẳn, khỏi để chấm tròn trống
     rootEl.querySelectorAll('[data-n$="audio_box"]').forEach(b => { const k = b.dataset.n.replace(/_box$/, ''); if (!data[k]) hide(b); });
     applyIcons(host);
+    { const hk = (root.PLS_TPL_HOOKS || {})[spec.comp]; if (hk) hk(rootEl, data); }   // mẫu bổ sung (templates-extra.js): xử lý riêng sau khi đổ chữ
     // Pronunciation: hàng ví dụ không kéo cao/kéo dài hết cột – hàng ôm chữ, cột ví dụ rộng theo hàng dài nhất, từ và phiên âm gần nhau, cả cụm giữa dọc
     if (spec.comp === 'Slide/Pronunciation') {
       const exs = rootEl.querySelector('[data-n="examples"]');
@@ -216,7 +217,7 @@
     const apply = fs => { txt.forEach(e => { e.style.fontSize = fs + 'px'; e.style.lineHeight = '1.3'; e.dataset.fs = String(fs); });
       const kb = Math.max(44, Math.round(fs * 1.35)), kf = Math.max(24, Math.round(kb * (maxN >= 3 ? 0.36 : maxN === 2 ? 0.5 : 0.6)));
       keys.forEach(b => { Object.assign(b.style, { flex: '0 0 auto', width: kb + 'px', minWidth: kb + 'px', height: kb + 'px' }); b.dataset.circle = String(kb); const k = b.querySelector('[data-text]'); if (k) { k.style.fontSize = kf + 'px'; k.dataset.fs = String(kf); } }); };
-    for (const fs of LADDER.filter(v => v <= 40.5 && v >= 28)) { apply(fs); for (const C of colsTry) for (const flat of [false, true]) { ansCols(grid, C, flat); if (fits()) return; } }
+    for (const fs of LADDER.filter(v => v <= 40.5 && v >= 28)) { apply(fs); for (const C of colsTry) for (const flat of [true, false]) { ansCols(grid, C, flat); if (fits()) return; } }
     ansCols(grid, pref);
   }
   function setText(e, v) { const s = e.querySelector('[data-t]'); (s || e).textContent = v; }
