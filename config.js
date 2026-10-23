@@ -1,0 +1,2 @@
+// Cấu hình riêng – KHÔNG đưa lên trang công khai (repo riêng tư). Key Drive chỉ đọc, chỉ bật Drive API (lấy từ plugin PLS Bridge).
+window.PLS_CONFIG = { driveKey: 'AIzaSyBf3i4-vF_WChGlIPaR_r_mqrPlV9Xl9TM', logUrl: 'https://script.google.com/macros/s/AKfycby481kwQIXHI-Ugvucw1jOpt62QiYKeAkAM_o-PAZguWySMBfwd3kPxOexuPMs-9VxOhg/exec', folders: { eu: '18NPo1g5Im4qEEPjXYUAmY3fOMumLLiG-', as: '1FDKFL7Ojk86lZFngF5EhXHXy23Ah2H8X' } };
