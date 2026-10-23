@@ -72,7 +72,7 @@
         const d = await r.json(), c = (d.candidates || [])[0];
         const text = c && c.content && (c.content.parts || []).map(p => p.text || '').join('');
         if (!text) throw new Error('Gemini không trả lời' + (c && c.finishReason ? ' (' + c.finishReason + ')' : (d.promptFeedback && d.promptFeedback.blockReason ? ' (chặn: ' + d.promptFeedback.blockReason + ')' : '')));
-        return { text, cut: c.finishReason === 'MAX_TOKENS', model };
+        return { text, cut: c.finishReason === 'MAX_TOKENS', model, meta: c.groundingMetadata || null };
       }
       throw new Error(daily ? 'Hết lượt miễn phí của Gemini hôm nay – lượt mới có lại khoảng 14–15 giờ chiều (giờ Việt Nam)' : 'Gemini đang giới hạn lượt mỗi phút – đợi khoảng 1 phút rồi thử lại');
     },
@@ -348,6 +348,16 @@
     d.querySelector('#rsKeyOk').onclick = async () => { const k = inp.value.trim(), msg = d.querySelector('#rsKeyMsg'); if (!k) return; msg.textContent = 'Đang kiểm tra key…';
       try { const m = await AI.pick(k); LS.set('pls.gemini.key', k); LS.set('pls.gemini.model', m.best); LS.set('pls.gemini.lite', m.lite); msg.textContent = 'Đã kết nối: ' + m.best + (m.lite !== m.best ? ' + ' + m.lite : ''); setTimeout(close, 700); } catch (e) { msg.textContent = e.message; } };
   }
+  // TÌM NGUỒN TRÊN WEB (kiểu "Discover" của NotebookLM): Gemini + Google Search → danh sách trang web để chọn rồi thêm thành nguồn link
+  async function discover(q) {
+    const prompt = `Tìm trên web 6–10 trang có thông tin hữu ích cho việc nghiên cứu: "${q}". Ưu tiên trang chính thức của các trung tâm ngoại ngữ / nhà xuất bản / tổ chức thi ở Việt Nam và quốc tế (lộ trình, số buổi, giáo trình, học phí, khung năng lực).\n` +
+      'Chỉ dùng URL thật lấy từ kết quả tìm kiếm, không tự đặt URL. Trả JSON: {"results":[{"title":"...","url":"https://...","center":"<tên trung tâm / tổ chức>","snippet":"<1 câu: trang này có gì đáng dùng>"}]}. Chỉ trả JSON.';
+    const r = await AI.call({ sys: 'Bạn là trợ lý tìm tài liệu cho người làm chương trình học ngoại ngữ ở Việt Nam. Viết tiếng Việt.', contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ google_search: {} }], maxTokens: 4096, tier: 'lite' });
+    let out = []; try { out = (AI.parse(r.text).results || []).filter(x => x && /^https?:\/\//.test(x.url || '')); } catch (e) {}
+    const chunks = ((r.meta && r.meta.groundingChunks) || []).map(c => c.web).filter(Boolean);   // không đọc được JSON → dùng danh sách trang Google trả kèm
+    if (!out.length) out = chunks.map(w => ({ title: w.title || w.uri, url: w.uri, center: w.title || '', snippet: '' }));
+    const seen = new Set(); return out.filter(x => !seen.has(x.url) && seen.add(x.url)).slice(0, 12);
+  }
   // HỘP THÊM NGUỒN (kiểu NotebookLM: 1 chỗ cho file / link / văn bản, kéo thả, dán ảnh) – vẫn giữ Trung tâm + Ngày lấy cho bảng so sánh
   function addDlg(initFiles) {
     let d = $('#rsAddDlg'); if (d) d.remove();
@@ -363,6 +373,8 @@
         <b>Kéo thả file vào đây hoặc bấm để chọn</b><span>PDF (cả bản scan), ảnh giáo trình, Excel / CSV, txt · tối đa 15 MB/file · dán ảnh bằng Ctrl+V</span>
         <input id="aFiles" type="file" multiple accept=".pdf,image/*,.xlsx,.xls,.csv,.txt,.md" hidden></label>
       <ul class="rs-pend" id="aPend"></ul>
+      <div class="rs-find"><label class="rs-f">Tìm nguồn trên web<span class="rs-row"><input id="aQ" placeholder="VD: lộ trình TOEIC 450 cho người mất gốc, học phí khóa N4…" ${AI.key() ? '' : 'disabled'}><button type="button" class="btn" id="aFind" ${AI.key() ? '' : 'disabled'}>Tìm</button></span></label>
+        ${AI.key() ? '' : '<small class="muted">Kết nối Gemini để tự tìm nguồn</small>'}<ul class="rs-found" id="aFound"></ul></div>
       <div class="rs-add-two"><label class="rs-f">Link trang web<textarea id="aLinks" rows="3" placeholder="Dán link trang khóa học, lộ trình…\nMỗi dòng 1 link"></textarea></label>
         <label class="rs-f">Dán văn bản<input id="aTitle" placeholder="Tiêu đề (không bắt buộc)"><textarea id="aText" rows="2" placeholder="Mô tả khóa, lộ trình, bảng giá…"></textarea></label></div>
       <div class="rs-row"><span class="muted" id="aCount"></span><span style="flex:1"></span><button type="button" class="btn" id="aCancel">Hủy</button><button type="button" class="btn primary" id="aOk">Thêm nguồn</button></div></div>`;
@@ -371,7 +383,16 @@
     const links = () => q('#aLinks').value.split(/\s+/).map(x => x.trim()).filter(x => /^https?:\/\/\S+$/.test(x));
     const drawPend = () => { q('#aPend').innerHTML = pend.map((f, i) => `<li><span class="rs-kind k-${kindOf(f) === 'pdf' ? 'PDF' : kindOf(f) === 'image' ? 'ẢNH' : kindOf(f) === 'sheet' ? 'XLS' : 'TXT'}">${kindOf(f) === 'pdf' ? 'PDF' : kindOf(f) === 'image' ? 'ẢNH' : kindOf(f) === 'sheet' ? 'XLS' : 'TXT'}</span><span>${esc(f.name)}</span><small class="muted">${Math.max(1, Math.round(f.size / 1024))} KB</small><button type="button" class="rs-x" data-rm="${i}" aria-label="Bỏ ${esc(f.name)}">×</button></li>`).join('');
       d.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { pend.splice(+b.dataset.rm, 1); drawPend(); }); count(); };
-    const count = () => { const n = pend.length + links().length + (q('#aText').value.trim() ? 1 : 0); q('#aCount').textContent = n ? `Sẽ thêm ${n} nguồn` : 'Chưa chọn nguồn nào'; q('#aOk').disabled = !n; q('#aOk').textContent = n > 1 ? `Thêm ${n} nguồn` : 'Thêm nguồn'; };
+    let found = [];
+    const picked = () => found.filter(x => x.on);
+    const drawFound = () => { q('#aFound').innerHTML = found.map((x, i) => `<li><label><input type="checkbox" data-fi="${i}" ${x.on ? 'checked' : ''}><span><b>${esc(x.title || x.url)}</b><small>${esc(x.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))}${x.snippet ? ' · ' + esc(x.snippet) : ''}</small></span></label><input class="rs-fc" data-fc="${i}" value="${esc(x.center || '')}" placeholder="Trung tâm" aria-label="Trung tâm của ${esc(x.title || '')}"></li>`).join('');
+      d.querySelectorAll('[data-fi]').forEach(c => c.onchange = () => { found[+c.dataset.fi].on = c.checked; count(); });
+      d.querySelectorAll('[data-fc]').forEach(c => c.oninput = () => { found[+c.dataset.fc].center = c.value; }); count(); };
+    const doFind = async () => { const v = q('#aQ').value.trim(); if (!v) return; const b = q('#aFind'); b.disabled = true; b.textContent = 'Đang tìm…'; q('#aFound').innerHTML = '<li class="muted">Gemini đang tìm trên Google…</li>';
+      try { found = (await discover(v)).map(x => Object.assign(x, { on: true })); if (!found.length) q('#aFound').innerHTML = '<li class="muted">Không tìm thấy trang phù hợp – thử cách hỏi khác.</li>'; else drawFound(); }
+      catch (e) { q('#aFound').innerHTML = `<li class="muted">${esc(e.message)}</li>`; } b.disabled = false; b.textContent = 'Tìm'; count(); };
+    if (AI.key()) { q('#aFind').onclick = doFind; q('#aQ').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); doFind(); } }; }
+    const count = () => { const n = pend.length + links().length + picked().length + (q('#aText').value.trim() ? 1 : 0); q('#aCount').textContent = n ? `Sẽ thêm ${n} nguồn` : 'Chưa chọn nguồn nào'; q('#aOk').disabled = !n; q('#aOk').textContent = n > 1 ? `Thêm ${n} nguồn` : 'Thêm nguồn'; };
     const addF = fs => { fs.forEach(f => { if (!pend.some(x => x.name === f.name && x.size === f.size)) pend.push(f); }); drawPend(); };
     function onPaste(e) { const fs = [...((e.clipboardData && e.clipboardData.files) || [])]; if (fs.length) { e.preventDefault(); addF(fs.map((f, i) => f.name && f.name !== 'image.png' ? f : new File([f], `Ảnh dán ${new Date().toLocaleTimeString('vi-VN').replace(/:/g, '-')}${i ? '-' + i : ''}.png`, { type: f.type }))); } }
     document.addEventListener('paste', onPaste, true);
@@ -384,9 +405,10 @@
       const c = q('#aCenter').value.trim(), dt = q('#aDate').value || today(); LS.set('pls.rs.center', c);
       q('#aOk').disabled = true; q('#aOk').textContent = 'Đang thêm…';
       const bad = pend.length ? await addFiles(pend, c, dt) : [];
+      picked().forEach(x => addSource({ kind: 'link', name: (x.title || x.url).slice(0, 80), url: x.url, center: (x.center || '').trim() || c, date: dt, note: x.snippet || '' }));
       links().forEach(u => addSource({ kind: 'link', name: u.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '').slice(0, 70), url: u, center: c, date: dt }));
       const t = q('#aText').value.trim(); if (t) addSource({ kind: 'text', name: q('#aTitle').value.trim() || t.split('\n')[0].slice(0, 60) || 'Văn bản dán', text: t, center: c, date: dt });
-      const n = pend.length - bad.length + links().length + (t ? 1 : 0);
+      const n = pend.length - bad.length + links().length + picked().length + (t ? 1 : 0);
       close(); if (c && !P.centers.includes(c)) P.centers.push(c); save(); render();
       toast(bad.length ? `Đã thêm ${n} nguồn · chưa đọc được: ${bad.join(', ')} (Word → lưu thành PDF rồi thêm lại)` : `Đã thêm ${n} nguồn${AI.key() ? ' · Gemini đang tóm tắt từng nguồn' : ''}`, !!bad.length);
     };
@@ -594,6 +616,6 @@
     const fs = [...((e.clipboardData && e.clipboardData.files) || [])]; if (!fs.length) return; e.preventDefault(); addDlg(fs.map((f, i) => new File([f], f.name && f.name !== 'image.png' ? f.name : `Ảnh dán ${i + 1}.png`, { type: f.type }))); });
   // cổng lệnh (Claude / kiểm thử): PLS.research.*
   root.PLS_RESEARCH = { show: render, steps: STEPS, mode: m => { if (m) { mode = m; render(); } return mode; },
-    _: { AI, addDlg, summarize, review, release, blockers, restoreLesson, sub: k => { lesSub = k; render(); }, load: async () => { await load(); return P; }, proj: () => P, ask, compare, outline, lesson, mergeLesson, check, booksOut, exportXlsx, openInSlide, addSource, addFiles, step: i => { cur = i; render(); } } };
+    _: { AI, addDlg, discover, summarize, review, release, blockers, restoreLesson, sub: k => { lesSub = k; render(); }, load: async () => { await load(); return P; }, proj: () => P, ask, compare, outline, lesson, mergeLesson, check, booksOut, exportXlsx, openInSlide, addSource, addFiles, step: i => { cur = i; render(); } } };
   if (root.PLS) root.PLS.research = { state: () => P && { name: P.name, sources: P.sources.map(s => s.id + ' ' + s.name), centers: P.centers, outline: P.outline && P.outline.lessons.length, lessons: Object.keys(P.lessons) }, ask: q => job('Đang trả lời', () => ask(q)) };
 })(typeof window !== 'undefined' ? window : globalThis);
