@@ -72,17 +72,25 @@
     say(`Đã tải ${pp && pp.name || 'PPTX'} · hộp thoại in sách ${B.SIZES[size].label} (${bk.pages.length} trang): chọn "Lưu dưới dạng PDF" rồi bấm Lưu`);
     printBook(bk, size); return { pptx: pp, pdf: pdfName(size) + '.pdf', pages: bk.pages.length };
   }
-  { const b = document.createElement('button'); b.id = 'btnAll'; b.type = 'button'; b.className = 'btn primary'; b.textContent = 'Xuất cả bài (PPTX + PDF)';
+  { const b = document.createElement('button'); b.id = 'btnAll'; b.type = 'button'; b.className = 'btn primary'; b.textContent = 'Xuất bài (PPTX + PDF)';
     b.title = 'Tải PPTX rồi mở hộp thoại in sách (chọn Lưu dưới dạng PDF). Đang xem sách thì in theo khổ đang xem, đang xem slide thì in A4.';
     const anchor = document.querySelector('.menuwrap') || $('#btnPdf'); if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor.nextSibling); b.onclick = () => exportAll(); }
   function setView(v) {
     S.view = v; const bk = v !== 'slide';
     $('#canvas').hidden = bk; $('#bookView').hidden = !bk; { const nb = $('#notesBox'); if (nb) nb.hidden = bk; } document.querySelector('nav').style.display = bk ? 'none' : '';
     $('#btnPdf').hidden = !bk; const mw = document.querySelector('.menuwrap'); if (mw) mw.style.display = bk ? 'none' : '';
-    if ($('#view').value !== v) $('#view').value = v;
+    if ($('#view').value !== v) $('#view').value = v; if (S.segSync) S.segSync();
     if (bk) return build(); else return I.build();
   }
   $('#view').onchange = () => setView($('#view').value);
+  // CHẾ ĐỘ XEM dạng thanh trượt (segmented) thay cho dropdown: Slide · Sách A4 · Sách 19×27 (người dùng chốt 23/10)
+  { const sel = $('#view'), seg = document.createElement('div'); seg.className = 'seg'; seg.setAttribute('role', 'radiogroup'); seg.setAttribute('aria-label', 'Chế độ xem');
+    const thumb = document.createElement('span'); thumb.className = 'seg-thumb'; seg.appendChild(thumb);
+    const sync = () => { const bs = [...seg.querySelectorAll('button')]; bs.forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === sel.value)));
+      const on = bs.find(b => b.dataset.v === sel.value); if (on) { thumb.style.width = on.offsetWidth + 'px'; thumb.style.transform = `translateX(${on.offsetLeft - 3}px)`; } };
+    [...sel.options].forEach(o => { const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.v = o.value; b.textContent = o.textContent;
+      b.onclick = () => { sel.value = o.value; sync(); setView(o.value); }; seg.appendChild(b); });
+    sel.hidden = true; sel.after(seg); requestAnimationFrame(sync); if (window.ResizeObserver) new ResizeObserver(sync).observe(seg); else window.addEventListener('resize', sync); S.segSync = sync; }   // thanh trượt hiện ra (hết màn hình bắt đầu) → đo lại vị trí
   $('#btnPdf').onclick = () => exportPdf();
   // dựng lại sách khi đổi buổi / brand / font trong chế độ sách
   ['#buoi', '#brand', '#fontMode', '#device'].forEach(q => { const el = $(q); if (el) el.addEventListener('change', () => { if (S.view !== 'slide') setTimeout(build, 600); }); });
