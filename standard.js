@@ -86,9 +86,9 @@
       if (!/^Slide\/(Cover|Section|End|Section Character)$/.test(comp)) {
         const area = T.filter(t => t.dataset.filled).reduce((a, t) => { const b = box(t, host); return a + b.w * b.h; }, 0) + [...host.querySelectorAll('[data-img-id], .pls-imgslot')].filter(visible).reduce((a, e) => { const b = box(e, host); return a + b.w * b.h; }, 0);
         const pct = area / (1920 * 1080) * 100;
-        if (pct < 20 || pct > 80) add('RB-PPT-06', n, `Nội dung chiếm ${Math.round(pct)} % diện tích (chuẩn 20–80 %)`);
+        if (pct > 85) add('RB-PPT-06', n, `Slide quá dày: nội dung chiếm ${Math.round(pct)} % diện tích`);   // 23/10: bỏ báo 'dưới 20 %' (slide bài tập thưa là bình thường)
         const bl = T.reduce((a, t) => a + t.textContent.split('\n').filter(l => /^\s*[•–→\-*+]\s/.test(l)).length, 0); if (bl > 6) add('RB-PPT-06', n, `${bl} dòng gạch đầu dòng (chuẩn ≤ 6)`);
-        if (/Reading/.test(comp)) { const c = T.filter(t => t.dataset.filled).reduce((a, t) => a + t.textContent.length, 0); if (c > 600) add('RB-PPT-06', n, `Bài đọc ${c} ký tự / slide (chuẩn tách 600)`); }
+        if (/Reading/.test(comp)) { const c = T.filter(t => t.dataset.filled).reduce((a, t) => a + t.textContent.length, 0), lim = /2 Col/.test(comp) ? 1200 : 600; if (c > lim) add('RB-PPT-06', n, `Bài đọc ${c} ký tự / slide (chuẩn tách ${lim})`); }   // bài đọc 2 cột: mỗi cột 600
       }
       // RB-PPT-07: ký hiệu gạch đầu dòng / mũi tên
       for (const t of T) {
