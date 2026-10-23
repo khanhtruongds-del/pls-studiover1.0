@@ -4,7 +4,7 @@
   'use strict';
   const E = window.PLS_ENGINE;
   const $ = s => document.querySelector(s);
-  const state = { tr: { style: 'NONE', duration: 0.5, scope: 'all' }, fx: { on: true, pace: 'vừa', hideAnswer: true }, fxStep: null, fontMode: 'safe', hier: true, device: 'win', spec: null, brand: 'Betreux', slides: [], sel: 0, overrides: {}, imgOv: {}, choice: {}, building: false };
+  const state = { tr: { style: 'NONE', duration: 0.5, scope: 'all' }, fx: { on: true, pace: 'vừa', hideAnswer: true }, fxStep: null, fxp: {}, fontMode: 'safe', hier: true, device: 'win', spec: null, brand: 'Betreux', slides: [], sel: 0, overrides: {}, imgOv: {}, choice: {}, building: false };
   const BRANDS = ['Betreux', 'Creative English', 'Créatis', 'Saechang', 'Sakumi', 'Đắc Nhân'];
 
   // ---------- dựng cả bài ----------
@@ -70,6 +70,8 @@
     r.score = E.score(r.issues, r.fitLog);
     E.planFx(r, state.fx);   // hiệu ứng theo vai trò lớp (FX của fit_js, chuẩn v2.0: chỉ Appear)
     r.spec = spec;
+    const pk = srcIdx + '/' + (part || 0);   // bộ hiệu ứng nhanh người dùng chọn cho slide này (fx-presets.js) → ghi đè cách tự gắn
+    if (state.fxp[pk] && window.PLS_FXP) window.PLS_FXP.apply(r, state.fxp[pk]);
     return r;
   }
 
@@ -185,6 +187,19 @@
     } else if (tab === 'fx') {
       const r = state.slides[state.sel]; const fx = (r && r.fx) || []; const steps = E.fxSteps(fx);
       p.innerHTML = `<p class="muted">Theo chuẩn v2.0 (RB-PPT-08): chỉ hiệu ứng <b>Appear</b>, chỉ cho nội dung cần ẩn – câu hỏi, lựa chọn, mục (từ, ví dụ, dòng), đáp án. Tiêu đề, hướng dẫn, hình, khối hiện sẵn. Không chuyển cảnh.</p>`;
+      // BỘ HIỆU ỨNG NHANH: máy nhận diện dạng slide → vài bộ dựng sẵn, bấm 1 lần là gắn (chỉ Appear)
+      if (r && window.PLS_FXP) {
+        const dt = window.PLS_FXP.detect(r), pk = r.src + '/' + r.part, cur = state.fxp[pk] || 'auto';
+        const bx = document.createElement('div'); bx.className = 'issue fxquick';
+        bx.innerHTML = `<b>Bộ hiệu ứng nhanh</b><span class="muted">${dt.type ? 'Máy nhận diện: <b>' + dt.label + '</b>' : 'Slide này không có bộ riêng'} · chỉ Appear, bấm 1 lần là gắn</span>`;
+        const set = (ids, id) => { ids.forEach(k => { if (id === 'auto') delete state.fxp[k]; else state.fxp[k] = id; }); state.fxStep = null; build(); };
+        dt.presets.forEach(pr => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (pr.id === cur ? ' primary' : ''); b.textContent = pr.label; b.title = pr.desc; b.setAttribute('aria-pressed', pr.id === cur);
+          b.onclick = () => set([pk], pr.id); bx.appendChild(b); });
+        if (dt.type && cur !== 'auto') { const same = state.slides.filter(x => window.PLS_FXP.detect(x).type === dt.type).map(x => x.src + '/' + x.part);
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = `Áp bộ này cho mọi slide ${dt.label.toLowerCase()} (${same.length})`; b.onclick = () => set(same, cur); bx.appendChild(b); }
+        const pd = dt.presets.find(x => x.id === cur); if (pd) bx.insertAdjacentHTML('beforeend', `<span class="muted">Đang dùng: ${pd.label} – ${pd.desc}</span>`);
+        p.appendChild(bx);
+      }
       const row = (label, el) => { const d = document.createElement('label'); d.className = 'fxrow'; d.append(el, document.createTextNode(' ' + label)); p.appendChild(d); return el; };
       const on = row('Tự gắn hiệu ứng cho cả bài', Object.assign(document.createElement('input'), { type: 'checkbox', checked: state.fx.on }));
       on.onchange = () => { state.fx.on = on.checked; state.fxStep = null; build(); };
@@ -208,7 +223,7 @@
       p.insertAdjacentHTML('beforeend', `<p class="muted">${total}/${state.slides.length} slide có hiệu ứng. Slide này: ${fx.length} khối, ${steps} lần bấm.</p>`);
       if (fx.length) {
         const ol = document.createElement('ol'); ol.className = 'fxlist';
-        fx.forEach(a => { const li = document.createElement('li'); li.textContent = `${a.when === 'click' ? 'Bấm' : 'Cùng lúc'} · ${a.n} (${{ question: 'câu hỏi', option: 'lựa chọn', item: 'mục', answer: 'đáp án' }[a.role]})`; ol.appendChild(li); });
+        fx.forEach(a => { const li = document.createElement('li'); li.textContent = `${a.when === 'click' ? 'Bấm' : 'Cùng lúc'} · ${a.n} (${{ question: 'câu hỏi', option: 'lựa chọn', item: 'mục', answer: 'đáp án', line: 'dây nối' }[a.role]})`; ol.appendChild(li); });
         p.appendChild(ol);
         const ctl = document.createElement('div'); ctl.className = 'row';
         const mk = (t, f) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = t; b.onclick = f; ctl.appendChild(b); };
@@ -360,13 +375,15 @@
     issues() { return state.slides.map((r, i) => ({ slide: i + 1, comp: r.host.dataset.comp, score: r.score, issues: r.issues })); },
     typo() { return state.slides.map((r, i) => ({ slide: i + 1, comp: r.host.dataset.comp, typo: r.typo || [] })).filter(x => x.typo.length); },
     set(slide, slot, text) { const r = state.slides[slide - 1]; if (!r) throw new Error('Không có slide ' + slide); setSlot(r, slot, text); return build(); },
+    fxDetect(slide) { const r = state.slides[slide - 1]; return r && window.PLS_FXP ? window.PLS_FXP.detect(r) : null; },
+    fxPreset(slide, id, all) { const r = state.slides[slide - 1]; if (!r) throw new Error('Không có slide ' + slide); const t = window.PLS_FXP.detect(r).type; const ks = all && t ? state.slides.filter(x => window.PLS_FXP.detect(x).type === t).map(x => x.src + '/' + x.part) : [r.src + '/' + r.part]; ks.forEach(k => { if (id === 'auto') delete state.fxp[k]; else state.fxp[k] = id; }); return build(); },
     choose(slide, label) { const r = state.slides[slide - 1]; state.choice[r.src] = label; return build(); },
     brand(b) { state.brand = b; $('#brand').value = b; return build(); },
     images() { return state.slides.map((r, i) => ({ slide: i + 1, images: r.images })); },
     setImage(slide, slotKey, value) { const r = state.slides[slide - 1]; const k = r.src + '/' + r.part; (state.imgOv[k] = state.imgOv[k] || {})['img:' + slotKey] = value; return build(); },
     get spec() { return state.spec; },
     _modelForTest: () => E.toModel(state.slides.map(r => r.host), {}),
-    _int: { state, setSlot, build, curDevice, select(i) { state.sel = i; state.fxStep = null; drawList(); drawMain(); drawPanel(); }, redraw() { drawPanel(); }, setStatus }
+    _int: { state, setSlot, build, curDevice, stdCtx, select(i) { state.sel = i; state.fxStep = null; drawList(); drawMain(); drawPanel(); }, redraw() { drawPanel(); }, setStatus }
   };
 
   // ---------- khởi động ----------
