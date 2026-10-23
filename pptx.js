@@ -133,6 +133,7 @@
     if (n.k === 'text') return textXml(ctx, Object.assign({}, n, { name: morphName(ctx, p) }));
     if (n.k === 'img') return picXml(ctx, Object.assign({}, n, { name: morphName(ctx, p) }));
     if (n.k === 'shape') { const nm = morphName(ctx, p); return shapeXml(ctx, Object.assign({}, n, { name: nm }), n.shape, nm); }
+    if (n.k === 'line') return lineXml(ctx, n, morphName(ctx, p));
     if (n.k === 'group') {
       let out = '';
       if (n.shape) { const nm = morphName(ctx, p.concat('nền')); out += shapeXml(ctx, Object.assign({}, n, { name: nm }), n.shape, nm); }
@@ -142,11 +143,17 @@
     return '';
   }
 
+  // đường thẳng (dây nối đáp án): flipH / flipV cho hướng chéo; 2 đầu chấm tròn
+  function lineXml(ctx, n, name) {
+    const id = ctx.nextId(n.id); const fl = (n.flipH ? ' flipH="1"' : '') + (n.flipV ? ' flipV="1"' : '');
+    return `<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="${id}" name="${esc(name || n.name)}"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr>${xfrm(n, 'a:xfrm').replace('<a:xfrm>', `<a:xfrm${fl}>`)}<a:prstGeom prst="line"><a:avLst/></a:prstGeom><a:ln w="${E(n.lw)}" cap="rnd">${solidXml(n.c.c, n.c.a)}<a:headEnd type="oval" w="med" len="med"/><a:tailEnd type="oval" w="med" len="med"/></a:ln></p:spPr></p:cxnSp>`;
+  }
   function nodeXml(ctx, n) {
     if (ctx.flat) return flatXml(ctx, n, []);
     if (n.k === 'text') return textXml(ctx, n);
     if (n.k === 'img') return picXml(ctx, n);
     if (n.k === 'shape') return shapeXml(ctx, n, n.shape, n.name);
+    if (n.k === 'line') return lineXml(ctx, n);
     if (n.k === 'group') {
       let inner = '';
       if (n.shape) inner += shapeXml(ctx, n, n.shape, n.name + ' (nền)');
