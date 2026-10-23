@@ -104,13 +104,24 @@
     return { groups, keys, next: no };
   }
   // đáp án: chữ cho nối cột lấy sau khi dựng (x.key do phương án được chọn gán)
-  function answerSlides(keys, sec, title) {   // đáp án ngắn → ô lưới 12/slide; đáp án dài (câu) → danh sách 5/slide, khỏi co cả lưới xuống chữ nhỏ
-    const rows = keys.map(([n, v]) => [n, typeof v === 'object' ? `${v.l} – ${v.r}` : v]).filter(([, v]) => v);
-    const short = rows.filter(([, v]) => String(v).length <= 26), long = rows.filter(([, v]) => String(v).length > 26);
-    const parts = chunk(short, 12).map(p => ({ k: 'grid', p })).concat(chunk(long, 5).map(p => ({ k: 'list', p })));
-    return parts.map((x, i) => { const t = title + (parts.length > 1 ? ` (${i + 1}/${parts.length})` : '');
-      if (x.k === 'grid') { const d = { title: t }; x.p.forEach(([n, v], k) => { d[`a_${k + 1}.key`] = String(n); d[`a_${k + 1}.text`] = v; }); return { comp: 'Slide/Answer Key', data: head(d, sec) }; }
-      const d = { title: t }; x.p.forEach(([n, v], k) => { d[`a_${k + 1}.key`] = String(n); d[`a_${k + 1}.text`] = v; }); return { comp: 'Slide/Answer Key', layout: 'list', data: head(d, sec) }; });   // cùng mẫu đáp án, mỗi ô 1 hàng
+  // TRANG ĐÁP ÁN GỌN (người dùng chốt 23/10): gom mọi đáp án của mục vào MỘT trang, xếp theo số câu từ trái qua phải, trên xuống dưới
+  // (không tách đáp án ngắn / dài ra 2 trang). Chỉ khi 1 trang không đủ chỗ ở cỡ chữ ≥ 28 mới chia 2–3 trang, vẫn giữ thứ tự câu.
+  // Trả về 1 spec auto → app dựng thử các phương án 1 / 2 / 3 trang và chọn phương án điểm cao nhất (ít trang được ưu tiên).
+  function answerSlides(keys, sec, title) { return keys.length ? [{ auto: 'ans', keys, section: sec, title }] : []; }
+  function ansRows(keys) { return keys.map(([n, v]) => [n, v && typeof v === 'object' ? `${v.l} – ${v.r}` : S(v)]).filter(([, v]) => v); }
+  function ansPlans(spec) {
+    const rows = ansRows(spec.keys); if (!rows.length) return [];
+    const out = [];
+    for (let n = 1; n <= 3; n++) {
+      if (n > 1 && rows.length < n * 4) break;   // ít đáp án thì không chia trang
+      const size = Math.ceil(rows.length / n), parts = chunk(rows, size);
+      const slides = parts.map((p, i) => { const d = { title: spec.title + (parts.length > 1 ? ` (${i + 1}/${parts.length})` : '') };
+        p.forEach(([no, v], k) => { d[`a_${k + 1}.key`] = String(no); d[`a_${k + 1}.text`] = v; });
+        return { comp: 'Slide/Answer Key', layout: 'flow', data: head(d, spec.section) }; });
+      // 1 trang: fill 1; mỗi trang thêm bị trừ điểm rõ để chỉ chia khi trang gộp bị tràn / chữ quá nhỏ
+      out.push({ label: n === 1 ? 'Gộp 1 trang' : `Chia ${n} trang`, slides, fill: 1 / n, fillW: 30, cover: 1 });
+    }
+    return out;
   }
 
 
@@ -141,5 +152,5 @@
     return out;
   }
 
-  root.PLS_AUTO = { grammar: { expand: grammarPlans }, ex: { expand: exPlans }, dlg: { expand: dlgPlans }, read: { expand: readPlans }, parseGrammar, exercises, answerSlides };
+  root.PLS_AUTO = { grammar: { expand: grammarPlans }, ex: { expand: exPlans }, dlg: { expand: dlgPlans }, read: { expand: readPlans }, parseGrammar, exercises, answerSlides, ans: { expand: ansPlans } };
 })(typeof window !== 'undefined' ? window : globalThis);
