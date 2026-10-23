@@ -23,7 +23,7 @@
   const LS = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} } };
   const newProj = name => ({ id: uid('p'), name: name || 'Khóa mới', at: Date.now(), sources: [], criteria: DEF_CRIT.slice(), cells: {}, centers: [], chat: [], notes: [],
     brief: { lang: '', level: '', audience: '', sessions: 12, minutes: 90, extra: '' }, outline: null, lessons: {}, books: { s6: {}, s5: {} }, log: [] });
-  let P = null, projects = [], loaded = false, cur = 0, mode = 'intro', busy = null, saveT = 0, addOpen = null;
+  let P = null, projects = [], loaded = false, cur = 0, mode = 'intro', busy = null, saveT = 0;
   const save = () => { if (!P) return; P.at = Date.now(); clearTimeout(saveT); saveT = setTimeout(() => DB.put(P).catch(e => console.warn('[PLS] lưu nghiên cứu lỗi', e)), 250); };
   const log = t => { if (P) { P.log.push({ t, at: Date.now() }); P.log = P.log.slice(-60); } };
   async function load() {
@@ -54,7 +54,7 @@
     day: () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }),   // lượt/ngày của Google reset theo giờ Mỹ (Thái Bình Dương)
     use() { let u = {}; try { u = JSON.parse(LS.get('pls.gemini.use', '{}')); } catch (e) {} return u.day === AI.day() ? u : { day: AI.day(), m: {} }; },
     count(model) { const u = AI.use(); u.m[model] = (u.m[model] || 0) + 1; LS.set('pls.gemini.use', JSON.stringify(u)); },
-    usage() { const u = AI.use(), b = AI.model(), l = AI.lite(); return b === l ? `hôm nay ${u.m[b] || 0} lượt` : `hôm nay Flash ${u.m[b] || 0} · Lite ${u.m[l] || 0}`; },
+    usage() { const u = AI.use(), b = AI.model(), l = AI.lite(); return b === l ? `${u.m[b] || 0} lượt hôm nay` : `Flash ${u.m[b] || 0} · Lite ${u.m[l] || 0} hôm nay`; },
     async call({ sys, contents, json, tools, maxTokens, tier }) {
       const key = AI.key(), best = AI.model(), lite = AI.lite() || best; if (!key || !best) throw new Error('Chưa kết nối Gemini – bấm "Kết nối AI" ở cột trái');
       const body = { contents, generationConfig: { temperature: 0.3, maxOutputTokens: maxTokens || 8192 } };
@@ -82,9 +82,9 @@
   const b64 = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });
   const on = () => (P.sources || []).filter(s => s.on !== false);
   // mọi nguồn đang chọn → các phần gửi kèm cho Gemini (PDF/ảnh gửi nguyên file, Gemini tự đọc cả bản scan)
-  async function sourceParts() {
+  async function sourceParts(list) {
     const parts = []; let links = false;
-    for (const s of on()) {
+    for (const s of (list || on())) {
       parts.push({ text: `=== NGUỒN ${s.id}: ${s.name} · Trung tâm: ${s.center || 'chưa ghi'} · Lấy ngày: ${s.date || '?'} · Loại: ${s.kind} ===` });
       if ((s.kind === 'pdf' || s.kind === 'image') && s.blob) parts.push({ inline_data: { mime_type: s.mime, data: await b64(s.blob) } });
       else if (s.kind === 'link') { links = true; parts.push({ text: 'Link (đọc nội dung trang này): ' + s.url + (s.text ? '\nNội dung dán kèm:\n' + s.text : '') }); }
@@ -100,7 +100,7 @@
   const kindOf = f => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name) ? 'pdf' : /^image\//.test(f.type) ? 'image' : /\.(xlsx|xls|csv)$/i.test(f.name) ? 'sheet' : /\.(txt|md|html?|json)$/i.test(f.name) || /^text\//.test(f.type) ? 'text' : /\.docx?$/i.test(f.name) ? 'doc' : 'other';
   const nextId = () => { let n = 1; const used = new Set(P.sources.map(s => s.id)); while (used.has('S' + n)) n++; return 'S' + n; };
   async function addFiles(files, center, date) {
-    const bad = [];
+    const bad = [], added = [];
     for (const f of files) {
       const kind = kindOf(f); if (kind === 'doc' || kind === 'other') { bad.push(f.name); continue; }
       if (f.size > 15 * 1024 * 1024) { bad.push(f.name + ' (quá 15 MB)'); continue; }
@@ -108,12 +108,23 @@
       if (kind === 'pdf' || kind === 'image') s.blob = f;
       else if (kind === 'sheet') { if (root.XLSX && !/\.csv$/i.test(f.name)) { const wb = root.XLSX.read(await f.arrayBuffer(), { type: 'array' }); s.text = wb.SheetNames.map(n => '## ' + n + '\n' + root.XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n\n'); } else s.text = await f.text(); s.kind = 'text'; }
       else s.text = await f.text();
-      P.sources.push(s); log('Thêm nguồn ' + s.id + ' ' + s.name);
+      s.ext = (f.name.match(/\.(\w+)$/) || [])[1] || ''; P.sources.push(s); added.push(s); log('Thêm nguồn ' + s.id + ' ' + s.name);
     }
     if (center && !P.centers.includes(center)) P.centers.push(center);
-    save(); return bad;
+    save(); summarizeLater(added); return bad;
   }
-  function addSource(o) { const s = Object.assign({ id: nextId(), on: true, added: Date.now(), date: today() }, o); P.sources.push(s); if (s.center && !P.centers.includes(s.center)) P.centers.push(s.center); log('Thêm nguồn ' + s.id); save(); return s; }
+  function addSource(o) { const s = Object.assign({ id: nextId(), on: true, added: Date.now(), date: today() }, o); P.sources.push(s); if (s.center && !P.centers.includes(s.center)) P.centers.push(s.center); log('Thêm nguồn ' + s.id); save(); summarizeLater([s]); return s; }
+  // TÓM TẮT NGUỒN (kiểu "hướng dẫn nguồn" của NotebookLM): mỗi nguồn mới tự tóm tắt bằng Flash-Lite (rẻ lượt), lần lượt từng cái
+  let sumQ = Promise.resolve();
+  async function summarize(s) {
+    const { parts, tools } = await sourceParts([s]);
+    const r = await AI.call({ sys: SYS, contents: [{ role: 'user', parts: parts.concat({ text: `Tóm tắt nguồn ${s.id} cho người làm chương trình học: 1 câu nói nguồn này là gì; 3–5 gạch đầu dòng ý chính (cấp độ, số buổi, giáo trình, phương pháp, học phí… nếu có, kèm [${s.id}, tr.x]); 1 dòng "Chủ đề:" gồm 3–6 từ khóa. Ngắn gọn.` }) }], tools, maxTokens: 1024, tier: 'lite' });
+    s.summary = r.text.trim(); s.sumAt = Date.now(); save();
+  }
+  function summarizeLater(list) {
+    if (!AI.key() || !list || !list.length) return;
+    list.forEach(s => { s.sumState = 'wait'; sumQ = sumQ.then(async () => { if (!P.sources.includes(s)) return; s.sumState = 'run'; render(); try { await summarize(s); s.sumState = ''; } catch (e) { s.sumState = 'err'; s.sumErr = e.message; } render(); }); });
+  }
 
   // ---------- việc AI ----------
   async function job(label, fn) {
@@ -289,15 +300,69 @@
     d.querySelector('#rsKeyOk').onclick = async () => { const k = inp.value.trim(), msg = d.querySelector('#rsKeyMsg'); if (!k) return; msg.textContent = 'Đang kiểm tra key…';
       try { const m = await AI.pick(k); LS.set('pls.gemini.key', k); LS.set('pls.gemini.model', m.best); LS.set('pls.gemini.lite', m.lite); msg.textContent = 'Đã kết nối: ' + m.best + (m.lite !== m.best ? ' + ' + m.lite : ''); setTimeout(close, 700); } catch (e) { msg.textContent = e.message; } };
   }
+  // HỘP THÊM NGUỒN (kiểu NotebookLM: 1 chỗ cho file / link / văn bản, kéo thả, dán ảnh) – vẫn giữ Trung tâm + Ngày lấy cho bảng so sánh
+  function addDlg(initFiles) {
+    let d = $('#rsAddDlg'); if (d) d.remove();
+    const pend = [...(initFiles || [])];
+    d = document.createElement('div'); d.id = 'rsAddDlg'; d.className = 'rs-dlg'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', 'Thêm nguồn');
+    d.innerHTML = `<div class="rs-dlg-card rs-add-card"><div class="rs-row"><h3 style="flex:1">Thêm nguồn</h3><button type="button" class="rs-x" id="aX" aria-label="Đóng">×</button></div>
+      <p class="muted" style="margin:0">Nguồn dùng để hỏi đáp, so sánh và soạn bài. Ghi tên trung tâm để bảng so sánh chia đúng cột.</p>
+      <div class="rs-add-meta"><label class="rs-f">Trung tâm<input id="aCenter" list="aCenters" placeholder="VD: Trung tâm A" value="${esc(LS.get('pls.rs.center', ''))}" autocomplete="off"></label>
+        <label class="rs-f">Lấy ngày<input id="aDate" type="date" value="${today()}"></label></div>
+      <datalist id="aCenters">${P.centers.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+      ${P.centers.length ? `<div class="rs-chips">${P.centers.map(c => `<button type="button" class="rs-chip" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
+      <label class="rs-drop" id="aDrop"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        <b>Kéo thả file vào đây hoặc bấm để chọn</b><span>PDF (cả bản scan), ảnh giáo trình, Excel / CSV, txt · tối đa 15 MB/file · dán ảnh bằng Ctrl+V</span>
+        <input id="aFiles" type="file" multiple accept=".pdf,image/*,.xlsx,.xls,.csv,.txt,.md" hidden></label>
+      <ul class="rs-pend" id="aPend"></ul>
+      <div class="rs-add-two"><label class="rs-f">Link trang web<textarea id="aLinks" rows="3" placeholder="Dán link trang khóa học, lộ trình…\nMỗi dòng 1 link"></textarea></label>
+        <label class="rs-f">Dán văn bản<input id="aTitle" placeholder="Tiêu đề (không bắt buộc)"><textarea id="aText" rows="2" placeholder="Mô tả khóa, lộ trình, bảng giá…"></textarea></label></div>
+      <div class="rs-row"><span class="muted" id="aCount"></span><span style="flex:1"></span><button type="button" class="btn" id="aCancel">Hủy</button><button type="button" class="btn primary" id="aOk">Thêm nguồn</button></div></div>`;
+    document.body.appendChild(d);
+    const q = x => d.querySelector(x), close = () => { d.remove(); document.removeEventListener('paste', onPaste, true); };
+    const links = () => q('#aLinks').value.split(/\s+/).map(x => x.trim()).filter(x => /^https?:\/\/\S+$/.test(x));
+    const drawPend = () => { q('#aPend').innerHTML = pend.map((f, i) => `<li><span class="rs-kind k-${kindOf(f) === 'pdf' ? 'PDF' : kindOf(f) === 'image' ? 'ẢNH' : kindOf(f) === 'sheet' ? 'XLS' : 'TXT'}">${kindOf(f) === 'pdf' ? 'PDF' : kindOf(f) === 'image' ? 'ẢNH' : kindOf(f) === 'sheet' ? 'XLS' : 'TXT'}</span><span>${esc(f.name)}</span><small class="muted">${Math.max(1, Math.round(f.size / 1024))} KB</small><button type="button" class="rs-x" data-rm="${i}" aria-label="Bỏ ${esc(f.name)}">×</button></li>`).join('');
+      d.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { pend.splice(+b.dataset.rm, 1); drawPend(); }); count(); };
+    const count = () => { const n = pend.length + links().length + (q('#aText').value.trim() ? 1 : 0); q('#aCount').textContent = n ? `Sẽ thêm ${n} nguồn` : 'Chưa chọn nguồn nào'; q('#aOk').disabled = !n; q('#aOk').textContent = n > 1 ? `Thêm ${n} nguồn` : 'Thêm nguồn'; };
+    const addF = fs => { fs.forEach(f => { if (!pend.some(x => x.name === f.name && x.size === f.size)) pend.push(f); }); drawPend(); };
+    function onPaste(e) { const fs = [...((e.clipboardData && e.clipboardData.files) || [])]; if (fs.length) { e.preventDefault(); addF(fs.map((f, i) => f.name && f.name !== 'image.png' ? f : new File([f], `Ảnh dán ${new Date().toLocaleTimeString('vi-VN').replace(/:/g, '-')}${i ? '-' + i : ''}.png`, { type: f.type }))); } }
+    document.addEventListener('paste', onPaste, true);
+    q('#aFiles').onchange = e => { addF([...e.target.files]); e.target.value = ''; };
+    const dz = q('#aDrop'); dz.ondragover = e => { e.preventDefault(); dz.classList.add('on'); }; dz.ondragleave = () => dz.classList.remove('on'); dz.ondrop = e => { e.preventDefault(); dz.classList.remove('on'); addF([...e.dataTransfer.files]); };
+    d.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { q('#aCenter').value = b.dataset.c; });
+    ['#aLinks', '#aText'].forEach(x => q(x).oninput = count);
+    q('#aX').onclick = q('#aCancel').onclick = close; d.onclick = e => { if (e.target === d) close(); }; d.onkeydown = e => { if (e.key === 'Escape') close(); };
+    q('#aOk').onclick = async () => {
+      const c = q('#aCenter').value.trim(), dt = q('#aDate').value || today(); LS.set('pls.rs.center', c);
+      q('#aOk').disabled = true; q('#aOk').textContent = 'Đang thêm…';
+      const bad = pend.length ? await addFiles(pend, c, dt) : [];
+      links().forEach(u => addSource({ kind: 'link', name: u.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '').slice(0, 70), url: u, center: c, date: dt }));
+      const t = q('#aText').value.trim(); if (t) addSource({ kind: 'text', name: q('#aTitle').value.trim() || t.split('\n')[0].slice(0, 60) || 'Văn bản dán', text: t, center: c, date: dt });
+      const n = pend.length - bad.length + links().length + (t ? 1 : 0);
+      close(); if (c && !P.centers.includes(c)) P.centers.push(c); save(); render();
+      toast(bad.length ? `Đã thêm ${n} nguồn · chưa đọc được: ${bad.join(', ')} (Word → lưu thành PDF rồi thêm lại)` : `Đã thêm ${n} nguồn${AI.key() ? ' · Gemini đang tóm tắt từng nguồn' : ''}`, !!bad.length);
+    };
+    drawPend(); q(pend.length ? '#aCenter' : '#aDrop').focus();
+  }
+  // XEM NGUỒN: nội dung gốc + tóm tắt (tự tạo khi thêm) + sửa tên / trung tâm / ngày
   function viewer(id) {
     const s = P.sources.find(x => x.id === id); if (!s) return;
     let d = $('#rsView'); if (d) d.remove(); d = document.createElement('div'); d.id = 'rsView'; d.className = 'rs-dlg'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Xem nguồn ' + id);
     const url = s.blob ? URL.createObjectURL(s.blob) : null;
-    d.innerHTML = `<div class="rs-dlg-card wide"><h3>${esc(s.id)} · ${esc(s.name)}</h3><p class="muted">${esc(s.center || 'Chưa ghi trung tâm')} · lấy ngày ${esc(s.date || '?')}</p>
+    d.innerHTML = `<div class="rs-dlg-card wide"><div class="rs-row"><h3 style="flex:1">${esc(s.id)} · ${esc(s.name)}</h3><button type="button" class="rs-x" id="rsViewX2" aria-label="Đóng">×</button></div>
+      <div class="rs-add-meta three"><label class="rs-f">Tên nguồn<input id="vName" value="${esc(s.name)}"></label><label class="rs-f">Trung tâm<input id="vCenter" list="vCenters" value="${esc(s.center || '')}"></label><label class="rs-f">Lấy ngày<input id="vDate" type="date" value="${esc(s.date || '')}"></label></div>
+      <datalist id="vCenters">${P.centers.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+      <div class="rs-guide"><b>Tóm tắt nguồn</b>${s.summary ? `<div class="rs-md">${md(s.summary)}</div>` : `<p class="muted">${s.sumState === 'run' || s.sumState === 'wait' ? 'Gemini đang tóm tắt…' : s.sumState === 'err' ? 'Chưa tóm tắt được: ' + esc(s.sumErr || '') : 'Chưa có tóm tắt.'}</p>`}
+        <button type="button" class="rs-mini" id="vSum" ${AI.key() ? '' : 'disabled'}>${s.summary ? 'Tóm tắt lại' : 'Tóm tắt nguồn này'}</button></div>
       <div class="rs-view-body">${s.kind === 'pdf' ? `<iframe src="${url}" title="${esc(s.name)}"></iframe>` : s.kind === 'image' ? `<img src="${url}" alt="${esc(s.name)}">` : s.kind === 'link' ? `<p><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a></p>${s.text ? '<pre>' + esc(s.text) + '</pre>' : ''}` : '<pre>' + esc((s.text || '').slice(0, 20000)) + '</pre>'}</div>
       <div class="rs-row"><button type="button" class="btn" id="rsViewX">Đóng</button></div></div>`;
-    document.body.appendChild(d); const close = () => { d.remove(); if (url) URL.revokeObjectURL(url); };
-    d.querySelector('#rsViewX').onclick = close; d.onclick = e => { if (e.target === d) close(); }; d.onkeydown = e => { if (e.key === 'Escape') close(); }; d.querySelector('#rsViewX').focus();
+    document.body.appendChild(d);
+    const close = () => { const n = d.querySelector('#vName').value.trim(), c = d.querySelector('#vCenter').value.trim(), dt = d.querySelector('#vDate').value;
+      if (n !== s.name || c !== (s.center || '') || dt !== (s.date || '')) { s.name = n || s.name; s.center = c; s.date = dt; if (c && !P.centers.includes(c)) P.centers.push(c); save(); render(); }
+      d.remove(); if (url) URL.revokeObjectURL(url); };
+    d.querySelector('#rsViewX').onclick = d.querySelector('#rsViewX2').onclick = close; d.onclick = e => { if (e.target === d) close(); }; d.onkeydown = e => { if (e.key === 'Escape') close(); };
+    d.querySelector('#vSum').onclick = async e => { e.target.disabled = true; e.target.textContent = 'Đang tóm tắt…'; try { await summarize(s); } catch (er) { toast(er.message, true); } close(); viewer(id); };
+    d.querySelector('#rsViewX2').focus();
   }
   const stat = () => { const O = P.outline, nL = Object.keys(P.lessons).length;
     return [['Nguồn', P.sources.length ? P.sources.length + ' nguồn' : 'Chưa có', P.sources.length ? 'ok' : ''],
@@ -310,23 +375,23 @@
     if (!loaded) { load().then(render); box.className = 'rs-work'; box.innerHTML = '<p class="muted">Đang mở…</p>'; return; }
     box.className = 'rs-work';
     const hasKey = !!AI.key(), O = P.outline;
-    const srcList = P.sources.map(s => `<li class="rs-src${s.on === false ? ' off' : ''}"><label title="Dùng nguồn này khi hỏi / soạn"><input type="checkbox" data-on="${s.id}" ${s.on !== false ? 'checked' : ''}></label>
-        <button type="button" class="rs-src-open" data-view="${s.id}"><b>${esc(s.id)} · ${esc(s.name)}</b><small>${esc(s.center || 'Chưa ghi trung tâm')} · ${esc(s.kind)}${s.size ? ' · ' + Math.round(s.size / 1024) + ' KB' : ''}</small></button>
-        <button type="button" class="rs-x" data-del="${s.id}" aria-label="Xóa nguồn ${esc(s.id)}">×</button></li>`).join('') || '<li class="muted rs-none">Chưa có nguồn. Thêm PDF, ảnh, link hoặc dán văn bản.</li>';
+    const BADGE = s => s.kind === 'pdf' ? 'PDF' : s.kind === 'image' ? 'ẢNH' : s.kind === 'link' ? 'WEB' : /^(xlsx?|csv)$/i.test(s.ext || '') ? 'XLS' : 'TXT';
+    const item = s => `<li class="rs-src${s.on === false ? ' off' : ''}"><input type="checkbox" data-on="${s.id}" ${s.on !== false ? 'checked' : ''} aria-label="Dùng nguồn ${esc(s.id)}">
+        <button type="button" class="rs-src-open" data-view="${s.id}" title="${esc(s.name)}"><span class="rs-kind k-${BADGE(s)}">${BADGE(s)}</span><span class="rs-src-t"><b>${esc(s.name)}</b><small>${esc(s.id)} · ${esc(s.date || '')}${s.sumState === 'run' || s.sumState === 'wait' ? ' · đang tóm tắt…' : s.summary ? ' · đã tóm tắt' : ''}</small></span></button>
+        <button type="button" class="rs-x" data-del="${s.id}" aria-label="Xóa nguồn ${esc(s.id)}">×</button></li>`;
+    const gnames = [...new Set(P.sources.map(s => s.center || ''))].sort((a, b) => !a - !b || P.centers.indexOf(a) - P.centers.indexOf(b));
+    const groups = gnames.map(g => { const ss = P.sources.filter(s => (s.center || '') === g), allOn = ss.every(s => s.on !== false);
+      return `<div class="rs-grp"><label class="rs-grp-h"><input type="checkbox" data-grp="${esc(g)}" ${allOn ? 'checked' : ''}><b>${esc(g || 'Chưa ghi trung tâm')}</b><span class="muted">${ss.length}</span></label><ul class="rs-srcs">${ss.map(item).join('')}</ul></div>`; }).join('');
+    const allOn = P.sources.length && P.sources.every(s => s.on !== false);
     box.innerHTML = `
       <section class="rs-col rs-left" aria-label="Nguồn">
         <div class="rs-proj"><select id="rsProj" aria-label="Khóa đang nghiên cứu">${projects.map(p => `<option value="${p.id}" ${p.id === P.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
           <button type="button" class="btn" id="rsNew" title="Khóa nghiên cứu mới">+</button><button type="button" class="btn" id="rsRen" title="Đổi tên">✎</button></div>
-        <button type="button" class="rs-ai ${hasKey ? 'ok' : ''}" id="rsAI">${hasKey ? '● Gemini miễn phí · ' + esc(AI.usage()) : '○ Kết nối AI (Gemini)'}</button>
-        <h3>Nguồn <span class="muted">${P.sources.filter(s => s.on !== false).length}/${P.sources.length} đang dùng</span></h3>
-        <ul class="rs-srcs">${srcList}</ul>
-        <details class="rs-add" ${(addOpen == null ? !P.sources.length : addOpen) ? 'open' : ''}><summary>+ Thêm nguồn</summary>
-          <label class="rs-f">Trung tâm<input id="rsCenter" list="rsCenters" placeholder="VD: Trung tâm A" value="${esc(LS.get('pls.rs.center', ''))}"></label><datalist id="rsCenters">${P.centers.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
-          <label class="rs-f">Lấy ngày<input id="rsDate" type="date" value="${today()}"></label>
-          <label class="btn rs-file">Chọn file (PDF, ảnh, Excel, txt)<input id="rsFiles" type="file" multiple accept=".pdf,image/*,.xlsx,.xls,.csv,.txt,.md"></label>
-          <div class="rs-row"><input id="rsLink" type="url" placeholder="Dán link trang khóa học…"><button type="button" class="btn" id="rsLinkAdd">Thêm</button></div>
-          <textarea id="rsPaste" rows="3" placeholder="…hoặc dán văn bản (mô tả khóa, lộ trình…)"></textarea><button type="button" class="btn" id="rsPasteAdd">Thêm văn bản</button>
-        </details>
+        <button type="button" class="rs-ai ${hasKey ? 'ok' : ''}" id="rsAI" title="Gemini miễn phí – bấm để đổi / gỡ key">${hasKey ? '● Gemini · ' + esc(AI.usage()) : '○ Kết nối AI (Gemini)'}</button>
+        <div class="rs-src-head"><h3>Nguồn <span class="muted">${P.sources.filter(s => s.on !== false).length}/${P.sources.length} đang dùng</span></h3></div>
+        <button type="button" class="rs-addbtn" id="rsAddBtn"><span>＋</span> Thêm nguồn</button>
+        ${P.sources.length ? `<label class="rs-all"><input type="checkbox" id="rsAll" ${allOn ? 'checked' : ''}> Chọn tất cả nguồn</label><div class="rs-groups">${groups}</div><p class="rs-hint muted">Kéo thả file vào cột này để thêm nhanh</p>`
+          : `<button type="button" class="rs-drop-empty" id="rsAddEmpty"><b>Thêm nguồn để bắt đầu</b><span>PDF, ảnh giáo trình, link trang khóa học, Excel, văn bản của các trung tâm khác</span><small>Kéo thả file vào đây</small></button>`}
       </section>
       <section class="rs-col rs-body" aria-label="Không gian làm việc">
         <div class="rs-head"><div class="rs-steps" role="tablist" aria-label="Các bước">${STEPS.map((x, i) => `<button type="button" role="tab" data-i="${i}" aria-selected="${i === cur}">${i + 1}. ${esc(x.name)}<small>${esc(x.sub)}</small></button>`).join('')}</div>
@@ -387,7 +452,6 @@
   function wire(box) {
     const q = s => box.querySelector(s), qa = s => box.querySelectorAll(s);
     q('#rsBack').onclick = () => { mode = 'intro'; render(); };
-    q('.rs-add').ontoggle = e => { addOpen = e.target.open; };
     qa('.rs-steps button').forEach(b => b.onclick = () => { cur = +b.dataset.i; render(); const x = box.querySelector(`.rs-steps button[data-i="${cur}"]`); if (x) x.focus(); });
     qa('[data-go]').forEach(li => li.onclick = () => { cur = Math.min(3, +li.dataset.go); render(); });
     q('#rsAI').onclick = keyDlg;
@@ -398,10 +462,14 @@
     qa('[data-view]').forEach(b => b.onclick = () => viewer(b.dataset.view));
     qa('.rs-cite').forEach(b => b.onclick = () => viewer(b.dataset.src));
     qa('[data-del]').forEach(b => b.onclick = () => { if (!confirm('Xóa nguồn ' + b.dataset.del + '?')) return; P.sources = P.sources.filter(s => s.id !== b.dataset.del); save(); render(); });
-    const meta = () => { const c = q('#rsCenter').value.trim(); LS.set('pls.rs.center', c); return [c, q('#rsDate').value]; };
-    q('#rsFiles').onchange = async e => { const [c, d] = meta(); const bad = await addFiles([...e.target.files], c, d); render(); if (bad.length) toast('Chưa đọc được: ' + bad.join(', ') + ' (Word → lưu thành PDF rồi thêm lại)', true); };
-    q('#rsLinkAdd').onclick = () => { const u = q('#rsLink').value.trim(); if (!/^https?:\/\//.test(u)) return toast('Link phải bắt đầu bằng http(s)://', true); const [c, d] = meta(); addSource({ kind: 'link', name: u.replace(/^https?:\/\/(www\.)?/, '').slice(0, 60), url: u, center: c, date: d }); render(); };
-    q('#rsPasteAdd').onclick = () => { const t = q('#rsPaste').value.trim(); if (!t) return; const [c, d] = meta(); addSource({ kind: 'text', name: t.split('\n')[0].slice(0, 50) || 'Văn bản dán', text: t, center: c, date: d }); render(); };
+    [q('#rsAddBtn'), q('#rsAddEmpty')].forEach(b => b && (b.onclick = () => addDlg()));
+    if (q('#rsAll')) q('#rsAll').onchange = e => { P.sources.forEach(s => { s.on = e.target.checked; }); save(); render(); };
+    qa('[data-grp]').forEach(c => c.onchange = () => { P.sources.filter(s => (s.center || '') === c.dataset.grp).forEach(s => { s.on = c.checked; }); save(); render(); });
+    // kéo thả file vào cột Nguồn → mở hộp Thêm nguồn với các file đó
+    const left = q('.rs-left');
+    left.ondragover = e => { if ([...(e.dataTransfer.types || [])].includes('Files')) { e.preventDefault(); left.classList.add('drag'); } };
+    left.ondragleave = e => { if (!left.contains(e.relatedTarget)) left.classList.remove('drag'); };
+    left.ondrop = e => { e.preventDefault(); left.classList.remove('drag'); const fs = [...e.dataTransfer.files]; if (fs.length) addDlg(fs); };
     qa('[data-delnote]').forEach(b => b.onclick = () => { P.notes = P.notes.filter(n => n.id !== b.dataset.delnote); save(); render(); });
     // trò chuyện
     const f = q('#rsAsk'); if (f) { const t = q('#rsQ'); const go = () => { const v = t.value.trim(); if (!v || busy) return; job('Đang trả lời', () => ask(v)); };
@@ -430,8 +498,10 @@
     qa('[data-open]').forEach(b => b.onclick = async () => { try { await openInSlide(+b.dataset.open); } catch (e) { toast(e.message, true); } });
   }
 
+  document.addEventListener('paste', e => { if (!document.body.classList.contains('research') || mode !== 'work' || document.querySelector('.rs-dlg')) return;
+    const fs = [...((e.clipboardData && e.clipboardData.files) || [])]; if (!fs.length) return; e.preventDefault(); addDlg(fs.map((f, i) => new File([f], f.name && f.name !== 'image.png' ? f.name : `Ảnh dán ${i + 1}.png`, { type: f.type }))); });
   // cổng lệnh (Claude / kiểm thử): PLS.research.*
   root.PLS_RESEARCH = { show: render, steps: STEPS, mode: m => { if (m) { mode = m; render(); } return mode; },
-    _: { AI, load: async () => { await load(); return P; }, proj: () => P, ask, compare, outline, lesson, mergeLesson, check, booksOut, exportXlsx, openInSlide, addSource, addFiles, step: i => { cur = i; render(); } } };
+    _: { AI, addDlg, summarize, load: async () => { await load(); return P; }, proj: () => P, ask, compare, outline, lesson, mergeLesson, check, booksOut, exportXlsx, openInSlide, addSource, addFiles, step: i => { cur = i; render(); } } };
   if (root.PLS) root.PLS.research = { state: () => P && { name: P.name, sources: P.sources.map(s => s.id + ' ' + s.name), centers: P.centers, outline: P.outline && P.outline.lessons.length, lessons: Object.keys(P.lessons) }, ask: q => job('Đang trả lời', () => ask(q)) };
 })(typeof window !== 'undefined' ? window : globalThis);
