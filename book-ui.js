@@ -9,11 +9,9 @@
   // Chưa tải xong mà đã đo → ngắt trang theo font dự phòng (sai chỗ xuống trang); in sớm → PDF dùng font dự phòng, mất phân cấp độ đậm.
   async function ensureFonts(brand) {
     if (!document.fonts || !document.fonts.load) return { ok: true, miss: [] };
-    const probe = document.createElement('div'); probe.dataset.brand = brand; probe.style.display = 'none'; document.body.appendChild(probe);
-    const cs = getComputedStyle(probe), fams = new Set();
-    ['--ff-font-doc-body', '--ff-font-doc-native', '--ff-font-heading', '--ff-font-native', '--ff-font-body'].forEach(v => { const f = (cs.getPropertyValue(v) || '').trim().replace(/^['"]|['"]$/g, ''); if (f) fams.add(f); });
-    probe.remove();
-    const jobs = []; fams.forEach(f => ['400', '600', '700', '900'].forEach(w => jobs.push(document.fonts.load(`${w} 16px "${f}"`, 'Aa Ăă Ơơ Ưư').then(r => r.length ? null : `${f} ${w}`).catch(() => `${f} ${w}`))));
+    const fams = new Set(B.bookFamilies ? B.bookFamilies(brand) : []);   // sách chỉ dùng MỘT họ font (Noto) – xem book.js
+    const SAMPLE = { 'Noto Sans JP': 'あ漢字', 'Noto Sans KR': '한국어', 'Noto Sans SC': '汉字' };
+    const jobs = []; fams.forEach(f => ['400', '500', '600', '700'].forEach(w => jobs.push(document.fonts.load(`${w} 16px "${f}"`, SAMPLE[f] || 'Aa Ăă Ơơ Ưư ə ʌ ŋ').then(r => r.length ? null : `${f} ${w}`).catch(() => `${f} ${w}`))));
     const miss = (await Promise.race([Promise.all(jobs), new Promise(r => setTimeout(() => r(['hết giờ chờ font']), 6000))])).filter(Boolean);
     await document.fonts.ready;
     S.fontMiss = [...fams].filter(f => !document.fonts.check(`400 16px "${f}"`));
