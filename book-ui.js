@@ -77,7 +77,7 @@
     const anchor = document.querySelector('.menuwrap') || $('#btnPdf'); if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor.nextSibling); b.onclick = () => exportAll(); }
   function setView(v) {
     S.view = v; const bk = v !== 'slide';
-    $('#canvas').hidden = bk; $('#bookView').hidden = !bk; document.querySelector('nav').style.display = bk ? 'none' : '';
+    $('#canvas').hidden = bk; $('#bookView').hidden = !bk; { const nb = $('#notesBox'); if (nb) nb.hidden = bk; } document.querySelector('nav').style.display = bk ? 'none' : '';
     $('#btnPdf').hidden = !bk; const mw = document.querySelector('.menuwrap'); if (mw) mw.style.display = bk ? 'none' : '';
     if ($('#view').value !== v) $('#view').value = v;
     if (bk) return build(); else return I.build();
