@@ -61,29 +61,33 @@
   // spec = { auto:'ex', kind:'mc'|'order'|'match'|'write', instruction, items:[{no, q, opts, ans, l, r, chunks}], section }
   function exPlans(spec) {
     const it = spec.items, n = it.length, sec = spec.section, ins = spec.instruction || '', out = [];
-    const plan = (label, cap, comp, fill1, max) => { const parts = chunk(it, cap); out.push({ label: `${label} (${parts.length} slide)`, slides: parts.map(p => ({ comp, data: head(fill1(p), sec) })), fill: n / (parts.length * cap), cover: 1, fillW: 20 }); };
+    const plan = (label, cap, comp, fill1, ansF) => { const parts = chunk(it, cap); out.push({ label: `${label} (${parts.length} slide)`, slides: parts.map(p => { const data = head(fill1(p), sec); return { comp, data, ans: ansF ? ansF(p) : undefined }; }), fill: n / (parts.length * cap), cover: 1, fillW: 20 }); };
+    // đáp án đi kèm slide (không phải ô chữ) → bộ hiệu ứng nhanh khoanh / nối / hiện đáp án đúng chỗ (fx-presets.js)
+    const ansMC = p => ({ kind: 'mc', marks: p.map((x, k) => x.ans && LET.includes(x.ans) && x.opts[LET.indexOf(x.ans)] ? (p.length > 1 ? `options_${k + 1}/` : '') + 'opt_' + x.ans : null) });
+    const ansTxt = p => ({ kind: 'text', items: p.map((x, k) => ({ at: `item_${k + 1}`, text: x.a || '' })) });
     if (spec.kind === 'mc') {
       const one = p => { const x = p[0], d = { instruction: ins, question: `${x.no}. ${x.q}` }; x.opts.forEach((o, i) => { if (o) { d[`opt_${LET[i]}.key`] = LET[i]; d[`opt_${LET[i]}.text`] = o; } }); return d; };
       const longQ = it.some(x => x.q.length > 70 || x.opts.some(o => o.length > 28));
-      plan('Mỗi slide 1 câu', 1, 'Slide/Exercise MC', one);
-      if (longQ) plan('Câu dài, 1 câu/slide', 1, 'Slide/Exercise MC Long', one);
+      plan('Mỗi slide 1 câu', 1, 'Slide/Exercise MC', one, ansMC);
+      if (longQ) plan('Câu dài, 1 câu/slide', 1, 'Slide/Exercise MC Long', one, ansMC);
       const duo = p => { const d = { instruction: ins }; p.forEach((x, k) => { d[`question_${k + 1}`] = `${x.no}. ${x.q}`; x.opts.forEach((o, i) => { if (o) { d[`options_${k + 1}/opt_${LET[i]}.key`] = LET[i]; d[`options_${k + 1}/opt_${LET[i]}.text`] = o; } }); }); return d; };
-      if (n >= 3 && n % 2) { const parts = chunk(it, 2); out.push({ label: `2 câu/slide, câu lẻ riêng (${parts.length} slide)`, slides: parts.map(p => p.length === 2 ? { comp: 'Slide/Exercise MC Duo', data: head(duo(p), sec) } : { comp: 'Slide/Exercise MC', data: head(one(p), sec) }), fill: 1, cover: 1, fillW: 20 }); }
-      if (n >= 2) plan('Mỗi slide 2 câu', 2, 'Slide/Exercise MC Duo', p => { const d = { instruction: ins }; p.forEach((x, k) => { d[`question_${k + 1}`] = `${x.no}. ${x.q}`; x.opts.forEach((o, i) => { if (o) { d[`options_${k + 1}/opt_${LET[i]}.key`] = LET[i]; d[`options_${k + 1}/opt_${LET[i]}.text`] = o; } }); }); return d; });
+      if (n >= 3 && n % 2) { const parts = chunk(it, 2); out.push({ label: `2 câu/slide, câu lẻ riêng (${parts.length} slide)`, slides: parts.map(p => p.length === 2 ? { comp: 'Slide/Exercise MC Duo', data: head(duo(p), sec), ans: ansMC(p) } : { comp: 'Slide/Exercise MC', data: head(one(p), sec), ans: ansMC(p) }), fill: 1, cover: 1, fillW: 20 }); }
+      if (n >= 2) plan('Mỗi slide 2 câu', 2, 'Slide/Exercise MC Duo', p => { const d = { instruction: ins }; p.forEach((x, k) => { d[`question_${k + 1}`] = `${x.no}. ${x.q}`; x.opts.forEach((o, i) => { if (o) { d[`options_${k + 1}/opt_${LET[i]}.key`] = LET[i]; d[`options_${k + 1}/opt_${LET[i]}.text`] = o; } }); }); return d; }, ansMC);
     } else if (spec.kind === 'order') {
       const fill = (p, max) => { const d = { instruction: ins }; p.forEach((x, k) => { d[`item_${k + 1}.no`] = String(x.no); for (let j = 0; j < max; j++) d[`item_${k + 1}.w${j + 1}`] = x.chunks[j] || ''; }); return d; };   // ô từ thừa = '' → ẩn
       const mx = Math.max(...it.map(x => x.chunks.length));
-      if (mx <= 4) plan('Câu ngắn, 3 câu/slide', 3, 'Slide/Exercise Sentence Order', p => fill(p, 4));
-      if (mx <= 10) plan('Câu dài, 3 câu/slide', 3, 'Slide/Sentence Order Long', p => fill(p, 10));
-      if (!out.length) plan('Viết lại câu', 5, 'Slide/Exercise Fill', p => { const d = { instruction: ins }; p.forEach((x, k) => { d[`item_${k + 1}.no`] = String(x.no); d[`item_${k + 1}.text`] = x.chunks.join(' / '); }); return d; });
+      if (mx <= 4) plan('Câu ngắn, 3 câu/slide', 3, 'Slide/Exercise Sentence Order', p => fill(p, 4), ansTxt);
+      if (mx <= 10) plan('Câu dài, 3 câu/slide', 3, 'Slide/Sentence Order Long', p => fill(p, 10), ansTxt);
+      if (!out.length) plan('Viết lại câu', 5, 'Slide/Exercise Fill', p => { const d = { instruction: ins }; p.forEach((x, k) => { d[`item_${k + 1}.no`] = String(x.no); d[`item_${k + 1}.text`] = x.chunks.join(' / '); }); return d; }, ansTxt);
     } else if (spec.kind === 'match') {
       const fill = p => { const d = { instruction: ins }; const rs = p.map((x, k) => ({ r: x.r, k })); const sh = rs.map((_, i) => rs[(i * 2 + 1) % rs.length]);   // xáo cố định (không ngẫu nhiên → dựng lại vẫn y vậy)
         if (new Set(sh.map(s => s.k)).size !== rs.length) sh.splice(0, sh.length, ...rs.slice().reverse());
         p.forEach((x, k) => { d[`l_${k + 1}.no`] = String(x.no); d[`l_${k + 1}.text`] = x.l; d[`r_${k + 1}.no`] = 'abcdefgh'[k]; d[`r_${k + 1}.text`] = sh[k].r; x.key = 'abcdefgh'[sh.findIndex(s => s.k === k)]; }); return d; };
-      plan('5 cặp/slide', 5, 'Slide/Exercise Match', fill);
-      if (n > 5) plan('8 cặp/slide', 8, 'Slide/Exercise Match 8', fill);
+      const ansM = p => ({ kind: 'match', pairs: p.map((x, k) => [`l_${k + 1}`, `r_${'abcdefgh'.indexOf(x.key) + 1}`, x.key]) });   // x.key vừa được fill() gán
+      plan('5 cặp/slide', 5, 'Slide/Exercise Match', fill, ansM);
+      if (n > 5) plan('8 cặp/slide', 8, 'Slide/Exercise Match 8', fill, ansM);
     } else {
-      plan('Viết, 5 câu/slide', 5, 'Slide/Exercise Fill', p => { const d = { instruction: ins }; p.forEach((x, k) => { d[`item_${k + 1}.no`] = String(x.no); d[`item_${k + 1}.text`] = x.q; }); return d; });
+      plan('Viết, 5 câu/slide', 5, 'Slide/Exercise Fill', p => { const d = { instruction: ins }; p.forEach((x, k) => { d[`item_${k + 1}.no`] = String(x.no); d[`item_${k + 1}.text`] = x.q; }); return d; }, ansTxt);
     }
     return out;
   }
@@ -101,9 +105,9 @@
       if (!cur || cur.part !== part) { cur = { auto: 'ex', kind, instruction: ins, section: sec, items: [], part }; groups.push(cur); }
       const x = { no: no++, q };
       if (kind === 'mc') { x.opts = LET.map(L => S(r[L])); const a = S(r['Đáp án']).toUpperCase().charAt(0); x.ans = a; keys.push([x.no, a && x.opts[LET.indexOf(a)] ? `${a}. ${x.opts[LET.indexOf(a)]}` : S(r['Đáp án'])]); }
-      else if (kind === 'order') { x.chunks = q.split(/\s*\/\s*/).filter(Boolean); keys.push([x.no, S(r['Đáp án'])]); }
+      else if (kind === 'order') { x.chunks = q.split(/\s*\/\s*/).filter(Boolean); x.a = S(r['Đáp án']); keys.push([x.no, x.a]); }
       else if (kind === 'match') { x.l = q.replace(/^nối\s*[:：]?\s*/i, ''); x.r = S(r['Đáp án']); x._key = true; keys.push([x.no, x]); }
-      else keys.push([x.no, S(r['Đáp án'])]);
+      else { x.a = S(r['Đáp án']); keys.push([x.no, x.a]); }
       cur.items.push(x);
     }
     groups.forEach(g => delete g.part);
