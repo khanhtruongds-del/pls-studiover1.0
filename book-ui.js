@@ -82,6 +82,7 @@
     $('#canvas').hidden = bk; $('#bookView').hidden = !bk; { const nb = $('#notesBox'); if (nb) nb.hidden = bk; } document.querySelector('nav').style.display = bk ? 'none' : '';
     $('#btnPdf').hidden = !bk; const mw = document.querySelector('.menuwrap'); if (mw) mw.style.display = bk ? 'none' : '';
     if ($('#view').value !== v) $('#view').value = v; if (S.segSync) S.segSync();
+    if (document.body.classList.contains('empty') && I.showEmpty) { I.showEmpty(); return Promise.resolve(); }   // chưa có bài → trang giới thiệu riêng của tab Slide / Sách
     if (bk) return build(); else return I.build();
   }
   $('#view').onchange = () => setView($('#view').value);
@@ -94,6 +95,8 @@
       b.onclick = () => { sel.value = o.value; sync(); setView(o.value); }; seg.appendChild(b); });
     sel.hidden = true; sel.after(seg); requestAnimationFrame(sync); if (window.ResizeObserver) new ResizeObserver(sync).observe(seg); else window.addEventListener('resize', sync); S.segSync = sync; }   // thanh trượt hiện ra (hết màn hình bắt đầu) → đo lại vị trí
   $('#btnPdf').onclick = () => exportPdf();
+  // đang ở tab Sách mà nhập Excel (trang giới thiệu → có bài) → dựng sách luôn
+  { let was = document.body.classList.contains('empty'); new MutationObserver(() => { const now = document.body.classList.contains('empty'); if (was && !now && B.SIZES[S.view]) setTimeout(build, 0); was = now; }).observe(document.body, { attributes: true, attributeFilter: ['class'] }); }
   // dựng lại sách khi đổi buổi / brand / font trong chế độ sách
   ['#buoi', '#brand', '#fontMode', '#device'].forEach(q => { const el = $(q); if (el) el.addEventListener('change', () => { if (B.SIZES[S.view]) setTimeout(build, 600); }); });
   Object.assign(P, { exportAll, async book(size) { await setView(size || 'A4'); return book ? { pages: book.pages.length, blocks: book.blocks, warns: book.warns } : 'Chưa có Excel'; }, exportPdf, view: setView, _book: () => book, fonts: () => ensureFonts(S.brand) });
