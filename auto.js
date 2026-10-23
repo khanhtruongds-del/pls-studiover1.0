@@ -61,7 +61,13 @@
   // spec = { auto:'ex', kind:'mc'|'order'|'match'|'write', instruction, items:[{no, q, opts, ans, l, r, chunks}], section }
   function exPlans(spec) {
     const it = spec.items, n = it.length, sec = spec.section, ins = spec.instruction || '', out = [];
-    const plan = (label, cap, comp, fill1, ansF) => { const parts = chunk(it, cap); out.push({ label: `${label} (${parts.length} slide)`, slides: parts.map(p => { const data = head(fill1(p), sec); return { comp, data, ans: ansF ? ansF(p) : undefined }; }), fill: n / (parts.length * cap), cover: 1, fillW: 20 }); };
+    const plan = (label, cap, comp, fill1, ansF) => { const parts = chunk(it, cap); out.push({ label: `${label} (${parts.length} slide)`, slides: parts.map(p => { const data = head(fill1(p), sec); return { comp, data, ans: ansF ? ansF(p) : undefined, notes: exNote(p) }; }), fill: n / (parts.length * cap), cover: 1, fillW: 20 }); };
+    // GHI CHÚ GIẢNG của slide bài tập: cách tổ chức theo dạng + đáp án và giải thích của đúng các câu trên slide
+    const TIP = { mc: 'Cho HV 30 giây chọn, giơ tay theo A/B/C/D; gọi 1 HV nói lý do rồi mới hiện đáp án.', order: 'HV sắp xếp vào vở, gọi 1 HV đọc cả câu; chú ý trật tự từ.', match: 'HV nối trong 1 phút, đổi vở cho bạn chấm chéo.', write: 'HV viết vào vở, gọi 2 HV đọc; sửa lỗi chung trên bảng.' };
+    const exNote = p => { const keyOf = x => spec.kind === 'mc' && x.ans && x.opts[LET.indexOf(x.ans)] ? `${x.ans}. ${x.opts[LET.indexOf(x.ans)]}` : spec.kind === 'match' ? `${x.l} – ${x.r}` : (x.a || '');
+      const lines = ['GIẢNG', '• ' + (ins || 'Làm bài tập.'), '• ' + (TIP[spec.kind] || TIP.write), '', 'ĐÁP ÁN', ...p.map(x => `• ${x.no}. ${keyOf(x)}${x.why ? ' – ' + x.why : ''}`)];
+      const warn = p.filter(x => x.why).length ? [] : ['', 'LƯU Ý', '• Excel chưa có cột "Giải thích" cho các câu này – GV tự nêu lý do chọn đáp án.'];
+      return lines.concat(warn).join('\n'); };
     // đáp án đi kèm slide (không phải ô chữ) → bộ hiệu ứng nhanh khoanh / nối / hiện đáp án đúng chỗ (fx-presets.js)
     const ansMC = p => ({ kind: 'mc', marks: p.map((x, k) => x.ans && LET.includes(x.ans) && x.opts[LET.indexOf(x.ans)] ? (p.length > 1 ? `options_${k + 1}/` : '') + 'opt_' + x.ans : null) });
     const ansTxt = p => ({ kind: 'text', items: p.map((x, k) => ({ at: `item_${k + 1}`, text: x.a || '' })) });
@@ -71,7 +77,7 @@
       plan('Mỗi slide 1 câu', 1, 'Slide/Exercise MC', one, ansMC);
       if (longQ) plan('Câu dài, 1 câu/slide', 1, 'Slide/Exercise MC Long', one, ansMC);
       const duo = p => { const d = { instruction: ins }; p.forEach((x, k) => { d[`question_${k + 1}`] = `${x.no}. ${x.q}`; x.opts.forEach((o, i) => { if (o) { d[`options_${k + 1}/opt_${LET[i]}.key`] = LET[i]; d[`options_${k + 1}/opt_${LET[i]}.text`] = o; } }); }); return d; };
-      if (n >= 3 && n % 2) { const parts = chunk(it, 2); out.push({ label: `2 câu/slide, câu lẻ riêng (${parts.length} slide)`, slides: parts.map(p => p.length === 2 ? { comp: 'Slide/Exercise MC Duo', data: head(duo(p), sec), ans: ansMC(p) } : { comp: 'Slide/Exercise MC', data: head(one(p), sec), ans: ansMC(p) }), fill: 1, cover: 1, fillW: 20 }); }
+      if (n >= 3 && n % 2) { const parts = chunk(it, 2); out.push({ label: `2 câu/slide, câu lẻ riêng (${parts.length} slide)`, slides: parts.map(p => p.length === 2 ? { comp: 'Slide/Exercise MC Duo', data: head(duo(p), sec), ans: ansMC(p), notes: exNote(p) } : { comp: 'Slide/Exercise MC', data: head(one(p), sec), ans: ansMC(p), notes: exNote(p) }), fill: 1, cover: 1, fillW: 20 }); }
       if (n >= 2) plan('Mỗi slide 2 câu', 2, 'Slide/Exercise MC Duo', p => { const d = { instruction: ins }; p.forEach((x, k) => { d[`question_${k + 1}`] = `${x.no}. ${x.q}`; x.opts.forEach((o, i) => { if (o) { d[`options_${k + 1}/opt_${LET[i]}.key`] = LET[i]; d[`options_${k + 1}/opt_${LET[i]}.text`] = o; } }); }); return d; }, ansMC);
     } else if (spec.kind === 'order') {
       const fill = (p, max) => { const d = { instruction: ins }; p.forEach((x, k) => { d[`item_${k + 1}.no`] = String(x.no); for (let j = 0; j < max; j++) d[`item_${k + 1}.w${j + 1}`] = x.chunks[j] || ''; }); return d; };   // ô từ thừa = '' → ẩn
@@ -103,7 +109,7 @@
       const m = q.match(/^([^:：]{6,70})[:：]\s*(.+)$/); if (m && (!ins || kind !== 'mc')) { ins = ins || m[1]; q = m[2]; } else if (m && kind === 'mc') { ins = ins || m[1]; q = m[2]; }
       const part = S(r['Phần']) + '|' + kind + '|' + ins;
       if (!cur || cur.part !== part) { cur = { auto: 'ex', kind, instruction: ins, section: sec, items: [], part }; groups.push(cur); }
-      const x = { no: no++, q };
+      const x = { no: no++, q, why: S(r['Giải thích']) };
       if (kind === 'mc') { x.opts = LET.map(L => S(r[L])); const a = S(r['Đáp án']).toUpperCase().charAt(0); x.ans = a; keys.push([x.no, a && x.opts[LET.indexOf(a)] ? `${a}. ${x.opts[LET.indexOf(a)]}` : S(r['Đáp án'])]); }
       else if (kind === 'order') { x.chunks = q.split(/\s*\/\s*/).filter(Boolean); x.a = S(r['Đáp án']); keys.push([x.no, x.a]); }
       else if (kind === 'match') { x.l = q.replace(/^nối\s*[:：]?\s*/i, ''); x.r = S(r['Đáp án']); x._key = true; keys.push([x.no, x]); }
@@ -135,7 +141,7 @@
       const size = Math.ceil(rows.length / n), parts = chunk(rows, size);
       const slides = parts.map((p, i) => { const d = { title: spec.title + (parts.length > 1 ? ` (${i + 1}/${parts.length})` : '') };
         p.forEach(([no, v], k) => { d[`a_${k + 1}.key`] = String(no); d[`a_${k + 1}.text`] = v; });
-        return { comp: 'Slide/Answer Key', layout: 'flow', data: head(d, spec.section) }; });
+        return { comp: 'Slide/Answer Key', layout: 'flow', data: head(d, spec.section), notes: 'GIẢNG\n• Chữa nhanh: HV tự chấm, giơ tay câu sai.\n• Chỉ giảng lại các câu nhiều HV sai.\n\nĐÁP ÁN\n' + p.map(([no, v]) => `• ${no}. ${v}`).join('\n') }; });
       // 1 trang: fill 1; mỗi trang thêm bị trừ điểm rõ để chỉ chia khi trang gộp bị tràn / chữ quá nhỏ
       out.push({ label: n === 1 ? 'Gộp 1 trang' : `Chia ${n} trang`, slides, fill: 1 / n, fillW: 30, cover: 1 });
     }
