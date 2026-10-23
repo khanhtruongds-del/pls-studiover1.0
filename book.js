@@ -5,6 +5,8 @@
 (function (root) {
   const S = v => (v == null ? '' : String(v)).trim();
   const chunk = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
+  // chia đều (33 từ / 8 dòng → 7·7·7·6·6, không để bảng cuối lẻ 1 dòng)
+  const chunkEven = (a, n) => { const k = Math.ceil(a.length / n) || 1, sz = Math.ceil(a.length / k); return chunk(a, sz); };
   const tab = (book, re) => { const k = Object.keys(book || {}).find(n => re.test(n)); return k ? book[k] : []; };
   const isB = (r, b) => Number(r['Buổi']) === Number(b);
   const onPDF = r => !/^không$/i.test(S(r['Lên PDF']));
@@ -36,7 +38,7 @@
 
     const vocab = tab(s6, /Từ vựng$/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Từ']));
     if (vocab.length) { SEC('Từ vựng');
-      for (const part of chunk(vocab, 8)) { const d = { 'row_0.c1': 'Từ', 'row_0.c2': 'Phiên âm', 'row_0.c3': 'Loại từ', 'row_0.c4': 'Nghĩa' }; part.forEach((r, i) => { d[`row_${i + 1}.c1`] = S(r['Từ']); d[`row_${i + 1}.c2`] = S(r['Phiên âm / cách đọc']); d[`row_${i + 1}.c3`] = S(r['Loại từ']); d[`row_${i + 1}.c4`] = S(r['Nghĩa']); }); B('Block/Vocab Table', d); } }
+      for (const [pi, part] of chunkEven(vocab, 8).entries()) { const d = { 'row_0.c1': 'Từ', 'row_0.c2': 'Phiên âm', 'row_0.c3': 'Loại từ', 'row_0.c4': 'Nghĩa' }; part.forEach((r, i) => { d[`row_${i + 1}.c1`] = S(r['Từ']); d[`row_${i + 1}.c2`] = S(r['Phiên âm / cách đọc']); d[`row_${i + 1}.c3`] = S(r['Loại từ']); d[`row_${i + 1}.c4`] = S(r['Nghĩa']); }); B('Block/Vocab Table', d); if (pi) out[out.length - 1].cont = true; } }
 
     const grammar = tab(s6, /Ngữ pháp$/).filter(r => isB(r, buoi) && onPDF(r));
     const gq = tab(s6, /Câu hỏi ngữ pháp/).filter(r => isB(r, buoi) && onPDF(r));
@@ -53,7 +55,7 @@
 
     const speak = tab(s6, /Mẫu câu/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Câu']));
     if (speak.length) { SEC('Mẫu câu giao tiếp');
-      for (const part of chunk(speak, 8)) { const d = { 'row_0.c1': 'Câu', 'row_0.c2': 'Nghĩa' }; part.forEach((r, i) => { d[`row_${i + 1}.c1`] = S(r['Câu']); d[`row_${i + 1}.c2`] = S(r['Nghĩa']); }); B('Block/Table N', d); } }
+      for (const [pi, part] of chunkEven(speak, 8).entries()) { const d = { 'row_0.c1': 'Câu', 'row_0.c2': 'Nghĩa' }; part.forEach((r, i) => { d[`row_${i + 1}.c1`] = S(r['Câu']); d[`row_${i + 1}.c2`] = S(r['Nghĩa']); }); B('Block/Table N', d); if (pi) out[out.length - 1].cont = true; } }
 
     const lis = tab(s6, /^S6-Nghe$/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Câu'])), lq = tab(s6, /Nghe câu hỏi/).filter(r => isB(r, buoi) && onPDF(r));
     if (lis.length || lq.length) { SEC('Nghe');
@@ -102,13 +104,61 @@
   }
 
   // ---------- xếp trang ----------
+  // ---------- KHUÔN TRÌNH BÀY SÁCH (người dùng chốt 23/10: phân cấp – lề – cỡ chữ phải thống nhất) ----------
+  // 1 thang cỡ chữ, 1 thang khoảng cách, mọi khối thẳng lề trái của vùng nội dung; khoảng cách giữa khối theo QUAN HỆ
+  // (mục lớn cách xa, các dòng cùng nhóm sát nhau) thay cho khoảng 14px đều mọi chỗ.
+  const BOOK_FS = { 22: 22, 14: 16, 12: 12.5, 11.5: 11, 10: 10.5, 8.5: 9, 8: 8 };          // cỡ mẫu Figma → cỡ sách (pt trên trang 595)
+  const BOOK_LH = fs => fs >= 16 ? 1.2 : fs >= 12 ? 1.3 : 1.45;                              // chữ Việt có dấu cần dòng thoáng
+  const KIND = c => /Lesson Header/.test(c) ? 'h1' : /Section (Bar|Heading)/.test(c) ? 'sec' : /Sub Heading/.test(c) ? 'sub' : /Structure/.test(c) ? 'str'
+    : /Paragraph/.test(c) ? 'p' : /Objectives/.test(c) ? 'obj' : /Exercise|Matching|Sentence Order|Pronunciation|True False/.test(c) ? 'ex' : 'box';
+  // khoảng cách TRƯỚC khối (px) theo khối liền trước
+  function SPACE(prev, cur) {
+    const a = prev ? KIND(prev.comp) : null, k = KIND(cur.comp);
+    if (!a) return 0;
+    if (cur.cont) return 0;   // bảng nối tiếp: liền với bảng trước như 1 bảng
+    if (k === 'sec') return 22;
+    if (a === 'sec') return 12;
+    if (k === 'sub') return 16;
+    if (a === 'sub') return 8;
+    if (k === 'str' && a === 'str') return 3;
+    if (k === 'p' && (a === 'p' || a === 'str')) return 6;
+    if (k === 'ex') return 14;
+    return 10;
+  }
+  function bookStyle(el, comp) {
+    // cỡ + dòng theo thang chung
+    el.querySelectorAll('[data-text]').forEach(t => { const f0 = parseFloat(t.dataset.fs) || 10; const f = BOOK_FS[f0] || f0;
+      if (/Section Bar|Lesson Header/.test(comp) && /^(letter|title|lesson)$/.test(t.dataset.n)) return;   // đã chỉnh riêng
+      t.style.fontSize = f + 'px'; t.style.lineHeight = String(BOOK_LH(f)); });
+    // tiêu đề con: bỏ khung viền, thanh màu bên trái (một kiểu duy nhất cho mọi tiêu đề con)
+    if (/Sub Heading/.test(comp)) { const bx = el.querySelector('[data-n="box"]'); el.style.height = 'auto';
+      if (bx) Object.assign(bx.style, { border: 'none', boxShadow: 'none', padding: '0 0 0 9px', borderLeft: '3px solid var(--color-primary, #406864)', borderRadius: '0' }); }
+    // cấu trúc: nhãn cột cố định 64px để các công thức thẳng hàng
+    if (/Structure/.test(comp)) { const l = el.querySelector('[data-n="label"]'); if (l) Object.assign(l.style, { flex: '0 0 64px', width: '64px' }); el.style.gap = '10px'; }
+    // bảng: chữ căn trái, đệm đều, cột đầu đậm vừa; bảng từ vựng chia cột theo nội dung
+    if (/Table/.test(comp)) {
+      el.querySelectorAll('[data-n$="_cell"]').forEach(c => { Object.assign(c.style, { justifyContent: 'flex-start', padding: '5px 8px' }); const t = c.querySelector('[data-text]'); if (t) t.style.textAlign = 'left'; });
+      el.querySelectorAll('[data-n^="row_"]').forEach(r => { if (!/^row_\d+$/.test(r.dataset.n)) return; r.style.height = 'auto'; const c1 = r.querySelector('[data-n="c1"]'); if (c1 && r.dataset.n !== 'row_0') c1.style.fontWeight = '600'; });
+      if (/Vocab Table/.test(comp)) { const W = { c1: 27, c2: 22, c3: 14, c4: 37 }; el.querySelectorAll('[data-n$="_cell"]').forEach(c => { const k = c.dataset.n.replace('_cell', ''); if (W[k]) c.style.flex = `${W[k]} 1 0px`; }); }
+    }
+    // hộp ví dụ: các câu cách đều 6px, đệm 10/14
+    if (/Example Box/.test(comp)) Object.assign(el.style, { padding: '10px 14px', gap: '6px' });
+    if (/Note Box/.test(comp)) { Object.assign(el.style, { padding: '9px 12px' }); const bar = el.querySelector('[data-n="bar"]'); if (bar) Object.assign(bar.style, { height: 'auto', alignSelf: 'stretch', flex: '0 0 3px' }); }
+    // bài tập: số câu cột 16px, câu cách nhau 5px, khối câu thụt bằng nhau
+    if (/Exercise|Matching|Sentence Order|True False/.test(comp)) { el.style.gap = '6px';
+      el.querySelectorAll('[data-n^="item_"]').forEach(it => { if (!/^item_\d+$/.test(it.dataset.n)) return; Object.assign(it.style, { gap: '8px', minHeight: '0', height: 'auto' }); const no = it.querySelector('[data-n$=".no"]'); if (no) Object.assign(no.style, { flex: '0 0 16px', width: '16px' }); }); }
+    if (/Dialogue/.test(comp)) el.style.gap = '5px';
+  }
+
   function paginate(list, opt) {
+    list.forEach((b, i) => { b.space = SPACE(list[i - 1], b); });
     const E = root.PLS_ENGINE, size = SIZES[opt.size] || SIZES.A4, stage = opt.stage, pages = [], warns = [];
     const running = opt.running || '';
     const newPage = () => { const n = pages.length + 1; const comp = size.page(n);
       const r = E.render({ comp, data: { running, page_no: opt.size === '19x27' && n % 2 === 0 ? '' : String(n), page_no_l: opt.size === '19x27' && n % 2 === 0 ? String(n) : '' } }, opt.brand);
-      stage.appendChild(r.host); const content = r.host.querySelector('[data-n="content"]'); [...content.children].forEach(c => c.remove());
+      stage.appendChild(r.host); const content = r.host.querySelector('[data-n="content"]'); [...content.children].forEach(c => c.remove()); content.style.gap = '0px'; content.style.rowGap = '0px';
       const pg = { host: r.host, content, n, blocks: [] }; pages.push(pg); return pg; };
+    const head0 = pg => { const f = pg.blocks[0]; const h0 = f && f.querySelector('[data-n="row_0"][data-cont]'); if (h0) h0.style.display = 'flex'; };   // bảng nối đứng đầu trang → hiện đầu bảng TRƯỚC khi đo
     const fits = pg => pg.content.scrollHeight <= pg.content.clientHeight + 1;
     const mk = b => { const r = E.render({ comp: b.comp, data: b.data }, opt.brand); const el = r.host.firstElementChild; el.style.width = 'auto'; el.style.alignSelf = 'stretch'; el.style.flex = '0 0 auto'; el.dataset.block = b.comp;
       // khối sách phải cao theo chữ (mẫu Figma để cao cố định theo chữ mẫu → chữ thật dài hơn đè lên khối sau)
@@ -131,10 +181,11 @@
       if (b.comp === 'Block/Lesson Header') { el.style.alignItems = 'stretch'; el.querySelectorAll('[data-n="lesson_box"], [data-n="title_box"]').forEach(x => { x.style.height = 'auto'; x.style.minHeight = '72px'; x.style.alignSelf = 'stretch'; }); }
       // ô đánh số không có dữ liệu (vd ex_6 của khối Phát âm khi chỉ có 5 ví dụ) → ẩn, khỏi lộ chữ mẫu Figma ("fünf")
       el.querySelectorAll('[data-text]').forEach(x => { const n = x.dataset.n || ''; const m = n.match(/^([a-z]+_)\d+\.[\w.]+$/); if (m && !(n in (b.data || {})) && keys.some(k => k.startsWith(m[1]))) { x.style.display = 'none'; x.dataset.hid = '1'; } });
+      bookStyle(el, b.comp); if (b.cont) { const h0 = el.querySelector('[data-n="row_0"]'); if (h0) { h0.style.display = 'none'; h0.dataset.cont = '1'; } } el.style.marginTop = (b.space || 0) + 'px'; el.dataset.space = String(b.space || 0);
       if (opt.prep) opt.prep(el); return el; };
     let pg = newPage();
     for (let i = 0; i < list.length; i++) {
-      const b = list[i], el = mk(b); pg.content.appendChild(el); pg.blocks.push(el);
+      const b = list[i], el = mk(b); pg.content.appendChild(el); pg.blocks.push(el); head0(pg);
       const heading = /(Heading|Section Bar)$/.test(b.comp);
       if (heading && i + 1 < list.length) {   // tiêu đề phải đi cùng khối sau nó
         // thử kèm mọi tiêu đề liền sau + khối nội dung đầu tiên; không vừa → tiêu đề (và tiêu đề ngay trước nó) sang trang mới
@@ -148,9 +199,10 @@
       if (!fits(pg)) { if (pg.blocks.length === 1) { warns.push(`Trang ${pg.n}: khối ${b.comp.replace('Block/', '')} cao hơn trang`); continue; }
         el.remove(); pg.blocks.pop(); const prev = pg.blocks[pg.blocks.length - 1]; let carry = [];
         if (prev && /(Heading|Section Bar)$/.test(prev.dataset.block)) { prev.remove(); pg.blocks.pop(); carry = [prev]; }   // tiêu đề mồ côi cuối trang → sang trang mới
-        pg = newPage(); carry.forEach(c => { pg.content.appendChild(c); pg.blocks.push(c); }); pg.content.appendChild(el); pg.blocks.push(el);
+        pg = newPage(); carry.forEach(c => { pg.content.appendChild(c); pg.blocks.push(c); }); pg.content.appendChild(el); pg.blocks.push(el); head0(pg);
         if (!fits(pg)) warns.push(`Trang ${pg.n}: khối ${b.comp.replace('Block/', '')} cao hơn trang`); }
     }
+    pages.forEach(pg => { const f = pg.content.firstElementChild; if (f) { f.style.marginTop = '0px'; const h0 = f.querySelector('[data-n="row_0"][data-cont]'); if (h0) h0.style.display = 'flex'; } });   // bảng nối sang trang mới: hiện lại đầu bảng   // khối đầu trang không cách trên
     return { pages, warns, size };
   }
 
