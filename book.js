@@ -207,10 +207,11 @@
     document.head.appendChild(st);
   }
 
-  // LỀ TRANG: lề ngoài rộng hơn mẫu (48 → 56), đầu trang có chữ chạy + kẻ mảnh, cách nội dung 14px; chân trang kẻ mảnh, số trang.
+  // LỀ TRANG: A4 lề trái = phải 56 (mẫu 48); 19×27 lề trái = phải 52 cả trang lẻ lẫn chẵn (mẫu 71 / 43 lệch nhau), đầu trang có chữ chạy + kẻ mảnh, cách nội dung 14px; chân trang kẻ mảnh, số trang.
   function pageFrame(host, size) {
     const pg = host.firstElementChild; if (!pg) return; const run = host.querySelector('[data-n="running"]'), foot = host.querySelector('[data-n="footer"]');
-    if (size !== '19x27') pg.style.padding = '40px 56px 28px 56px'; pg.style.gap = '0px';
+    // lề trong = lề ngoài (người dùng chốt 23/10: 19×27 trang lẻ / chẵn không được lệch lề vào – lề ra); số trang vẫn ở mép ngoài
+    pg.style.padding = size === '19x27' ? '38px 52px 26px 52px' : '40px 56px 28px 56px'; pg.style.gap = '0px';
     if (run) Object.assign(run.style, { paddingBottom: '6px', marginBottom: '16px', borderBottom: '0.5px solid var(--scale-200, #c8c8c8)', letterSpacing: '0.06em', fontWeight: '500' });
     if (foot) Object.assign(foot.style, { marginTop: '12px', paddingTop: '7px', borderTop: '0.5px solid var(--scale-200, #c8c8c8)' });
   }
