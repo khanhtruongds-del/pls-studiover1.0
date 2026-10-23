@@ -37,7 +37,13 @@
 
   // ---------- GEMINI ----------
   const AI = {
-    key: () => LS.get('pls.gemini.key', ''), model: () => LS.get('pls.gemini.model', ''), lite: () => LS.get('pls.gemini.lite', ''),
+    // 2 NHÀ CUNG CẤP, CẢ HAI MIỄN PHÍ (người dùng chốt 24/10: "tuyệt đối miễn phí"): Gemini (Google) · OpenRouter (chỉ model giá 0, đuôi :free)
+    prov: () => LS.get('pls.ai.prov', '') || (LS.get('pls.gemini.key', '') ? 'gemini' : LS.get('pls.or.key', '') ? 'openrouter' : 'gemini'),
+    name: () => AI.prov() === 'openrouter' ? 'OpenRouter' : 'Gemini',
+    key: () => AI.prov() === 'openrouter' ? LS.get('pls.or.key', '') : LS.get('pls.gemini.key', ''),
+    model: () => AI.prov() === 'openrouter' ? (AI.orList()[0] || '') : LS.get('pls.gemini.model', ''), lite: () => AI.prov() === 'openrouter' ? (AI.orList()[0] || '') : LS.get('pls.gemini.lite', ''),
+    orList: () => { try { return JSON.parse(LS.get('pls.or.models', '[]')) || []; } catch (e) { return []; } },
+    orVision: () => { try { return JSON.parse(LS.get('pls.or.vision', '[]')) || []; } catch (e) { return []; } },
     BASE: 'https://generativelanguage.googleapis.com/v1beta',
     // DÙNG MIỄN PHÍ (người dùng chốt 23/10): 2 model – Flash (tốt hơn, gói miễn phí ~20 lượt/ngày) cho Định hướng + Soạn bài,
     // Flash-Lite (~500 lượt/ngày) cho Trò chuyện + So sánh; model nào hết lượt (429) thì tự chuyển sang model còn lại.
@@ -59,12 +65,16 @@
       return { best: best || lite, lite: lite || best, tried };
     },
     DENIED: 'Google đã chặn tài khoản / project của key này (403 "denied access") – không phải lỗi của web. Cách sửa: (1) vào myaccount.google.com → Thông tin cá nhân, kiểm tra ngày sinh + xác minh tuổi (18+), rồi tạo key mới; (2) nếu vẫn bị, tạo key bằng một Gmail cá nhân khác (không dùng tài khoản trường .edu.vn) tại aistudio.google.com/apikey.',
-    day: () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }),   // lượt/ngày của Google reset theo giờ Mỹ (Thái Bình Dương)
-    use() { let u = {}; try { u = JSON.parse(LS.get('pls.gemini.use', '{}')); } catch (e) {} return u.day === AI.day() ? u : { day: AI.day(), m: {} }; },
-    count(model) { const u = AI.use(); u.m[model] = (u.m[model] || 0) + 1; LS.set('pls.gemini.use', JSON.stringify(u)); },
-    usage() { const u = AI.use(), b = AI.model(), l = AI.lite(); return b === l ? `${u.m[b] || 0} lượt hôm nay` : `Flash ${u.m[b] || 0} · Lite ${u.m[l] || 0} hôm nay`; },
-    async call({ sys, contents, json, tools, maxTokens, tier }) {
-      const key = AI.key(), best = AI.model(), lite = AI.lite() || best; if (!key || !best) throw new Error('Chưa kết nối Gemini – bấm "Kết nối AI" ở cột trái');
+    day: () => new Date().toLocaleDateString('en-CA', { timeZone: AI.prov() === 'openrouter' ? 'UTC' : 'America/Los_Angeles' }),   // Gemini reset theo giờ Mỹ, OpenRouter theo UTC (7h sáng VN)   // lượt/ngày của Google reset theo giờ Mỹ (Thái Bình Dương)
+    useKey: () => AI.prov() === 'openrouter' ? 'pls.or.use' : 'pls.gemini.use',
+    use() { let u = {}; try { u = JSON.parse(LS.get(AI.useKey(), '{}')); } catch (e) {} return u.day === AI.day() ? u : { day: AI.day(), m: {} }; },
+    count(model) { const u = AI.use(); u.m[model] = (u.m[model] || 0) + 1; LS.set(AI.useKey(), JSON.stringify(u)); },
+    usage() { const u = AI.use(), b = AI.model(), l = AI.lite();
+      if (AI.prov() === 'openrouter') return `${Object.values(u.m).reduce((a, x) => a + x, 0)}/50 lượt hôm nay`;
+      return b === l ? `${u.m[b] || 0} lượt hôm nay` : `Flash ${u.m[b] || 0} · Lite ${u.m[l] || 0} hôm nay`; },
+    async call(o) { return AI.prov() === 'openrouter' ? AI.callOR(o) : AI.callGem(o); },
+    async callGem({ sys, contents, json, tools, maxTokens, tier }) {
+      const key = AI.key(), best = AI.model(), lite = AI.lite() || best; if (!key || !best) throw new Error('Chưa kết nối AI – bấm "Kết nối AI" ở cột trái');
       const body = { contents, generationConfig: { temperature: 0.3, maxOutputTokens: maxTokens || 8192 } };
       if (sys) body.systemInstruction = { parts: [{ text: sys }] };
       if (tools && tools.length) body.tools = tools; else if (json) body.generationConfig.responseMimeType = 'application/json';
@@ -86,17 +96,80 @@
       if (denied && !daily) throw new Error(AI.DENIED);
       throw new Error(daily ? 'Hết lượt miễn phí của Gemini hôm nay – lượt mới có lại khoảng 14–15 giờ chiều (giờ Việt Nam)' : 'Gemini đang giới hạn lượt mỗi phút – đợi khoảng 1 phút rồi thử lại');
     },
+    // ---------- OPENROUTER (dự phòng miễn phí) ----------
+    OR: 'https://openrouter.ai/api/v1',
+    orHead: k => ({ 'Authorization': 'Bearer ' + k, 'Content-Type': 'application/json', 'HTTP-Referer': location.origin, 'X-Title': 'PLS Studio' }),
+    // chỉ lấy model GIÁ 0 (đuôi :free) – xếp model tốt cho tiếng Việt lên trước, bỏ model chuyên code / kiểm duyệt / nhạc / quá nhỏ
+    async pickOR(key) {
+      const r = await fetch(AI.OR + '/models'); if (!r.ok) throw new Error('Không mở được danh sách model OpenRouter (' + r.status + ')');
+      const all = ((await r.json()).data || []).filter(m => /:free$/.test(m.id) && m.pricing && +m.pricing.prompt === 0 && +m.pricing.completion === 0 && !+(m.pricing.request || 0))
+        .filter(m => !/safety|guard|code|coder|lyria|embed|tts|whisper|-xs\b|[-_/](0\.\d+|1|2|2\.6|3|4)b\b/i.test(m.id) && (m.architecture && (m.architecture.output_modalities || ['text']).includes('text')));
+      const PREF = [/gemma-4-31b/, /nemotron-3-ultra/, /deepseek/, /qwen3?.*(235|max|plus)/, /llama-4-maverick/, /inkling:free/, /nemotron-3\.5-super/, /nemotron-3-super/, /gemma-4-26b/, /gpt-oss-120b/, /mistral.*(medium|large|small-3)/, /glm/, /kimi/];
+      const rank = m => { const i = PREF.findIndex(re => re.test(m.id)); return (i < 0 ? 100 : i) * 1e7 - Math.min(m.context_length || 0, 2e6) / 1e3; };
+      const cands = all.sort((a, b) => rank(a) - rank(b));
+      if (!cands.length) throw new Error('OpenRouter hiện không có model miễn phí nào');
+      const test = async id => { const t = await fetch(AI.OR + '/chat/completions', { method: 'POST', headers: AI.orHead(key), body: JSON.stringify({ model: id, messages: [{ role: 'user', content: 'Trả lời đúng 1 chữ: OK' }], max_tokens: 20 }) });
+        let j = {}; try { j = await t.json(); } catch (e) {}
+        if (t.status === 401) { const e = new Error('Key OpenRouter không đúng – chép lại key (bắt đầu bằng sk-or-)'); e.fatal = true; throw e; }
+        if (t.ok && j.choices) return 'ok'; return t.status + (j.error && j.error.message ? ': ' + j.error.message : ''); };
+      const ok = [], tried = [];
+      for (const m of cands.slice(0, 6)) { const x = await test(m.id); tried.push(m.id + ' → ' + (x === 'ok' ? 'chạy được' : x)); if (x === 'ok') ok.push(m.id); if (ok.length >= 2) break; }
+      if (!ok.length) { const e = new Error(tried.some(t => /429/.test(t)) ? 'Các model miễn phí đang quá tải hoặc đã hết 50 lượt hôm nay – thử lại sau' : 'Chưa model miễn phí nào trả lời'); e.tried = tried; throw e; }
+      const rest = cands.map(m => m.id).filter(id => !ok.includes(id)).slice(0, 6);   // chưa thử: để dự phòng khi model chính quá tải
+      const vision = cands.filter(m => (m.architecture.input_modalities || []).includes('image')).map(m => m.id).slice(0, 4);
+      return { list: [...ok, ...rest, 'openrouter/free'], vision: [...vision, 'openrouter/free'], tried };
+    },
+    async callOR({ sys, contents, json, tools, maxTokens }) {
+      const key = AI.key(); if (!key || !AI.orList().length) throw new Error('Chưa kết nối AI – bấm "Kết nối AI" ở cột trái');
+      if (tools && tools.some(t => t.google_search)) throw new Error('need-search');
+      let img = false, pdf = false;
+      const msgs = (sys ? [{ role: 'system', content: sys }] : []).concat(contents.map(c => {
+        const ps = (c.parts || []).map(p => { if (p.text != null) return { type: 'text', text: p.text };
+          const d = p.inline_data; if (!d) return null;
+          if (/^image\//.test(d.mime_type)) { img = true; return { type: 'image_url', image_url: { url: `data:${d.mime_type};base64,${d.data}` } }; }
+          if (/pdf/.test(d.mime_type)) { pdf = true; return { type: 'file', file: { filename: 'nguon.pdf', file_data: `data:application/pdf;base64,${d.data}` } }; }
+          return null; }).filter(Boolean);
+        return { role: c.role === 'model' ? 'assistant' : 'user', content: ps.every(p => p.type === 'text') ? ps.map(p => p.text).join('\n') : ps }; }));
+      const order = [...new Set(img ? AI.orVision() : AI.orList())];
+      let daily = false, last = '';
+      for (const model of order) {
+        const body = { model, messages: msgs, max_tokens: Math.min(maxTokens || 8192, 16000), temperature: 0.3 };
+        if (pdf) body.plugins = [{ id: 'file-parser', pdf: { engine: 'pdf-text' } }];   // đọc chữ trong PDF – engine miễn phí (không dùng OCR trả phí)
+        if (json) body.response_format = { type: 'json_object' };
+        let r; try { r = await fetch(AI.OR + '/chat/completions', { method: 'POST', headers: AI.orHead(key), body: JSON.stringify(body) }); } catch (e) { last = e.message; continue; }
+        let d = {}; try { d = await r.json(); } catch (e) {}
+        const m = (d.error && (d.error.message || '')) + ((d.error && d.error.metadata && d.error.metadata.raw) ? ' ' + d.error.metadata.raw : '');
+        if (r.status === 401) throw new Error('Key OpenRouter không còn dùng được – vào openrouter.ai/keys tạo key mới');
+        if (r.status === 402) { last = 'model này cần trả phí – bỏ qua'; continue; }   // tuyệt đối không dùng model tốn tiền
+        if (!r.ok || d.error) { if (r.status === 429 && /per-day|per day|free-models-per-day/i.test(m)) { daily = true; break; } last = r.status + ' ' + m; if (json && r.status === 400 && /response_format|json/i.test(m)) { delete body.response_format; } continue; }
+        const c = (d.choices || [])[0], text = c && c.message && (c.message.content || '');
+        if (!text || !String(text).trim()) { last = 'model không trả lời'; continue; }
+        AI.count(model); AI.last = model;
+        return { text: String(text), cut: c.finish_reason === 'length', model, meta: null };
+      }
+      if (daily) throw new Error('Hết 50 lượt miễn phí hôm nay của OpenRouter – có lượt mới lúc 7 giờ sáng (giờ Việt Nam)');
+      if (img && !order.length) throw new Error('Không có model miễn phí nào đọc được ảnh lúc này');
+      throw new Error('Các model miễn phí đang bận – đợi 1 phút rồi thử lại' + (last ? ' (' + last.slice(0, 120) + ')' : ''));
+    },
     parse(t) { const s = String(t).trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
-      try { return JSON.parse(s); } catch (e) { const a = s.indexOf('{'), b = s.lastIndexOf('}'); if (a >= 0 && b > a) return JSON.parse(s.slice(a, b + 1)); throw new Error('Gemini trả về không đúng dạng dữ liệu – thử lại'); } }
+      try { return JSON.parse(s); } catch (e) { const a = s.indexOf('{'), b = s.lastIndexOf('}'); if (a >= 0 && b > a) return JSON.parse(s.slice(a, b + 1)); throw new Error('AI trả về không đúng dạng dữ liệu – thử lại'); } }
   };
   const b64 = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });
   const on = () => (P.sources || []).filter(s => s.on !== false);
+  // ĐỌC NỘI DUNG TRANG WEB (cho OpenRouter – không tự mở link được): r.jina.ai miễn phí, trả chữ của trang; lưu lại 3 ngày cho đỡ gọi
+  async function webText(s) {
+    if (s.web && s.webAt && Date.now() - s.webAt < 3 * 864e5) return s.web;
+    try { const r = await fetch('https://r.jina.ai/' + s.url, { headers: { 'X-Return-Format': 'markdown' } }); if (!r.ok) throw new Error(r.status);
+      s.web = (await r.text()).slice(0, 40000); s.webAt = Date.now(); save(); return s.web; }
+    catch (e) { return '(không đọc được trang này: ' + e.message + ')'; }
+  }
   // mọi nguồn đang chọn → các phần gửi kèm cho Gemini (PDF/ảnh gửi nguyên file, Gemini tự đọc cả bản scan)
   async function sourceParts(list) {
     const parts = []; let links = false;
     for (const s of (list || on())) {
       parts.push({ text: `=== NGUỒN ${s.id}: ${s.name} · Trung tâm: ${s.center || 'chưa ghi'} · Lấy ngày: ${s.date || '?'} · Loại: ${s.kind} ===` });
       if ((s.kind === 'pdf' || s.kind === 'image') && s.blob) parts.push({ inline_data: { mime_type: s.mime, data: await b64(s.blob) } });
+      else if (s.kind === 'link' && AI.prov() === 'openrouter') parts.push({ text: 'Trang web ' + s.url + ':\n' + (await webText(s)) + (s.text ? '\nNội dung dán kèm:\n' + s.text : '') });
       else if (s.kind === 'link') { links = true; parts.push({ text: 'Link (đọc nội dung trang này): ' + s.url + (s.text ? '\nNội dung dán kèm:\n' + s.text : '') }); }
       else parts.push({ text: s.text || '' });
     }
@@ -182,7 +255,7 @@
       'Xếp từ dễ đến khó, ngữ pháp sau dựa trên ngữ pháp trước; có buổi ôn tập / kiểm tra hợp lý. basis = fact khi căn cứ trực tiếp từ nguồn (ghi [S..] trong why). Chỉ trả JSON.';
     const r = await AI.call({ sys: SYS, contents: [{ role: 'user', parts: (parts.length ? parts : [{ text: '(chưa có nguồn – đề xuất theo kinh nghiệm, mọi buổi basis = inference)' }]).concat({ text: prompt }) }], json: true, tools, maxTokens: 16384, tier: 'best' });
     const d = AI.parse(r.text);
-    if (!Array.isArray(d.lessons) || !d.lessons.length) throw new Error('Gemini chưa trả khung khóa – thử lại');
+    if (!Array.isArray(d.lessons) || !d.lessons.length) throw new Error('AI chưa trả khung khóa – thử lại');
     const ver = ((P.outline && P.outline.ver) || 0) + 1;
     P.outline = { ver, at: Date.now(), locked: null, course: d.course || {}, lessons: d.lessons.map((l, i) => ({ buoi: +l.buoi || i + 1, name: l.name || '', type: l.type || 'Buổi học', goals: l.goals || '', topics: l.topics || '', vocab: Array.isArray(l.vocab) ? l.vocab.join(', ') : (l.vocab || ''), grammar: Array.isArray(l.grammar) ? l.grammar.join('; ') : (l.grammar || ''), skills: l.skills || '', basis: l.basis === 'fact' ? 'fact' : 'inference', why: l.why || '' })) };
     log('Khung khóa v' + ver);
@@ -208,7 +281,7 @@
       'Số lượng gợi ý: 12–18 từ vựng, 1–3 ngữ pháp mỗi cái 3–4 câu hỏi, 1 bài nghe 8–12 câu + 4 câu hỏi, 1 bài đọc 6–10 câu + 4 câu hỏi, 8–12 câu BTVN. Không dùng nội dung có bản quyền của nguồn nguyên văn; nguồn chỉ để tham khảo cách làm. Chỉ trả JSON.';
     const r = await AI.call({ sys: SYS.replace('Chỉ dùng thông tin trong các NGUỒN được gửi kèm (và trang web trong link nguồn).', 'Nguồn gửi kèm để tham khảo cách các trung tâm khác dạy; nội dung bài do bạn soạn mới.'),
       contents: [{ role: 'user', parts: parts.concat({ text: prompt }) }], json: true, tools, maxTokens: 32768, tier: 'best' });
-    if (r.cut) throw new Error('Bài quá dài, Gemini bị cắt giữa chừng – thử lại (hoặc giảm bớt nguồn)');
+    if (r.cut) throw new Error('Bài quá dài, AI bị cắt giữa chừng – thử lại (hoặc giảm bớt nguồn)');
     const d = AI.parse(r.text); mergeLesson(buoi, d); log('Soạn buổi ' + buoi);
   }
   // gộp kết quả 1 buổi vào bộ Excel của dự án: bỏ dòng cũ của buổi đó, giữ đúng cột mẫu, soát lỗi
@@ -329,8 +402,8 @@
     les: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><rect x="18" y="20" width="66" height="84" rx="3"/><path d="M30 40h42M30 52h42M30 64h28"/><path d="M70 96l30-30 10 10-30 30H70z" fill="currentColor" fill-opacity=".15"/></svg>' };
   function intro(box) {
     box.className = 'rs-intro'; const ok = !!AI.key();
-    box.innerHTML = `<section class="w-hero"><div><p class="hi">Nghiên cứu <span class="rs-badge ok">Chạy bằng Gemini</span></p><h1>Nghiên cứu, định hướng rồi soạn bài – trên cùng một chỗ</h1>
-        <div class="acts"><button type="button" class="btn primary" id="rsOpen">${ok ? 'Mở không gian nghiên cứu' : 'Bắt đầu'}</button><span class="muted">${ok ? 'Đã kết nối Gemini trên máy này' : 'Cần 1 Gemini API key (tạo miễn phí ở Google AI Studio)'}</span></div></div>
+    box.innerHTML = `<section class="w-hero"><div><p class="hi">Nghiên cứu <span class="rs-badge ok">Chạy bằng AI miễn phí</span></p><h1>Nghiên cứu, định hướng rồi soạn bài – trên cùng một chỗ</h1>
+        <div class="acts"><button type="button" class="btn primary" id="rsOpen">${ok ? 'Mở không gian nghiên cứu' : 'Bắt đầu'}</button><span class="muted">${ok ? 'Đã kết nối ' + AI.name() + ' trên máy này' : 'Cần 1 key AI miễn phí (Gemini hoặc OpenRouter)'}</span></div></div>
       <div class="w-cards"><div class="w-card c1"><span class="n">01</span><b>Nạp nguồn & hỏi</b><p>PDF, ảnh giáo trình, link, Excel của trung tâm khác – hỏi đáp có trích dẫn như NotebookLM</p>${SVG.chat}</div>
         <div class="w-card c2"><span class="n">02</span><b>So sánh & định hướng</b><p>Bảng so sánh có trích dẫn từng ô, rồi đề xuất khung khóa để bạn sửa và chốt</p>${SVG.src}</div>
         <div class="w-card c3"><span class="n">03</span><b>Soạn bài</b><p>Soạn từng buổi đúng cột Excel S5/S6, máy soát lỗi, mở thẳng ở tab Slide / Sách</p>${SVG.les}</div></div></section>
@@ -344,31 +417,55 @@
           <li class="dark"><span class="ic">⤓</span><b>Slide · Sách · Excel</b><span>Mở ở tab Slide / Sách, hoặc tải Excel S5 + S6 đúng mẫu</span></li>
         </ol></section>
         <section class="w-side"><p class="muted" style="margin:0 0 2px;font-size:12px">Trước khi bắt đầu</p><h2>Cần biết</h2><p class="sub">Mọi thứ lưu trên trình duyệt của máy này, không cần đăng nhập.</p>
-          <div class="item"><b>Gemini API key</b><span class="muted">Tạo ở aistudio.google.com → Get API key, dán 1 lần. Key chỉ lưu trên máy này.</span></div>
+          <div class="item"><b>1 key AI miễn phí</b><span class="muted">Gemini (aistudio.google.com) hoặc OpenRouter (openrouter.ai) – dán 1 lần, chỉ lưu trên máy này. Không tốn tiền.</span></div>
           <div class="item"><b>Gói miễn phí</b><span class="muted">Khoảng 20 lượt/ngày cho Định hướng + Soạn bài (Flash) và khoảng 500 lượt/ngày cho Trò chuyện + So sánh (Flash-Lite); model nào hết lượt thì tự chuyển sang model kia. Lượt mới có lại khoảng 14–15h chiều. Google được dùng dữ liệu gói miễn phí để cải thiện sản phẩm.</span></div>
           <div class="item"><b>AI có thể sai</b><span class="muted">Luôn bấm trích dẫn để kiểm; bài soạn phải được người dạy duyệt trước khi dùng.</span></div></section></div>`;
     box.querySelector('#rsOpen').onclick = () => { mode = 'work'; if (!AI.key()) keyDlg(); render(); };
   }
-  function keyDlg() {
-    let d = $('#rsKey'); if (d) d.remove();
-    d = document.createElement('div'); d.id = 'rsKey'; d.className = 'rs-dlg'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', 'Kết nối Gemini');
-    d.innerHTML = `<div class="rs-dlg-card"><h3>Kết nối Gemini</h3>
-      <ol><li>Mở <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>, đăng nhập Google.</li><li>Bấm <b>Create API key</b>, chép key.</li><li>Dán vào ô dưới rồi bấm Kết nối.</li></ol>
-      <input type="password" id="rsKeyIn" placeholder="Dán Gemini API key…" autocomplete="off" value="${esc(AI.key())}">
-      <p class="muted" id="rsKeyMsg">Key chỉ lưu trong trình duyệt của máy này. ${AI.model() ? 'Đang dùng: ' + esc(AI.model()) + (AI.lite() && AI.lite() !== AI.model() ? ' (soạn bài) + ' + esc(AI.lite()) + ' (hỏi đáp, so sánh)' : '') + ' · ' + AI.usage() : ''}</p>
-      <div class="rs-row"><button type="button" class="btn primary" id="rsKeyOk">Kết nối</button><button type="button" class="btn" id="rsKeyX">Đóng</button>${AI.key() ? '<button type="button" class="btn" id="rsKeyDel">Gỡ key</button>' : ''}</div></div>`;
+  function keyDlg(pv) {
+    let d = $('#rsKey'); if (d) d.remove(); pv = pv || AI.prov();
+    const G = pv === 'gemini', cur = AI.prov() === pv && AI.key();
+    d = document.createElement('div'); d.id = 'rsKey'; d.className = 'rs-dlg'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', 'Kết nối AI');
+    d.innerHTML = `<div class="rs-dlg-card"><h3>Kết nối AI <small class="muted" style="font-weight:400;font-size:13px">– cả hai đều miễn phí</small></h3>
+      <div class="rs-sub" role="tablist" aria-label="Nhà cung cấp AI"><button type="button" role="tab" data-pv="gemini" aria-selected="${G}">Gemini<small>Google · đọc PDF scan, tìm Google</small></button><button type="button" role="tab" data-pv="openrouter" aria-selected="${!G}">OpenRouter<small>Dự phòng · 50 lượt/ngày</small></button></div>
+      ${G ? `<ol><li>Mở <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>, đăng nhập Gmail cá nhân.</li><li>Bấm <b>Create API key</b>, chép key.</li><li>Dán vào ô dưới rồi bấm Kết nối.</li></ol>`
+        : `<ol><li>Mở <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">openrouter.ai/settings/keys</a>, đăng nhập bằng Google hoặc email.</li><li>Bấm <b>Create API Key</b>, đặt tên bất kỳ (Credit limit để trống hoặc 0), chép key <code>sk-or-…</code>.</li><li>Dán vào ô dưới rồi bấm Kết nối. <b>Không cần nạp tiền</b> – web chỉ dùng model giá 0 đ.</li></ol>`}
+      <input type="password" id="rsKeyIn" placeholder="Dán ${G ? 'Gemini' : 'OpenRouter'} API key…" autocomplete="off" value="${esc(G ? LS.get('pls.gemini.key', '') : LS.get('pls.or.key', ''))}">
+      <p class="muted" id="rsKeyMsg">Key chỉ lưu trong trình duyệt của máy này. ${cur ? 'Đang dùng: ' + esc(AI.model()) + ' · ' + AI.usage() : ''}</p>
+      <div class="rs-row"><button type="button" class="btn primary" id="rsKeyOk">Kết nối</button><button type="button" class="btn" id="rsKeyX">Đóng</button>${cur ? '<button type="button" class="btn" id="rsKeyDel">Gỡ key</button>' : ''}</div></div>`;
     document.body.appendChild(d); const inp = d.querySelector('#rsKeyIn'); inp.focus();
     const close = () => { d.remove(); render(); };
+    d.querySelectorAll('[data-pv]').forEach(b => b.onclick = () => keyDlg(b.dataset.pv));
     d.querySelector('#rsKeyX').onclick = close; d.onclick = e => { if (e.target === d) close(); }; d.onkeydown = e => { if (e.key === 'Escape') close(); };
-    if (d.querySelector('#rsKeyDel')) d.querySelector('#rsKeyDel').onclick = () => { LS.set('pls.gemini.key', null); LS.set('pls.gemini.model', null); LS.set('pls.gemini.lite', null); close(); };
+    if (d.querySelector('#rsKeyDel')) d.querySelector('#rsKeyDel').onclick = () => { if (G) { LS.set('pls.gemini.key', null); LS.set('pls.gemini.model', null); LS.set('pls.gemini.lite', null); } else { LS.set('pls.or.key', null); LS.set('pls.or.models', null); LS.set('pls.or.vision', null); } LS.set('pls.ai.prov', null); close(); };
+    const fail = (msg, e) => { msg.innerHTML = esc(e.message) + (e.tried && e.tried.length ? '<small style="display:block;margin-top:6px;opacity:.75">Đã thử: ' + e.tried.map(esc).join('<br>') + '</small>' : ''); };
     d.querySelector('#rsKeyOk').onclick = async () => { const k = inp.value.trim(), msg = d.querySelector('#rsKeyMsg'); if (!k) return; msg.textContent = 'Đang kiểm tra key và thử từng model…';
-      try { const m = await AI.pick(k); LS.set('pls.gemini.key', k); LS.set('pls.gemini.model', m.best); LS.set('pls.gemini.lite', m.lite); msg.textContent = 'Đã kết nối: ' + m.best + (m.lite !== m.best ? ' + ' + m.lite : ''); setTimeout(close, 1200); } catch (e) { msg.innerHTML = esc(e.message) + (e.tried && e.tried.length ? '<small style="display:block;margin-top:6px;opacity:.75">Đã thử: ' + e.tried.map(esc).join('<br>') + '</small>' : ''); } };
+      if (G) { try { const m = await AI.pick(k); LS.set('pls.gemini.key', k); LS.set('pls.gemini.model', m.best); LS.set('pls.gemini.lite', m.lite); LS.set('pls.ai.prov', 'gemini'); msg.textContent = 'Đã kết nối: ' + m.best + (m.lite !== m.best ? ' + ' + m.lite : ''); setTimeout(close, 1200); } catch (e) { fail(msg, e); } return; }
+      if (!/^sk-or-/.test(k)) { msg.textContent = 'Key OpenRouter phải bắt đầu bằng sk-or-'; return; }
+      try { const m = await AI.pickOR(k); LS.set('pls.or.key', k); LS.set('pls.or.models', JSON.stringify(m.list)); LS.set('pls.or.vision', JSON.stringify(m.vision)); LS.set('pls.ai.prov', 'openrouter'); msg.textContent = 'Đã kết nối: ' + m.list[0] + ' (+ ' + (m.list.length - 1) + ' model miễn phí dự phòng)'; setTimeout(close, 1500); } catch (e) { fail(msg, e); } };
   }
-  // TÌM NGUỒN TRÊN WEB (kiểu "Discover" của NotebookLM): Gemini + Google Search → danh sách trang web để chọn rồi thêm thành nguồn link
+  // TÌM WEB MIỄN PHÍ (không cần Google): DuckDuckGo đọc qua r.jina.ai → kết quả thật, có tiêu đề + mô tả; dùng cho OpenRouter, và dự phòng khi Gemini lỗi
+  async function webSearch(q) {
+    const r = await fetch('https://r.jina.ai/https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q) + '&kl=vn-vi', { headers: { 'X-Return-Format': 'markdown' } });
+    if (!r.ok) throw new Error('Chưa tìm được trên web (' + r.status + ') – thử lại sau ít phút hoặc dán link trực tiếp');
+    const t = await r.text(), out = [], seen = new Set();
+    const real = u => { const m = u.match(/[?&]uddg=([^&)]+)/); try { return m ? decodeURIComponent(m[1]) : u; } catch (e) { return u; } };
+    for (const blk of t.split(/\n## /).slice(1)) {
+      const h = blk.match(/^\[([^\]]+)\]\(([^)\s]+)/); if (!h || /duckduckgo\.com\/y\.js|ad_domain|ad_provider/.test(h[2])) continue;   // bỏ quảng cáo
+      const url = real(h[2]); if (!/^https?:\/\//.test(url) || seen.has(url)) continue; seen.add(url);
+      const sn = (blk.split('\n').map(x => x.trim()).filter(x => /^\[[^!]/.test(x) && x.length > 80).pop() || '').replace(/^\[/, '').replace(/\]\([^)]*\)\s*$/, '').replace(/\*\*/g, '');
+      const title = h[1].replace(/\*\*/g, ''), cm = title.match(/\s[-|–]\s([^-|–]{2,40})$/);
+      out.push({ title, url, center: cm ? cm[1].trim() : '', snippet: sn === title ? '' : sn.slice(0, 160) });
+      if (out.length >= 10) break;
+    }
+    return out;
+  }
   async function discover(q) {
+    if (AI.prov() === 'openrouter') return webSearch(q);
     const prompt = `Tìm trên web 6–10 trang có thông tin hữu ích cho việc nghiên cứu: "${q}". Ưu tiên trang chính thức của các trung tâm ngoại ngữ / nhà xuất bản / tổ chức thi ở Việt Nam và quốc tế (lộ trình, số buổi, giáo trình, học phí, khung năng lực).\n` +
       'Chỉ dùng URL thật lấy từ kết quả tìm kiếm, không tự đặt URL. Trả JSON: {"results":[{"title":"...","url":"https://...","center":"<tên trung tâm / tổ chức>","snippet":"<1 câu: trang này có gì đáng dùng>"}]}. Chỉ trả JSON.';
-    const r = await AI.call({ sys: 'Bạn là trợ lý tìm tài liệu cho người làm chương trình học ngoại ngữ ở Việt Nam. Viết tiếng Việt.', contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ google_search: {} }], maxTokens: 4096, tier: 'lite' });
+    let r; try { r = await AI.call({ sys: 'Bạn là trợ lý tìm tài liệu cho người làm chương trình học ngoại ngữ ở Việt Nam. Viết tiếng Việt.', contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ google_search: {} }], maxTokens: 4096, tier: 'lite' }); }
+    catch (e) { return webSearch(q); }   // Gemini lỗi / hết lượt → vẫn tìm được bằng DuckDuckGo
     let out = []; try { out = (AI.parse(r.text).results || []).filter(x => x && /^https?:\/\//.test(x.url || '')); } catch (e) {}
     const chunks = ((r.meta && r.meta.groundingChunks) || []).map(c => c.web).filter(Boolean);   // không đọc được JSON → dùng danh sách trang Google trả kèm
     if (!out.length) out = chunks.map(w => ({ title: w.title || w.uri, url: w.uri, center: w.title || '', snippet: '' }));
@@ -380,13 +477,13 @@
     const pend = [...(initFiles || [])];
     d = document.createElement('div'); d.id = 'rsAddDlg'; d.className = 'rs-dlg'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', 'Thêm nguồn');
     d.innerHTML = `<div class="rs-dlg-card rs-add-card"><div class="rs-row"><h3 style="flex:1">Thêm nguồn</h3><button type="button" class="rs-x" id="aX" aria-label="Đóng">×</button></div>
-      <p class="muted" style="margin:0">Chỉ cần thả file hoặc tìm trên web – Gemini tự đọc trung tâm, tiêu đề, ngày đăng trong từng nguồn (sửa lại được khi bấm vào nguồn).</p>
+      <p class="muted" style="margin:0">Chỉ cần thả file hoặc tìm trên web – AI tự đọc trung tâm, tiêu đề, ngày đăng trong từng nguồn (sửa lại được khi bấm vào nguồn).</p>
       <label class="rs-drop" id="aDrop"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
         <b>Kéo thả file vào đây hoặc bấm để chọn</b><span>PDF (cả bản scan), ảnh giáo trình, Excel / CSV, txt · tối đa 15 MB/file · dán ảnh bằng Ctrl+V</span>
         <input id="aFiles" type="file" multiple accept=".pdf,image/*,.xlsx,.xls,.csv,.txt,.md" hidden></label>
       <ul class="rs-pend" id="aPend"></ul>
       <div class="rs-find"><label class="rs-f">Tìm nguồn trên web hoặc dán link<span class="rs-row"><input id="aQ" placeholder="VD: lộ trình TOEIC cho người mất gốc · hoặc dán https://…" autocomplete="off"><button type="button" class="btn" id="aFind">Tìm</button></span></label>
-        ${AI.key() ? '' : '<small class="muted">Chưa kết nối Gemini: vẫn dán link được, muốn tự tìm thì bấm "Kết nối AI"</small>'}<ul class="rs-found" id="aFound"></ul></div>
+        <ul class="rs-found" id="aFound"></ul></div>
       <div class="rs-row"><span class="muted" id="aCount"></span><span style="flex:1"></span><button type="button" class="btn" id="aCancel">Hủy</button><button type="button" class="btn primary" id="aOk">Thêm nguồn</button></div></div>`;
     document.body.appendChild(d);
     const q = x => d.querySelector(x), close = () => { d.remove(); document.removeEventListener('paste', onPaste, true); };
@@ -401,8 +498,8 @@
       count(); };
     const doFind = async () => { const v = q('#aQ').value.trim(); if (!v) return;
       const us = v.split(/\s+/).filter(x => /^https?:\/\/\S+$/.test(x)); if (us.length) { us.forEach(u => { if (!urls.includes(u)) urls.push(u); }); q('#aQ').value = ''; q('#aFind').textContent = 'Tìm'; drawFound(); return; }   // dán link → thêm thẳng
-      if (!AI.key()) { q('#aFound').innerHTML = '<li class="muted">Cần kết nối Gemini để tự tìm – hoặc dán link trực tiếp.</li>'; return; } const b = q('#aFind'); b.disabled = true; b.textContent = 'Đang tìm…'; q('#aFound').innerHTML = '<li class="muted">Gemini đang tìm trên Google…</li>';
-      try { found = (await discover(v)).map(x => Object.assign(x, { on: true })); if (!found.length) q('#aFound').innerHTML = '<li class="muted">Không tìm thấy trang phù hợp – thử cách hỏi khác.</li>'; else drawFound(); }
+      const b = q('#aFind'); b.disabled = true; b.textContent = 'Đang tìm…'; q('#aFound').innerHTML = '<li class="muted">Đang tìm trên web…</li>';
+      try { found = (await (AI.key() ? discover(v) : webSearch(v))).map(x => Object.assign(x, { on: true })); if (!found.length) q('#aFound').innerHTML = '<li class="muted">Không tìm thấy trang phù hợp – thử cách hỏi khác.</li>'; else drawFound(); }
       catch (e) { q('#aFound').innerHTML = `<li class="muted">${esc(e.message)}</li>`; } b.disabled = false; b.textContent = 'Tìm'; count(); };
     q('#aFind').onclick = doFind; q('#aQ').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); doFind(); } };
     q('#aQ').oninput = () => { q('#aFind').textContent = /^https?:\/\//.test(q('#aQ').value.trim()) ? 'Thêm link' : 'Tìm'; };
@@ -421,7 +518,7 @@
       links().forEach(u => addSource({ kind: 'link', name: u.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '').slice(0, 70), url: u, center: '', date: dt, autoName: true }));
       const n = pend.length - bad.length + links().length + picked().length;
       close(); save(); render();
-      toast(bad.length ? `Đã thêm ${n} nguồn · chưa đọc được: ${bad.join(', ')} (Word → lưu thành PDF rồi thêm lại)` : `Đã thêm ${n} nguồn${AI.key() ? ' · Gemini đang tóm tắt từng nguồn' : ''}`, !!bad.length);
+      toast(bad.length ? `Đã thêm ${n} nguồn · chưa đọc được: ${bad.join(', ')} (Word → lưu thành PDF rồi thêm lại)` : `Đã thêm ${n} nguồn${AI.key() ? ' · AI đang tóm tắt từng nguồn' : ''}`, !!bad.length);
     };
     drawPend(); q('#aQ').focus();
   }
@@ -433,7 +530,7 @@
     d.innerHTML = `<div class="rs-dlg-card wide"><div class="rs-row"><h3 style="flex:1">${esc(s.id)} · ${esc(s.name)}</h3><button type="button" class="rs-x" id="rsViewX2" aria-label="Đóng">×</button></div>
       <div class="rs-add-meta three"><label class="rs-f">Tên nguồn<input id="vName" value="${esc(s.name)}"></label><label class="rs-f">Trung tâm<input id="vCenter" list="vCenters" value="${esc(s.center || '')}"></label><label class="rs-f">Lấy ngày<input id="vDate" type="date" value="${esc(s.date || '')}"></label></div>${s.pubDate ? `<p class="muted" style="margin:0;font-size:12px">Ngày đăng / cập nhật ghi trong nguồn: ${esc(s.pubDate)}</p>` : ''}
       <datalist id="vCenters">${P.centers.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
-      <div class="rs-guide"><b>Tóm tắt nguồn</b>${s.summary ? `<div class="rs-md">${md(s.summary)}</div>` : `<p class="muted">${s.sumState === 'run' || s.sumState === 'wait' ? 'Gemini đang tóm tắt…' : s.sumState === 'err' ? 'Chưa tóm tắt được: ' + esc(s.sumErr || '') : 'Chưa có tóm tắt.'}</p>`}
+      <div class="rs-guide"><b>Tóm tắt nguồn</b>${s.summary ? `<div class="rs-md">${md(s.summary)}</div>` : `<p class="muted">${s.sumState === 'run' || s.sumState === 'wait' ? 'AI đang tóm tắt…' : s.sumState === 'err' ? 'Chưa tóm tắt được: ' + esc(s.sumErr || '') : 'Chưa có tóm tắt.'}</p>`}
         <button type="button" class="rs-mini" id="vSum" ${AI.key() ? '' : 'disabled'}>${s.summary ? 'Tóm tắt lại' : 'Tóm tắt nguồn này'}</button></div>
       <div class="rs-view-body">${s.kind === 'pdf' ? `<iframe src="${url}" title="${esc(s.name)}"></iframe>` : s.kind === 'image' ? `<img src="${url}" alt="${esc(s.name)}">` : s.kind === 'link' ? `<p><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a></p>${s.text ? '<pre>' + esc(s.text) + '</pre>' : ''}` : '<pre>' + esc((s.text || '').slice(0, 20000)) + '</pre>'}</div>
       <div class="rs-row"><button type="button" class="btn" id="rsViewX">Đóng</button></div></div>`;
@@ -462,13 +559,13 @@
         <button type="button" class="rs-x" data-del="${s.id}" aria-label="Xóa nguồn ${esc(s.id)}">×</button></li>`;
     const gnames = [...new Set(P.sources.map(s => s.center || ''))].sort((a, b) => !a - !b || P.centers.indexOf(a) - P.centers.indexOf(b));
     const groups = gnames.map(g => { const ss = P.sources.filter(s => (s.center || '') === g), allOn = ss.every(s => s.on !== false);
-      return `<div class="rs-grp"><label class="rs-grp-h"><input type="checkbox" data-grp="${esc(g)}" ${allOn ? 'checked' : ''}><b>${esc(g || (ss.some(s => s.sumState === 'wait' || s.sumState === 'run') ? 'Gemini đang đọc trung tâm…' : 'Chưa rõ trung tâm'))}</b><span class="muted">${ss.length}</span></label><ul class="rs-srcs">${ss.map(item).join('')}</ul></div>`; }).join('');
+      return `<div class="rs-grp"><label class="rs-grp-h"><input type="checkbox" data-grp="${esc(g)}" ${allOn ? 'checked' : ''}><b>${esc(g || (ss.some(s => s.sumState === 'wait' || s.sumState === 'run') ? 'AI đang đọc trung tâm…' : 'Chưa rõ trung tâm'))}</b><span class="muted">${ss.length}</span></label><ul class="rs-srcs">${ss.map(item).join('')}</ul></div>`; }).join('');
     const allOn = P.sources.length && P.sources.every(s => s.on !== false);
     box.innerHTML = `
       <section class="rs-col rs-left" aria-label="Nguồn">
         <div class="rs-proj"><select id="rsProj" aria-label="Khóa đang nghiên cứu">${projects.map(p => `<option value="${p.id}" ${p.id === P.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
           <button type="button" class="btn" id="rsNew" title="Khóa nghiên cứu mới">+</button><button type="button" class="btn" id="rsRen" title="Đổi tên">✎</button></div>
-        <button type="button" class="rs-ai ${hasKey ? 'ok' : ''}" id="rsAI" title="Gemini miễn phí – bấm để đổi / gỡ key">${hasKey ? '● Gemini · ' + esc(AI.usage()) : '○ Kết nối AI (Gemini)'}</button>
+        <button type="button" class="rs-ai ${hasKey ? 'ok' : ''}" id="rsAI" title="AI miễn phí – bấm để đổi Gemini / OpenRouter">${hasKey ? '● ' + AI.name() + ' · ' + esc(AI.usage()) : '○ Kết nối AI (miễn phí)'}</button>
         <div class="rs-src-head"><h3>Nguồn <span class="muted">${P.sources.filter(s => s.on !== false).length}/${P.sources.length} đang dùng</span></h3></div>
         <button type="button" class="rs-addbtn" id="rsAddBtn"><span>＋</span> Thêm nguồn</button>
         ${P.sources.length ? `<label class="rs-all"><input type="checkbox" id="rsAll" ${allOn ? 'checked' : ''}> Chọn tất cả nguồn</label><div class="rs-groups">${groups}</div><p class="rs-hint muted">Kéo thả file vào cột này để thêm nhanh</p>`
@@ -476,7 +573,7 @@
       </section>
       <section class="rs-col rs-body" aria-label="Không gian làm việc">
         <h2 class="rs-ptitle">${esc(STEPS[cur].name)} <small>${esc(STEPS[cur].sub)}</small></h2>
-        ${busy ? `<div class="rs-busy" role="status"><span class="rs-spin"></span>${esc(busy)}… Gemini đang đọc nguồn, có thể mất 10–60 giây</div>` : ''}
+        ${busy ? `<div class="rs-busy" role="status"><span class="rs-spin"></span>${esc(busy)}… AI đang đọc nguồn, có thể mất 10–60 giây</div>` : ''}
         ${tmsg ? `<div class="rs-toast ${tmsg.bad ? 'bad' : ''}" role="alert">${esc(tmsg.t)}</div>` : ''}
         <div class="rs-pane">${[paneChat, paneCmp, paneDir, paneLes][cur]()}</div>
       </section>
@@ -499,11 +596,11 @@
     const cell = (c, k) => { const x = P.cells[c + '||' + k]; if (!x) return '<td class="rs-na">–</td>';
       return `<td class="${x.kind === 'fact' ? '' : 'rs-na'}" ${x.kind === 'fact' ? `title="${esc('“' + x.q + '”')}"` : ''}>${esc(x.v)}${x.kind === 'fact' ? ` <button type="button" class="rs-cite" data-src="${esc(x.src)}" title="${esc('“' + x.q + '”')}">${esc(x.src)}${x.page ? ' · tr.' + esc(x.page) : ''}</button>` : ''}</td>`; };
     return `<div class="rs-bar"><button type="button" class="btn primary" id="rsCmp" ${busy || !P.sources.length ? 'disabled' : ''}>${P.cmpAt ? 'Làm lại bảng so sánh' : 'Lập bảng so sánh'}</button>
-        <span class="muted">${P.cmpAt ? 'Lập lúc ' + new Date(P.cmpAt).toLocaleString('vi-VN') : 'Gemini đọc nguồn và điền từng ô, có trích dẫn'}</span></div>
+        <span class="muted">${P.cmpAt ? 'Lập lúc ' + new Date(P.cmpAt).toLocaleString('vi-VN') : 'AI đọc nguồn và điền từng ô, có trích dẫn'}</span></div>
       ${C.length ? `<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Tiêu chí</th>${C.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
         <tbody>${P.criteria.map(k => `<tr><th>${esc(k)} <button type="button" class="rs-x" data-delcrit="${esc(k)}" aria-label="Bỏ tiêu chí ${esc(k)}">×</button></th>${C.map(c => cell(c, k)).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="muted">Ghi tên trung tâm khi thêm nguồn để bảng chia cột theo trung tâm.</p>'}
       <div class="rs-row"><input id="rsCrit" placeholder="Thêm tiêu chí…"><button type="button" class="btn" id="rsCritAdd">Thêm</button></div>
-      ${(P.cmpSuggest || []).length ? `<p class="muted">Gemini gợi ý thêm: ${P.cmpSuggest.map(s => `<button type="button" class="rs-chip" data-crit="${esc(s)}">+ ${esc(s)}</button>`).join(' ')}</p>` : ''}
+      ${(P.cmpSuggest || []).length ? `<p class="muted">AI gợi ý thêm: ${P.cmpSuggest.map(s => `<button type="button" class="rs-chip" data-crit="${esc(s)}">+ ${esc(s)}</button>`).join(' ')}</p>` : ''}
       ${P.cmpSummary ? `<div class="rs-sum"><b>Nhận định</b><div class="rs-md">${md(P.cmpSummary)}</div><button type="button" class="rs-mini" id="rsSumNote">Lưu ghi chú</button></div>` : ''}`;
   }
   function paneDir() {
@@ -540,7 +637,7 @@
         <button type="button" class="btn" id="rsRevAll" ${busy || !unrev ? 'disabled' : ''}>AI soát ${unrev ? unrev + ' buổi chưa soát' : 'xong hết'}</button>
         <button type="button" class="btn" id="rsXlsx" ${n ? '' : 'disabled'}>Tải Excel S5 + S6</button><span class="muted">${n}/${O.lessons.length} buổi · khung v${O.locked || O.ver}</span></div>
       <div class="rs-tablewrap"><table class="rs-table rs-les"><thead><tr><th>Buổi</th><th>Nội dung</th><th>Trạng thái</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p class="muted">Soạn: mỗi buổi 1 lượt Gemini (~20–60 giây; gói miễn phí khoảng 20 buổi/ngày bằng Flash, hết thì tự chuyển Flash-Lite). AI soát: 1 lượt Flash-Lite/buổi, soát 5 nhóm (chính xác, hợp người học, liên kết mục tiêu, khả thi, nhất quán) và lập ma trận mục tiêu. Soạn lại vẫn giữ 3 bản trước để khôi phục.</p>`;
+      <p class="muted">Soạn: mỗi buổi 1 lượt AI (~20–60 giây; Gemini miễn phí khoảng 20 buổi/ngày, OpenRouter 50 lượt/ngày dùng chung). AI soát: 1 lượt/buổi, soát 5 nhóm (chính xác, hợp người học, liên kết mục tiêu, khả thi, nhất quán) và lập ma trận mục tiêu. Soạn lại vẫn giữ 3 bản trước để khôi phục.</p>`;
   }
   function paneMatrix() {
     const O = P.outline, ST = { 'đủ': 'fact', 'ít': 'warn', 'thiếu': 'bad' };
