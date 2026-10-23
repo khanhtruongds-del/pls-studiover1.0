@@ -26,12 +26,12 @@
     let exNo = 0; const ex = () => String(++exNo);
     const title = S(info['Tên buổi']) || 'Buổi ' + buoi;
     B('Block/Lesson Header', { lesson: 'Bài ' + (info['Bài'] ? Number(info['Bài']) : buoi), 'title.vi': title, 'title.native': course['Tên khoá'] || '' });
-    const objs = S(info['Mục tiêu bài'] || s5row['Mục tiêu bài']).split(/\n|;\s*/).map(x => x.replace(/^[-•\d.\s]+/, '').trim()).filter(Boolean).slice(0, 5);
+    const objs = S(info['Mục tiêu bài'] || s5row['Mục tiêu bài']).split(/\n|;\s*|(?<=[.!?])\s+(?=[A-ZÀ-ỸĐ])/).map(x => x.replace(/^[-•\d.\s]+/, '').trim()).filter(Boolean).slice(0, 5);
     if (objs.length) { const d = { no: '', title: 'Mục tiêu bài học' }; objs.forEach((t, i) => { d[`obj_${i + 1}.bullet`] = '•'; d[`obj_${i + 1}.text`] = t; }); B('Block/Objectives', d); }
 
     const pron = tab(s6, /Phát âm/).filter(r => isB(r, buoi) && onPDF(r));
     if (pron.length) { SEC('Phát âm');
-      for (const p of pron) { B('Block/Sub Heading', { text: [S(p['Chữ / âm']), S(p['Bảng chữ / nhóm âm'])].filter(Boolean).join(' · ') });
+      for (const p of pron) { const a1 = S(p['Chữ / âm']), a2 = S(p['Bảng chữ / nhóm âm']); B('Block/Sub Heading', { text: a2 && !a1.toLowerCase().includes(a2.toLowerCase()) ? `${a1} · ${a2}` : a1 || a2 });   // không lặp "Nối âm … · Nối âm"
         if (S(p['Hướng dẫn phát âm'])) B('Block/Paragraph', { text: S(p['Hướng dẫn phát âm']) });
         const exs = S(p['Ví dụ']).split(/;\s*/).filter(Boolean).slice(0, 6);
         if (exs.length) { const d = { no: ex(), instruction: 'Đọc to các từ sau.', 'head.track': '', 'head.ab': '' }; exs.forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.word`] = m ? m[1] : x; d[`ex_${i + 1}.vi`] = m ? '/' + m[2] + '/' : ''; }); B('Block/Pronunciation', d); } } }
@@ -43,14 +43,16 @@
     const grammar = tab(s6, /Ngữ pháp$/).filter(r => isB(r, buoi) && onPDF(r));
     const gq = tab(s6, /Câu hỏi ngữ pháp/).filter(r => isB(r, buoi) && onPDF(r));
     if (grammar.length) { SEC('Ngữ pháp');
-      for (const g of grammar) {
-        B('Block/Sub Heading', { text: [S(g['Tên ngữ pháp']), S(g['Nghĩa'])].filter(Boolean).join(' – ') });
-        for (const l of S(g['Cấu trúc (công thức)']).split('\n').map(S).filter(Boolean).slice(0, 4)) { const m = l.match(/^([^:+]{2,32}):\s*(.+)$/); B('Block/Structure', { label: m ? m[1] : 'Cấu trúc', formula: m ? m[2] : l }); }
+      for (const [gi, g] of grammar.entries()) {
+        B('Block/Sub Heading', { text: `${gi + 1}. ` + [S(g['Tên ngữ pháp']), S(g['Nghĩa'])].filter(Boolean).join(' – ') });   // điểm ngữ pháp đánh số 1, 2… trong mục
+        // nhãn "Cấu trúc" chỉ ở dòng đầu, các dòng sau để trống nhãn → các công thức xếp thẳng một cột
+        let lastLab = null; for (const l of S(g['Cấu trúc (công thức)']).split('\n').map(S).filter(Boolean).slice(0, 4)) { const m = l.match(/^([^:+]{2,32}):\s*(.+)$/); const lab = m ? m[1] : 'Cấu trúc'; B('Block/Structure', { label: lab === lastLab ? '\u00a0' : lab, formula: m ? m[2] : l }); lastLab = lab; }
         if (S(g['Cách sử dụng'])) B('Block/Paragraph', { text: S(g['Cách sử dụng']) });
         const d = {}; [1, 2, 3].forEach(i => { if (S(g['Ví dụ ' + i])) { d[`ex_${i}.de`] = S(g['Ví dụ ' + i]); d[`ex_${i}.vi`] = S(g['Nghĩa ví dụ ' + i]); } }); if (Object.keys(d).length) B('Block/Example Box', d);
         if (S(g['Lưu ý'])) B('Block/Note Box', { title: 'Lưu ý', text: S(g['Lưu ý']) });
       }
-      exercises(gq.filter(q => grammar.some(g => S(g['Mã mục']) === S(q['Mã ngữ pháp']))), '');
+      const gqs = gq.filter(q => grammar.some(g => S(g['Mã mục']) === S(q['Mã ngữ pháp'])));
+      if (gqs.length) { B('Block/Sub Heading', { text: 'Luyện tập' }); out[out.length - 1].role = 'practice'; exercises(gqs, ''); }   // bài tập tách khỏi điểm ngữ pháp cuối, có tiêu đề riêng
     }
 
     const speak = tab(s6, /Mẫu câu/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Câu']));
@@ -63,6 +65,7 @@
         const ls = lis.filter(r => S(r['Mã bài']) === c).sort((a, b) => (+a['Câu số'] || 0) - (+b['Câu số'] || 0)); const r0 = ls[0] || {};
         B('Block/Sub Heading', { text: [S(r0['Tiêu đề bài nghe']), S(r0['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || c });
         exercises(lq.filter(r => S(r['Mã bài']) === c), 'Nghe rồi chọn đáp án đúng.');
+        if (ls.length) { B('Block/Paragraph', { text: 'Lời bài nghe' }); out[out.length - 1].role = 'label'; }
         for (const part of chunk(ls, 4)) { const d = {}; part.forEach((r, i) => { d[`line_${i + 1}.speaker`] = S(r['Vai / nhân vật']) || '–'; d[`line_${i + 1}.de`] = S(r['Câu']); d[`line_${i + 1}.vi`] = S(r['Nghĩa']); }); B('Block/Dialogue', d); }
       } }
 
@@ -109,23 +112,52 @@
   // (mục lớn cách xa, các dòng cùng nhóm sát nhau) thay cho khoảng 14px đều mọi chỗ.
   const BOOK_FS = { 22: 22, 14: 16, 12: 12.5, 11.5: 11, 10: 10.5, 8.5: 9, 8: 8 };          // cỡ mẫu Figma → cỡ sách (pt trên trang 595)
   const BOOK_LH = fs => fs >= 16 ? 1.2 : fs >= 12 ? 1.3 : 1.45;                              // chữ Việt có dấu cần dòng thoáng
-  const KIND = c => /Lesson Header/.test(c) ? 'h1' : /Section (Bar|Heading)/.test(c) ? 'sec' : /Sub Heading/.test(c) ? 'sub' : /Structure/.test(c) ? 'str'
-    : /Paragraph/.test(c) ? 'p' : /Objectives/.test(c) ? 'obj' : /Exercise|Matching|Sentence Order|Pronunciation|True False/.test(c) ? 'ex' : 'box';
+  const KIND = (c, b) => b && b.role === 'label' ? 'lab' : /Lesson Header/.test(c) ? 'h1' : /Section (Bar|Heading)/.test(c) ? 'sec' : /Sub Heading/.test(c) ? 'sub' : /Structure/.test(c) ? 'str'
+    : /Paragraph/.test(c) ? 'p' : /Objectives/.test(c) ? 'obj' : /Exercise|Matching|Sentence Order|Pronunciation|True False/.test(c) ? 'ex' : /Dialogue/.test(c) ? 'dlg' : /Table/.test(c) ? 'tbl' : 'box';
   // khoảng cách TRƯỚC khối (px) theo khối liền trước
   function SPACE(prev, cur) {
-    const a = prev ? KIND(prev.comp) : null, k = KIND(cur.comp);
+    // THANG KHOẢNG CÁCH (bội 4): 32 trước mục lớn · 20 trước tiêu đề con · 16 giữa các bài tập / khối khác loại · 8 trong cùng một ý · 2 giữa các dòng công thức
+    // → mắt thấy ngay đâu là mục mới, đâu là ý mới, đâu là các dòng của cùng một ý.
+    const a = prev ? KIND(prev.comp, prev) : null, k = KIND(cur.comp, cur);
     if (!a) return 0;
-    if (cur.cont) return 0;   // bảng nối tiếp: liền với bảng trước như 1 bảng
-    if (k === 'sec') return 22;
-    if (a === 'sec') return 12;
-    if (k === 'sub') return 16;
+    if (cur.cont) return 0;                       // bảng nối tiếp: liền với bảng trước như 1 bảng
+    if (k === 'sec') return a === 'h1' || a === 'obj' ? 24 : 32;
+    if (a === 'sec') return 14;
+    if (k === 'sub') return a === 'sub' ? 6 : 20;
     if (a === 'sub') return 8;
-    if (k === 'str' && a === 'str') return 3;
-    if (k === 'p' && (a === 'p' || a === 'str')) return 6;
-    if (k === 'ex') return 14;
-    return 10;
+    if (k === 'lab') return 16;
+    if (a === 'lab') return 6;
+    if (k === 'str' && a === 'str') return 2;
+    if (k === 'dlg' && a === 'dlg') return 8;
+    if (k === 'p' && (a === 'p' || a === 'str')) return 8;
+    if (k === 'box' && (a === 'p' || a === 'str')) return 10;
+    if (k === 'box' && a === 'box') return 10;
+    if (k === 'ex' || a === 'ex') return 16;
+    if (a === 'obj' || k === 'tbl') return 12;
+    return 12;
   }
-  function bookStyle(el, comp) {
+  const escH = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const INK = 'var(--color-primary-ink, var(--color-primary, #406864))';
+  // ĐOẠN CÓ ĐÁNH SỐ ("1. …" / "1) …"): mỗi ý một dòng, số ở cột riêng 14px, chữ thụt treo thẳng hàng; phần quy tắc trước dấu ":" đậm 600.
+  // Thay cho luật F.emph của slide (đậm cả dòng theo đoán nhãn / công thức → dòng 1, 3 đậm, dòng 2 thường – lộn xộn trên sách).
+  function richList(te) {
+    if (!te) return; const lines = te.textContent.split('\n').map(x => x.trim()).filter(Boolean);
+    te.style.whiteSpace = 'normal'; delete te.dataset.emph;
+    te.innerHTML = lines.map((l, i) => { const m = l.match(/^(\d+)[.)]\s+(.*)$/);
+      if (!m) return `<div style="margin-top:${i ? 4 : 0}px">${escH(l)}</div>`;
+      const c = m[2].indexOf(': '); const body = c > 0 && c < 80 ? `<span style="font-weight:600">${escH(m[2].slice(0, c + 1))}</span>${escH(m[2].slice(c + 1))}` : escH(m[2]);
+      return `<div style="display:flex;gap:6px;margin-top:${i ? 3 : 0}px"><span style="flex:0 0 14px;font-weight:600;color:${INK}">${m[1]}.</span><span style="flex:1 1 0px;min-width:0">${body}</span></div>`; }).join('');
+  }
+  // ĐÁP ÁN TRẮC NGHIỆM: xếp lưới cột đều (4 cột nếu ngắn, 2 cột nếu vừa, 1 cột nếu dài) thay cho cách nhau bằng dấu cách → các A/B/C/D thẳng cột giữa các câu.
+  function optionGrid(te) {
+    const lines = te.textContent.split('\n'); const last = (lines[lines.length - 1] || '').trim(); if (!/^A\.\s/.test(last)) return;
+    const opts = last.split(/\s{2,}(?=[A-F]\.\s)/).map(x => x.trim()); if (opts.length < 2) return;
+    const L = Math.max(...opts.map(o => o.length)), cols = L <= 18 ? Math.min(4, opts.length) : L <= 38 ? 2 : 1;
+    te.style.whiteSpace = 'normal';
+    te.innerHTML = `<div style="white-space:pre-wrap">${escH(lines.slice(0, -1).join('\n'))}</div><div style="display:grid;grid-template-columns:repeat(${cols},minmax(0,1fr));column-gap:12px;row-gap:2px;margin-top:3px">`
+      + opts.map(o => `<span><span style="font-weight:600">${escH(o.slice(0, 2))}</span>${escH(o.slice(2))}</span>`).join('') + '</div>';
+  }
+  function bookStyle(el, comp, b) {
     // cỡ + dòng theo thang chung
     el.querySelectorAll('[data-text]').forEach(t => { const f0 = parseFloat(t.dataset.fs) || 10; const f = BOOK_FS[f0] || f0;
       if (/Section Bar|Lesson Header/.test(comp) && /^(letter|title|lesson)$/.test(t.dataset.n)) return;   // đã chỉnh riêng
@@ -134,7 +166,7 @@
     if (/Sub Heading/.test(comp)) { const bx = el.querySelector('[data-n="box"]'); el.style.height = 'auto';
       if (bx) Object.assign(bx.style, { border: 'none', boxShadow: 'none', padding: '0 0 0 9px', borderLeft: '3px solid var(--color-primary, #406864)', borderRadius: '0' }); }
     // cấu trúc: nhãn cột cố định 64px để các công thức thẳng hàng
-    if (/Structure/.test(comp)) { const l = el.querySelector('[data-n="label"]'); if (l) Object.assign(l.style, { flex: '0 0 64px', width: '64px' }); el.style.gap = '10px'; }
+    if (/Structure/.test(comp)) { const l = el.querySelector('[data-n="label"]'); if (l) { Object.assign(l.style, { flex: '0 0 64px', width: '64px', display: 'block' }); if (b && b.data && b.data.label === '\u00a0') { l.textContent = ''; l.style.visibility = 'hidden'; } delete l.dataset.hid; }   /* nhãn trống vẫn giữ cột 64px → công thức thẳng cột */ el.style.gap = '10px'; }
     // bảng: chữ căn trái, đệm đều, cột đầu đậm vừa; bảng từ vựng chia cột theo nội dung
     if (/Table/.test(comp)) {
       el.querySelectorAll('[data-n$="_cell"]').forEach(c => { Object.assign(c.style, { justifyContent: 'flex-start', padding: '5px 8px' }); const t = c.querySelector('[data-text]'); if (t) t.style.textAlign = 'left'; });
@@ -147,7 +179,17 @@
     // bài tập: số câu cột 16px, câu cách nhau 5px, khối câu thụt bằng nhau
     if (/Exercise|Matching|Sentence Order|True False/.test(comp)) { el.style.gap = '6px';
       el.querySelectorAll('[data-n^="item_"]').forEach(it => { if (!/^item_\d+$/.test(it.dataset.n)) return; Object.assign(it.style, { gap: '8px', minHeight: '0', height: 'auto' }); const no = it.querySelector('[data-n$=".no"]'); if (no) Object.assign(no.style, { flex: '0 0 16px', width: '16px' }); }); }
-    if (/Dialogue/.test(comp)) el.style.gap = '5px';
+    if (/Dialogue/.test(comp)) { el.style.gap = '6px';   // cột vai rộng đủ cho "Tin nhắn thoại" trên 1 dòng → câu thoại các dòng thẳng một mép
+      el.querySelectorAll('[data-n$=".speaker"]').forEach(x => Object.assign(x.style, { flex: '0 0 80px', width: '80px', maxWidth: '80px', fontWeight: '600', color: INK, paddingRight: '8px' })); }
+    // đoạn văn / lưu ý: danh sách đánh số thụt treo
+    if (/Paragraph/.test(comp)) { const te = el.querySelector('[data-n="text"]');
+      if (b && b.role === 'label') { te.textContent = te.textContent; Object.assign(te.style, { fontSize: '9.5px', fontWeight: '700', letterSpacing: '0.08em', textTransform: 'uppercase', color: INK, lineHeight: '1.3' }); }
+      else richList(te); }
+    if (/Note Box/.test(comp)) richList(el.querySelector('[data-n="text"]'));
+    // công thức "N's + N: Anna's brother" → công thức đậm màu + ví dụ chữ thường sau mũi tên
+    if (/Structure/.test(comp)) { const f = el.querySelector('[data-n="formula"]'); const t = f && f.textContent; const c = t ? t.indexOf(': ') : -1;
+      if (c > 0) f.innerHTML = `${escH(t.slice(0, c))}<span style="font-weight:400;color:var(--color-text, #3d3d3d)">&nbsp;&nbsp;→&nbsp;${escH(t.slice(c + 2))}</span>`; }
+    if (/Exercise/.test(comp)) el.querySelectorAll('[data-n$=".text"]').forEach(optionGrid);
   }
 
   // ---------- MỘT FONT CHO CẢ SÁCH (người dùng chốt 23/10) ----------
@@ -185,7 +227,7 @@
       const pg = { host: r.host, content, n, blocks: [] }; pages.push(pg); return pg; };
     const head0 = pg => { const f = pg.blocks[0]; const h0 = f && f.querySelector('[data-n="row_0"][data-cont]'); if (h0) h0.style.display = 'flex'; };   // bảng nối đứng đầu trang → hiện đầu bảng TRƯỚC khi đo
     const fits = pg => pg.content.scrollHeight <= pg.content.clientHeight + 1;
-    const mk = b => { const r = E.render({ comp: b.comp, data: b.data }, opt.brand); const el = r.host.firstElementChild; el.style.width = 'auto'; el.style.alignSelf = 'stretch'; el.style.flex = '0 0 auto'; el.dataset.block = b.comp;
+    const mk = b => { const r = E.render({ comp: b.comp, data: b.data }, opt.brand); const el = r.host.firstElementChild; el.style.width = 'auto'; el.style.alignSelf = 'stretch'; el.style.flex = '0 0 auto'; el.dataset.block = b.role === 'label' ? 'Label Heading' : b.comp;
       // khối sách phải cao theo chữ (mẫu Figma để cao cố định theo chữ mẫu → chữ thật dài hơn đè lên khối sau)
       el.style.height = 'auto'; el.style.minHeight = '0';
       [el, ...el.querySelectorAll('*')].forEach(x => { if (x.style.height && x.style.height !== 'auto' && (x.dataset.text || x.querySelector('[data-text]'))) { x.style.minHeight = x.style.height; x.style.height = 'auto'; } });
@@ -207,7 +249,7 @@
         const tb = el.querySelector('[data-n="title_box"]'); if (tb) tb.style.boxShadow = 'inset 0 0 0 1px var(--color-primary-dark, #142738)'; }   // viền khung tên bài mảnh 1px (mẫu 2px nặng hơn cả chữ)
       // ô đánh số không có dữ liệu (vd ex_6 của khối Phát âm khi chỉ có 5 ví dụ) → ẩn, khỏi lộ chữ mẫu Figma ("fünf")
       el.querySelectorAll('[data-text]').forEach(x => { const n = x.dataset.n || ''; const m = n.match(/^([a-z]+_)\d+\.[\w.]+$/); if (m && !(n in (b.data || {})) && keys.some(k => k.startsWith(m[1]))) { if (/Pronunciation/.test(b.comp)) x.style.visibility = 'hidden'; else x.style.display = 'none'; x.dataset.hid = '1'; } });   // khối Phát âm: giữ chỗ ô trống để lưới cặp từ – phiên âm thẳng cột
-      bookStyle(el, b.comp); if (b.cont) { const h0 = el.querySelector('[data-n="row_0"]'); if (h0) { h0.style.display = 'none'; h0.dataset.cont = '1'; } } el.style.marginTop = (b.space || 0) + 'px'; el.dataset.space = String(b.space || 0);
+      bookStyle(el, b.comp, b); if (b.cont) { const h0 = el.querySelector('[data-n="row_0"]'); if (h0) { h0.style.display = 'none'; h0.dataset.cont = '1'; } } el.style.marginTop = (b.space || 0) + 'px'; el.dataset.space = String(b.space || 0);
       if (opt.prep) opt.prep(el); return el; };
     // BẢNG DÀI ĐƯỢC CẮT QUA TRANG (sách thật không đẩy cả bảng + tiêu đề mục sang trang sau để lại nửa trang trắng)
     const nRows = b => { if (!/Table/.test(b.comp) || !b.data) return 0; let n = 0; while (Object.keys(b.data).some(k => k.startsWith(`row_${n + 1}.`))) n++; return n; };
@@ -218,13 +260,14 @@
         if (fits(pg)) { list.splice(i + 1, 0, { comp: b.comp, data: sliceT(b, k, n), cont: true, space: 0 }); list[i] = part; return e2; }
         el = e2; }
       return el; };
+    const isHead = x => /(Heading|Section Bar)$/.test(x.comp) || x.role === 'label' || x.role === 'practice';   // nhãn "Lời bài nghe", "Luyện tập" không đứng trơ cuối trang
     let pg = newPage();
     for (let i = 0; i < list.length; i++) {
       const b = list[i], el = mk(b); pg.content.appendChild(el); pg.blocks.push(el); head0(pg);
-      const heading = /(Heading|Section Bar)$/.test(b.comp);
+      const heading = isHead(b);
       if (heading && i + 1 < list.length) {   // tiêu đề phải đi cùng khối sau nó
         // thử kèm mọi tiêu đề liền sau + khối nội dung đầu tiên; không vừa → tiêu đề (và tiêu đề ngay trước nó) sang trang mới
-        const tmp = []; for (let j = i + 1; j < list.length; j++) { const nx = mk(probeOf(list[j])); pg.content.appendChild(nx); tmp.push(nx); if (!/(Heading|Section Bar)$/.test(list[j].comp)) break; }
+        const tmp = []; for (let j = i + 1; j < list.length; j++) { const nx = mk(probeOf(list[j])); pg.content.appendChild(nx); tmp.push(nx); if (!isHead(list[j])) break; }
         const ok = fits(pg); tmp.forEach(x => x.remove());
         if (!ok && pg.blocks.length > 1) { const mv = [el]; el.remove(); pg.blocks.pop();
           while (pg.blocks.length > 1 && /(Heading|Section Bar)$/.test(pg.blocks[pg.blocks.length - 1].dataset.block)) { const h = pg.blocks.pop(); h.remove(); mv.unshift(h); }
