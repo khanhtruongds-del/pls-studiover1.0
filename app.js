@@ -4,7 +4,7 @@
   'use strict';
   const E = window.PLS_ENGINE;
   const $ = s => document.querySelector(s);
-  const state = { tr: { style: 'NONE', duration: 0.5, scope: 'all' }, fx: { on: true, pace: 'vừa', hideAnswer: true }, fxStep: null, fxp: {}, notesOv: {}, fontMode: 'safe', hier: true, device: 'win', spec: null, brand: 'Betreux', slides: [], sel: 0, overrides: {}, imgOv: {}, choice: {}, building: false };
+  const state = { tr: { style: 'NONE', duration: 0.5, scope: 'all' }, fx: { on: true, pace: 'vừa', hideAnswer: true }, fxStep: null, fxp: {}, notesOv: {}, aud: 'teacher', fontMode: 'safe', hier: true, device: 'win', spec: null, brand: 'Betreux', slides: [], sel: 0, overrides: {}, imgOv: {}, choice: {}, building: false };
   const BRANDS = ['Betreux', 'Creative English', 'Créatis', 'Saechang', 'Sakumi', 'Đắc Nhân'];
 
   // ---------- dựng cả bài ----------
@@ -410,17 +410,20 @@
 
   // ---------- xuất PPTX ----------
   // Dựng bản xuất: cùng nội dung + ghi đè, đổi sang font an toàn theo thiết bị, co chữ lại, soát lại
-  function exportView(device) {
+  // BẢN HỌC VIÊN (đặc tả §31.2, người dùng chốt 23/10): bỏ hẳn đáp án khỏi file – không dựa vào ẩn / hiệu ứng
+  const isStudent = aud => (aud || state.aud) === 'student';
+  function exportView(device, aud) {
     const xs = $('#xstage'); xs.innerHTML = '';
     return state.slides.map((r, i) => {
       const x = E.render(r.spec, state.brand); xs.appendChild(x.host);
+      if (isStudent(aud)) x.host.querySelectorAll('[data-n]').forEach(el => { if (E.roleOfName(el.dataset.n) === 'answer') el.remove(); });
       if (window.PLS_IMAGES) window.PLS_IMAGES.fill(x.host, state.brand, r.spec.data);
       E.applyExportFonts(x.host, state.brand, device);
       if (state.hier) E.hierarchy(x);
       E.typoLayout(x);
       x.fitLog = E.fitText(x); E.typoSpread(x); x.issues = E.audit(x).filter(i => i.code !== 'noImage'); x.slide = i + 1;
       E.planFx(x, state.fx);
-      x.spec = r.spec; { const pk = r.src + '/' + r.part; if (state.fxp[pk] && window.PLS_FXP) window.PLS_FXP.apply(x, state.fxp[pk]); }   // bộ hiệu ứng nhanh cũng vào file xuất
+      x.spec = r.spec; { const pk = r.src + '/' + r.part; if (state.fxp[pk] && window.PLS_FXP && !isStudent(aud)) window.PLS_FXP.apply(x, state.fxp[pk]); }   // bộ hiệu ứng nhanh khoanh / nối đáp án → không có ở bản học viên   // bộ hiệu ứng nhanh cũng vào file xuất
       return x;
     });
   }
@@ -445,18 +448,21 @@
     devs.forEach(d => s.add(new Option(d.font ? `Mở trên ${d.tag}` : 'Mở trên mọi máy', d.key)));
     s.value = curDevice().key; s.disabled = devs.length === 1;
   }
-  async function exportPptx(deviceKey) {
+  async function exportPptx(deviceKey, aud) {
+    aud = aud || state.aud; const stu = aud === 'student';
     const devs = E.devicesOf(state.brand);
     const device = devs.find(d => d.key === (deviceKey || state.device)) || devs[0];
     setStatus(`Đang xuất PPTX (${device.tag})…`);
-    const xs = exportView(device.font ? device : null);
+    const all = exportView(device.font ? device : null, aud), keep = all.map((x, i) => i).filter(i => !stu || state.slides[i].spec.comp !== 'Slide/Answer Key');   // bản học viên: bỏ slide đáp án
+    const xs = keep.map(i => all[i]);
     const bad = xs.flatMap(x => x.issues.filter(i => i.lv === 'do').map(i => `slide ${x.slide}: ${i.msg}`));
     const model = await E.toModel(xs.map(x => x.host), { transition: state.tr });
-    model.slides.forEach((m, i) => { if (state.slides[i]) m.notes = notesOf(state.slides[i]); });   // ghi chú giảng → Notes của từng slide
+    if (!stu) model.slides.forEach((m, k) => { const i = keep[k]; if (state.slides[i]) m.notes = notesOf(state.slides[i]); });   // ghi chú giảng (có đáp án) chỉ ở bản giáo viên   // ghi chú giảng → Notes của từng slide
     const bytes = window.PPTX.build(model);
     $('#xstage').innerHTML = '';
     let name = window.PLS_STD ? window.PLS_STD.fileName(stdCtx(), 'pptx') : `${(state.spec.lesson || 'bai').replace(/[^\p{L}\p{N}]+/gu, '_')}.pptx`;   // RB-CH-02
     if (devs.length > 1) name = name.replace(/\.pptx$/, '_' + ({ win: 'Win', mac: 'Mac', and: 'Android' }[device.key] || device.key) + '.pptx');
+    if (stu) name = name.replace(/\.pptx$/, '_HocVien.pptx');
     if (bad.length) console.warn('[PLS] lỗi sau khi đổi font xuất:', bad);
     if (window.PLS_LOG) {   // số liệu cho vòng tự học (tab images / lint / layout trên Sheet)
       const kho = window.PLS_IMAGES ? window.PLS_IMAGES.srcOfBrand(state.brand) : '';
