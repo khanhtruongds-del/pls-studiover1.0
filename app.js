@@ -224,9 +224,11 @@
         const fail = lv => state.std.filter(x => x.status === 'loi' && x.level === lv).length;
         const sum = document.createElement('details'); sum.className = 'std'; sum.open = !!state.stdOpen; sum.ontoggle = () => { state.stdOpen = sum.open; };
         const ok = state.std.filter(x => x.status === 'dat').length, tay = state.std.filter(x => x.status === 'tay').length, na = state.std.filter(x => x.status === 'khongap').length;
-        sum.innerHTML = `<summary><b>Chuẩn v2.0 · 29 luật</b> <span class="pill do">${fail('do')} đỏ</span> <span class="pill vang">${fail('vang')} vàng</span> <span class="pill">${fail('xam')} xám</span><br><span class="muted">${ok} đạt · ${tay} người kiểm · ${na} chỉ áp dụng cho PDF</span></summary>`;
+        // 23/10: chỉ hiện luật CHƯA ĐẠT (bỏ danh sách đạt / người kiểm / chỉ áp dụng PDF – không cần làm gì)
+        const nFail = state.std.filter(x => x.status === 'loi').length;
+        sum.innerHTML = nFail ? `<summary><b>Chuẩn v2.0: ${nFail} luật chưa đạt</b> ${fail('do') ? `<span class="pill do">${fail('do')} bắt buộc</span>` : ''} ${fail('vang') ? `<span class="pill vang">${fail('vang')} nên đạt</span>` : ''}</summary>` : `<summary><b>Đạt chuẩn v2.0</b> <span class="muted">· ${ok} luật máy kiểm đều đạt</span></summary>`;
         const ST = { dat: '✓', loi: '✗', tay: '👁', khongap: '–' };
-        state.std.filter(x => x.status !== 'khongap').sort((a, b) => (a.status === 'loi' ? 0 : a.status === 'tay' ? 1 : 2) - (b.status === 'loi' ? 0 : b.status === 'tay' ? 1 : 2)).forEach(x => {
+        state.std.filter(x => x.status === 'loi').sort((a, b) => (a.status === 'loi' ? 0 : a.status === 'tay' ? 1 : 2) - (b.status === 'loi' ? 0 : b.status === 'tay' ? 1 : 2)).forEach(x => {
           const d = document.createElement('div'); d.className = 'stdrow ' + x.status + ' ' + x.level;
           d.innerHTML = `<span class="st" aria-label="${x.status}">${x.status === 'loi' ? '✗' : x.status === 'dat' ? '✓' : '?'}</span><div><b>${x.id}</b> ${escapeHtml(x.title)} <span class="pill ${x.level}">${{ do: 'bắt buộc', vang: 'nên đạt', xam: 'tham khảo' }[x.level]}</span><div class="muted">${escapeHtml(x.status === 'loi' ? x.list.slice(0, 3).map(i => (i.slide ? 'Slide ' + i.slide + ': ' : '') + i.msg).join(' · ') + (x.list.length > 3 ? ` · +${x.list.length - 3}` : '') : x.note || '')}</div></div>`;
           sum.appendChild(d);
