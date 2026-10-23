@@ -37,33 +37,44 @@
 
   // ---------- GEMINI ----------
   const AI = {
-    key: () => LS.get('pls.gemini.key', ''), model: () => LS.get('pls.gemini.model', ''),
+    key: () => LS.get('pls.gemini.key', ''), model: () => LS.get('pls.gemini.model', ''), lite: () => LS.get('pls.gemini.lite', ''),
     BASE: 'https://generativelanguage.googleapis.com/v1beta',
-    // chọn model Flash mới nhất có generateContent (danh sách đổi theo thời gian → hỏi API, không ghi cứng)
+    // DÙNG MIỄN PHÍ (người dùng chốt 23/10): 2 model – Flash (tốt hơn, gói miễn phí ~20 lượt/ngày) cho Định hướng + Soạn bài,
+    // Flash-Lite (~500 lượt/ngày) cho Trò chuyện + So sánh; model nào hết lượt (429) thì tự chuyển sang model còn lại.
+    // Danh sách model đổi theo thời gian → hỏi API, chọn bản số cao nhất, không ghi cứng.
     async pick(key) {
       const r = await fetch(`${AI.BASE}/models?pageSize=200`, { headers: { 'x-goog-api-key': key } });
       if (!r.ok) throw new Error(r.status === 400 || r.status === 403 ? 'Key không hợp lệ' : 'Không kết nối được Gemini (' + r.status + ')');
-      const ms = ((await r.json()).models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
-        .map(m => m.name.replace(/^models\//, '')).filter(n => /^gemini-[\d.]+-flash$/.test(n) || /^gemini-[\d.]+-flash-preview$/.test(n));
-      const ver = n => parseFloat(n.split('-')[1]) || 0;
-      ms.sort((a, b) => ver(b) - ver(a) || a.length - b.length);
-      if (!ms.length) throw new Error('Key này không có model Gemini Flash nào');
-      return ms[0];
+      const ns = ((await r.json()).models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => m.name.replace(/^models\//, ''));
+      const ver = n => parseFloat(n.split('-')[1]) || 0, top = re => ns.filter(n => re.test(n)).sort((a, b) => ver(b) - ver(a) || a.length - b.length)[0] || '';
+      const best = top(/^gemini-[\d.]+-flash$/) || top(/^gemini-[\d.]+-flash-preview$/), lite = top(/^gemini-[\d.]+-flash-lite$/) || top(/^gemini-[\d.]+-flash-lite-preview$/);
+      if (!best && !lite) throw new Error('Key này không có model Gemini Flash nào');
+      return { best: best || lite, lite: lite || best };
     },
-    async call({ sys, contents, json, tools, maxTokens }) {
-      const key = AI.key(), model = AI.model(); if (!key || !model) throw new Error('Chưa kết nối Gemini – bấm "Kết nối AI" ở cột trái');
+    day: () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }),   // lượt/ngày của Google reset theo giờ Mỹ (Thái Bình Dương)
+    use() { let u = {}; try { u = JSON.parse(LS.get('pls.gemini.use', '{}')); } catch (e) {} return u.day === AI.day() ? u : { day: AI.day(), m: {} }; },
+    count(model) { const u = AI.use(); u.m[model] = (u.m[model] || 0) + 1; LS.set('pls.gemini.use', JSON.stringify(u)); },
+    usage() { const u = AI.use(), b = AI.model(), l = AI.lite(); return b === l ? `hôm nay ${u.m[b] || 0} lượt` : `hôm nay Flash ${u.m[b] || 0} · Lite ${u.m[l] || 0}`; },
+    async call({ sys, contents, json, tools, maxTokens, tier }) {
+      const key = AI.key(), best = AI.model(), lite = AI.lite() || best; if (!key || !best) throw new Error('Chưa kết nối Gemini – bấm "Kết nối AI" ở cột trái');
       const body = { contents, generationConfig: { temperature: 0.3, maxOutputTokens: maxTokens || 8192 } };
       if (sys) body.systemInstruction = { parts: [{ text: sys }] };
       if (tools && tools.length) body.tools = tools; else if (json) body.generationConfig.responseMimeType = 'application/json';
-      const r = await fetch(`${AI.BASE}/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
-      if (!r.ok) { let m = ''; try { m = (await r.json()).error.message; } catch (e) {}
-        if (r.status === 429) throw new Error('Gemini đang giới hạn lượt (hết lượt miễn phí tạm thời) – đợi 1–2 phút rồi thử lại');
-        if (r.status === 413 || /too large|exceeds/i.test(m)) throw new Error('Nguồn quá nặng cho một lần gửi – bỏ bớt nguồn (bỏ chọn ở cột trái) rồi thử lại');
-        throw new Error('Gemini báo lỗi ' + r.status + (m ? ': ' + m : '')); }
-      const d = await r.json(), c = (d.candidates || [])[0];
-      const text = c && c.content && (c.content.parts || []).map(p => p.text || '').join('');
-      if (!text) throw new Error('Gemini không trả lời' + (c && c.finishReason ? ' (' + c.finishReason + ')' : (d.promptFeedback && d.promptFeedback.blockReason ? ' (chặn: ' + d.promptFeedback.blockReason + ')' : '')));
-      return { text, cut: c.finishReason === 'MAX_TOKENS' };
+      const order = [...new Set(tier === 'best' ? [best, lite] : [lite, best])];
+      let daily = false;
+      for (const model of order) {
+        const r = await fetch(`${AI.BASE}/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
+        if (!r.ok) { let m = ''; try { m = (await r.json()).error.message || ''; } catch (e) {}
+          if (r.status === 429) { if (/day|PerDay/i.test(m)) daily = true; continue; }   // hết lượt model này → thử model còn lại
+          if (r.status === 413 || /too large|exceeds/i.test(m)) throw new Error('Nguồn quá nặng cho một lần gửi – bỏ bớt nguồn (bỏ chọn ở cột trái) rồi thử lại');
+          throw new Error('Gemini báo lỗi ' + r.status + (m ? ': ' + m : '')); }
+        AI.count(model); AI.last = model;
+        const d = await r.json(), c = (d.candidates || [])[0];
+        const text = c && c.content && (c.content.parts || []).map(p => p.text || '').join('');
+        if (!text) throw new Error('Gemini không trả lời' + (c && c.finishReason ? ' (' + c.finishReason + ')' : (d.promptFeedback && d.promptFeedback.blockReason ? ' (chặn: ' + d.promptFeedback.blockReason + ')' : '')));
+        return { text, cut: c.finishReason === 'MAX_TOKENS', model };
+      }
+      throw new Error(daily ? 'Hết lượt miễn phí của Gemini hôm nay – lượt mới có lại khoảng 14–15 giờ chiều (giờ Việt Nam)' : 'Gemini đang giới hạn lượt mỗi phút – đợi khoảng 1 phút rồi thử lại');
     },
     parse(t) { const s = String(t).trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
       try { return JSON.parse(s); } catch (e) { const a = s.indexOf('{'), b = s.lastIndexOf('}'); if (a >= 0 && b > a) return JSON.parse(s.slice(a, b + 1)); throw new Error('Gemini trả về không đúng dạng dữ liệu – thử lại'); } }
@@ -116,7 +127,7 @@
     const { parts, tools } = await sourceParts();
     const hist = P.chat.slice(-12, -1).map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
     const contents = [{ role: 'user', parts: parts.concat({ text: 'Đây là các nguồn. Hãy dùng chúng để trả lời các câu hỏi tiếp theo.' }) }, { role: 'model', parts: [{ text: 'Đã đọc các nguồn.' }] }, ...hist, { role: 'user', parts: [{ text: q }] }];
-    const r = await AI.call({ sys: SYS, contents, tools, maxTokens: 4096 });
+    const r = await AI.call({ sys: SYS, contents, tools, maxTokens: 4096, tier: 'lite' });
     P.chat.push({ role: 'model', text: r.text, at: Date.now() });
   }
   async function compare() {
@@ -127,7 +138,7 @@
       `Trung tâm (theo trường "Trung tâm" của nguồn): ${centers.join(', ') || '(tự xác định từ nguồn)'}.\n` +
       'Trả về JSON đúng dạng: {"centers":["..."],"cells":[{"center":"...","criterion":"<đúng tên tiêu chí>","value":"<ngắn, tối đa 25 từ>","quote":"<trích nguyên văn tối đa 30 từ>","source":"S1","page":"3","kind":"fact"}],"suggest":["<tiêu chí đáng thêm>"],"summary":"<3–5 câu: điểm chung, điểm khác, khoảng trống PLS có thể khai thác, ghi (suy luận) cho ý suy luận>"}\n' +
       'Mỗi trung tâm × mỗi tiêu chí đúng 1 ô. Không có trong nguồn: value "chưa rõ", kind "unknown", để trống quote/source. Chỉ trả JSON.';
-    const r = await AI.call({ sys: SYS, contents: [{ role: 'user', parts: parts.concat({ text: prompt }) }], json: true, tools, maxTokens: 8192 });
+    const r = await AI.call({ sys: SYS, contents: [{ role: 'user', parts: parts.concat({ text: prompt }) }], json: true, tools, maxTokens: 8192, tier: 'lite' });
     const d = AI.parse(r.text);
     (d.centers || []).forEach(c => { if (c && !P.centers.includes(c)) P.centers.push(c); });
     (d.cells || []).forEach(c => { if (!c.center || !c.criterion) return; if (!P.criteria.includes(c.criterion)) return;
@@ -142,7 +153,7 @@
       (P.centers.length ? 'Bảng so sánh đã có:\n' + cmpText() + '\n' : '') +
       `Đề xuất đúng ${b.sessions} buổi. Trả JSON: {"course":{"name":"...","desc":"<2–3 câu, đầu ra cụ thể>","level":"...","type":"Tổng hợp"},"lessons":[{"buoi":1,"name":"<tên buổi, không ghi chữ Bài>","type":"Buổi học|Ôn tập|Kiểm tra","goals":"<Học viên sẽ ... – đo được>","topics":"<chủ đề, tình huống>","vocab":"<nhóm từ / ví dụ 8–15 từ>","grammar":"<1–3 điểm ngữ pháp>","skills":"<kỹ năng chính>","basis":"fact|inference","why":"<căn cứ: [S1] ... hoặc lý do suy luận>"}]}\n` +
       'Xếp từ dễ đến khó, ngữ pháp sau dựa trên ngữ pháp trước; có buổi ôn tập / kiểm tra hợp lý. basis = fact khi căn cứ trực tiếp từ nguồn (ghi [S..] trong why). Chỉ trả JSON.';
-    const r = await AI.call({ sys: SYS, contents: [{ role: 'user', parts: (parts.length ? parts : [{ text: '(chưa có nguồn – đề xuất theo kinh nghiệm, mọi buổi basis = inference)' }]).concat({ text: prompt }) }], json: true, tools, maxTokens: 16384 });
+    const r = await AI.call({ sys: SYS, contents: [{ role: 'user', parts: (parts.length ? parts : [{ text: '(chưa có nguồn – đề xuất theo kinh nghiệm, mọi buổi basis = inference)' }]).concat({ text: prompt }) }], json: true, tools, maxTokens: 16384, tier: 'best' });
     const d = AI.parse(r.text);
     if (!Array.isArray(d.lessons) || !d.lessons.length) throw new Error('Gemini chưa trả khung khóa – thử lại');
     const ver = ((P.outline && P.outline.ver) || 0) + 1;
@@ -169,7 +180,7 @@
       'Câu trắc nghiệm: đủ A–D, "Đáp án" là 1 chữ cái A–D, "Giải thích" vì sao đúng và vì sao các phương án khác sai. Phiên âm IPA cho tiếng Anh, Romaji / Pinyin cho tiếng Nhật / Trung. Nghĩa tiếng Việt tự nhiên. ' +
       'Số lượng gợi ý: 12–18 từ vựng, 1–3 ngữ pháp mỗi cái 3–4 câu hỏi, 1 bài nghe 8–12 câu + 4 câu hỏi, 1 bài đọc 6–10 câu + 4 câu hỏi, 8–12 câu BTVN. Không dùng nội dung có bản quyền của nguồn nguyên văn; nguồn chỉ để tham khảo cách làm. Chỉ trả JSON.';
     const r = await AI.call({ sys: SYS.replace('Chỉ dùng thông tin trong các NGUỒN được gửi kèm (và trang web trong link nguồn).', 'Nguồn gửi kèm để tham khảo cách các trung tâm khác dạy; nội dung bài do bạn soạn mới.'),
-      contents: [{ role: 'user', parts: parts.concat({ text: prompt }) }], json: true, tools, maxTokens: 32768 });
+      contents: [{ role: 'user', parts: parts.concat({ text: prompt }) }], json: true, tools, maxTokens: 32768, tier: 'best' });
     if (r.cut) throw new Error('Bài quá dài, Gemini bị cắt giữa chừng – thử lại (hoặc giảm bớt nguồn)');
     const d = AI.parse(r.text); mergeLesson(buoi, d); log('Soạn buổi ' + buoi);
   }
@@ -259,7 +270,7 @@
         </ol></section>
         <section class="w-side"><p class="muted" style="margin:0 0 2px;font-size:12px">Trước khi bắt đầu</p><h2>Cần biết</h2><p class="sub">Mọi thứ lưu trên trình duyệt của máy này, không cần đăng nhập.</p>
           <div class="item"><b>Gemini API key</b><span class="muted">Tạo ở aistudio.google.com → Get API key, dán 1 lần. Key chỉ lưu trên máy này.</span></div>
-          <div class="item"><b>Gói miễn phí</b><span class="muted">Có giới hạn lượt/phút; Google được dùng dữ liệu gói miễn phí để cải thiện sản phẩm. Tài liệu nhạy cảm nên dùng key trả phí.</span></div>
+          <div class="item"><b>Gói miễn phí</b><span class="muted">Khoảng 20 lượt/ngày cho Định hướng + Soạn bài (Flash) và khoảng 500 lượt/ngày cho Trò chuyện + So sánh (Flash-Lite); model nào hết lượt thì tự chuyển sang model kia. Lượt mới có lại khoảng 14–15h chiều. Google được dùng dữ liệu gói miễn phí để cải thiện sản phẩm.</span></div>
           <div class="item"><b>AI có thể sai</b><span class="muted">Luôn bấm trích dẫn để kiểm; bài soạn phải được người dạy duyệt trước khi dùng.</span></div></section></div>`;
     box.querySelector('#rsOpen').onclick = () => { mode = 'work'; if (!AI.key()) keyDlg(); render(); };
   }
@@ -269,14 +280,14 @@
     d.innerHTML = `<div class="rs-dlg-card"><h3>Kết nối Gemini</h3>
       <ol><li>Mở <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>, đăng nhập Google.</li><li>Bấm <b>Create API key</b>, chép key.</li><li>Dán vào ô dưới rồi bấm Kết nối.</li></ol>
       <input type="password" id="rsKeyIn" placeholder="Dán Gemini API key…" autocomplete="off" value="${esc(AI.key())}">
-      <p class="muted" id="rsKeyMsg">Key chỉ lưu trong trình duyệt của máy này. ${AI.model() ? 'Đang dùng: ' + esc(AI.model()) : ''}</p>
+      <p class="muted" id="rsKeyMsg">Key chỉ lưu trong trình duyệt của máy này. ${AI.model() ? 'Đang dùng: ' + esc(AI.model()) + (AI.lite() && AI.lite() !== AI.model() ? ' (soạn bài) + ' + esc(AI.lite()) + ' (hỏi đáp, so sánh)' : '') + ' · ' + AI.usage() : ''}</p>
       <div class="rs-row"><button type="button" class="btn primary" id="rsKeyOk">Kết nối</button><button type="button" class="btn" id="rsKeyX">Đóng</button>${AI.key() ? '<button type="button" class="btn" id="rsKeyDel">Gỡ key</button>' : ''}</div></div>`;
     document.body.appendChild(d); const inp = d.querySelector('#rsKeyIn'); inp.focus();
     const close = () => { d.remove(); render(); };
     d.querySelector('#rsKeyX').onclick = close; d.onclick = e => { if (e.target === d) close(); }; d.onkeydown = e => { if (e.key === 'Escape') close(); };
-    if (d.querySelector('#rsKeyDel')) d.querySelector('#rsKeyDel').onclick = () => { LS.set('pls.gemini.key', null); LS.set('pls.gemini.model', null); close(); };
+    if (d.querySelector('#rsKeyDel')) d.querySelector('#rsKeyDel').onclick = () => { LS.set('pls.gemini.key', null); LS.set('pls.gemini.model', null); LS.set('pls.gemini.lite', null); close(); };
     d.querySelector('#rsKeyOk').onclick = async () => { const k = inp.value.trim(), msg = d.querySelector('#rsKeyMsg'); if (!k) return; msg.textContent = 'Đang kiểm tra key…';
-      try { const m = await AI.pick(k); LS.set('pls.gemini.key', k); LS.set('pls.gemini.model', m); msg.textContent = 'Đã kết nối: ' + m; setTimeout(close, 700); } catch (e) { msg.textContent = e.message; } };
+      try { const m = await AI.pick(k); LS.set('pls.gemini.key', k); LS.set('pls.gemini.model', m.best); LS.set('pls.gemini.lite', m.lite); msg.textContent = 'Đã kết nối: ' + m.best + (m.lite !== m.best ? ' + ' + m.lite : ''); setTimeout(close, 700); } catch (e) { msg.textContent = e.message; } };
   }
   function viewer(id) {
     const s = P.sources.find(x => x.id === id); if (!s) return;
@@ -306,7 +317,7 @@
       <section class="rs-col rs-left" aria-label="Nguồn">
         <div class="rs-proj"><select id="rsProj" aria-label="Khóa đang nghiên cứu">${projects.map(p => `<option value="${p.id}" ${p.id === P.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
           <button type="button" class="btn" id="rsNew" title="Khóa nghiên cứu mới">+</button><button type="button" class="btn" id="rsRen" title="Đổi tên">✎</button></div>
-        <button type="button" class="rs-ai ${hasKey ? 'ok' : ''}" id="rsAI">${hasKey ? '● Gemini: ' + esc(AI.model()) : '○ Kết nối AI (Gemini)'}</button>
+        <button type="button" class="rs-ai ${hasKey ? 'ok' : ''}" id="rsAI">${hasKey ? '● Gemini miễn phí · ' + esc(AI.usage()) : '○ Kết nối AI (Gemini)'}</button>
         <h3>Nguồn <span class="muted">${P.sources.filter(s => s.on !== false).length}/${P.sources.length} đang dùng</span></h3>
         <ul class="rs-srcs">${srcList}</ul>
         <details class="rs-add" ${(addOpen == null ? !P.sources.length : addOpen) ? 'open' : ''}><summary>+ Thêm nguồn</summary>
@@ -371,7 +382,7 @@
     return `<div class="rs-bar"><button type="button" class="btn primary" id="rsLesAll" ${busy || n === O.lessons.length ? 'disabled' : ''}>Soạn các buổi chưa soạn</button>
         <button type="button" class="btn" id="rsXlsx" ${n ? '' : 'disabled'}>Tải Excel S5 + S6</button><span class="muted">${n}/${O.lessons.length} buổi · khung v${O.locked || O.ver}</span></div>
       <div class="rs-tablewrap"><table class="rs-table rs-les"><thead><tr><th>Buổi</th><th>Nội dung</th><th>Trạng thái</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p class="muted">Mỗi buổi gọi Gemini 1 lần (~20–60 giây). Bấm "Xem slide" để mở buổi đó ở tab Slide – soát lỗi chuẩn v2.0, hiệu ứng, sách chạy như khi nhập Excel.</p>`;
+      <p class="muted">Mỗi buổi gọi Gemini 1 lần (~20–60 giây; gói miễn phí khoảng 20 buổi/ngày, hết thì tự chuyển sang Flash-Lite). Bấm "Xem slide" để mở buổi đó ở tab Slide – soát lỗi chuẩn v2.0, hiệu ứng, sách chạy như khi nhập Excel.</p>`;
   }
   function wire(box) {
     const q = s => box.querySelector(s), qa = s => box.querySelectorAll(s);
