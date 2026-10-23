@@ -34,7 +34,7 @@
       for (const p of pron) { const a1 = S(p['Chữ / âm']), a2 = S(p['Bảng chữ / nhóm âm']); B('Block/Sub Heading', { text: a2 && !a1.toLowerCase().includes(a2.toLowerCase()) ? `${a1} · ${a2}` : a1 || a2 });   // không lặp "Nối âm … · Nối âm"
         if (S(p['Hướng dẫn phát âm'])) B('Block/Paragraph', { text: S(p['Hướng dẫn phát âm']) });
         const exs = S(p['Ví dụ']).split(/;\s*/).filter(Boolean).slice(0, 6);
-        if (exs.length) { const d = { no: ex(), instruction: 'Đọc to các từ sau.', 'head.track': '', 'head.ab': '' }; exs.forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.word`] = m ? m[1] : x; d[`ex_${i + 1}.vi`] = m ? '/' + m[2] + '/' : ''; }); B('Block/Pronunciation', d); } } }
+        if (exs.length) { const d = { no: 'Bài ' + ex(), instruction: 'Đọc to các từ sau.', 'head.track': '', 'head.ab': '' }; exs.forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.word`] = m ? m[1] : x; d[`ex_${i + 1}.vi`] = m ? '/' + m[2] + '/' : ''; }); B('Block/Pronunciation', d); } } }
 
     const vocab = tab(s6, /Từ vựng$/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Từ']));
     if (vocab.length) { SEC('Từ vựng');
@@ -113,7 +113,7 @@
         if (!g || g.k !== k) groups.push(g = { k, kind, ins, kinds: new Set(), rows: [] }); g.kinds.add(kind); g.rows.push(r); }
       for (const gr of groups) if (!gr.ins) gr.ins = gr.kind === 'match' ? 'Nối cho phù hợp.' : gr.kind === 'order' ? 'Sắp xếp thành câu đúng.' : gr.kinds.size > 1 ? 'Làm các câu sau.' : gr.kind === 'mc' ? 'Chọn đáp án đúng.' : 'Hoàn thành các câu sau.';
       for (const gr of groups) for (const part of chunk(gr.rows, 5)) {
-        const no = ex(), d = { no, instruction: gr.ins || 'Làm bài tập.', 'head.track': '', 'head.ab': '' };
+        const no = ex(), d = { no: 'Bài ' + no, instruction: gr.ins || 'Làm bài tập.', 'head.track': '', 'head.ab': '' };
         part.forEach((r, i) => { const n = `${no}.${i + 1}`; let q = S(r['Câu hỏi']).replace(/^\[[^\]]{1,80}\]\s*/, '');
           if (gr.kind === 'match') { d[`item_${i + 1}.no`] = String(i + 1); d[`item_${i + 1}.text`] = q.replace(/^nối\s*[:：]?\s*/i, ''); d[`item_${i + 1}.blank`] = '____'; }
           else if (gr.kind === 'order') { d[`item_${i + 1}.no`] = String(i + 1); d[`item_${i + 1}.words`] = q.replace(/^[^:]{0,60}:\s*/, ''); d[`item_${i + 1}.answer`] = ''; }
@@ -203,6 +203,10 @@
     // bài tập: số câu cột 16px, câu cách nhau 5px, khối câu thụt bằng nhau
     if (/Exercise|Matching|Sentence Order|True False/.test(comp)) { el.style.gap = '6px';
       el.querySelectorAll('[data-n^="item_"]').forEach(it => { if (!/^item_\d+$/.test(it.dataset.n)) return; Object.assign(it.style, { gap: '8px', minHeight: '0', height: 'auto' }); const no = it.querySelector('[data-n$=".no"]'); if (no) Object.assign(no.style, { flex: '0 0 16px', width: '16px' }); }); }
+    // NHÃN BÀI TẬP "Bài 9" (người dùng chốt 23/10: số trong vòng tròn nhỏ, khó hiểu) → nhãn chữ nhật bo nhẹ màu brand, chữ trắng đậm
+    const nb = el.querySelector(':scope [data-n="head"] [data-n="no_box"], :scope > [data-n="no_box"]') || (/Exercise|Matching|Sentence Order|Pronunciation|True False/.test(comp) ? el.querySelector('[data-n="no_box"]') : null);
+    if (nb && /Exercise|Matching|Sentence Order|Pronunciation|True False/.test(comp)) { Object.assign(nb.style, { width: 'auto', minWidth: '0', height: 'auto', borderRadius: '3px', padding: '2px 7px', alignSelf: 'center' }); delete nb.dataset.circle;
+      const t = nb.querySelector('[data-text]'); if (t) Object.assign(t.style, { fontSize: '9.5px', fontWeight: '700', lineHeight: '1.35', letterSpacing: '0.02em', whiteSpace: 'nowrap' }); }
     if (/Dialogue/.test(comp)) { el.style.gap = '6px';   // cột vai rộng đủ cho "Tin nhắn thoại" trên 1 dòng → câu thoại các dòng thẳng một mép
       el.querySelectorAll('[data-n$=".speaker"]').forEach(x => Object.assign(x.style, { flex: '0 0 80px', width: '80px', maxWidth: '80px', fontWeight: '600', color: INK, paddingRight: '8px' })); }
     // đoạn văn / lưu ý: danh sách đánh số thụt treo
