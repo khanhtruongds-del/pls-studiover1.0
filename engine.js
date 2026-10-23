@@ -4,7 +4,7 @@
   'use strict';
   const TPL = () => root.PLS_TPL;
   const LADDER = [120, 79.5, 64.5, 55.5, 48, 40.5, 36, 30, 28, 26, 24, 22, 20];   // thang cỡ chữ slide (Core size/*)
-  const STD = { minFont: 20, warnFont: 24, safe: 48, maxWords: 40, wordsSkip: /Reading|Transcript|Dialog|Answer Key/ }; // chuẩn v2.0 RB-PPT-02/03/06
+  const STD = { minFont: 20, warnFont: 24, safe: 48, maxWords: 0 /* 23/10: bỏ báo 'quá 40 từ' – slide bài tập / tổng quan luôn vượt, báo vàng hàng loạt không ai sửa được */, wordsSkip: /Reading|Transcript|Dialog|Answer Key/ }; // chuẩn v2.0 RB-PPT-02/03/06
   const CONTENT_IMG = n => n !== 'bg.img' && /^(img(_\d+)?|.+\.img)$/.test(n);   // ô ảnh nội dung → khung chờ ảnh; ảnh khác (nền, trang trí brand, logo) giữ nguyên
   const ASSET = h => { const v = root.PLS_ASSETS && root.PLS_ASSETS[h]; return v ? (v.startsWith('data:') ? v : 'assets/' + v) : null; };   // bản 1 file: ảnh nhúng sẵn data:
 
@@ -437,7 +437,7 @@
     }
     for (const el of filled) { const ff = getComputedStyle(el).fontFamily.split(',')[0]; if (CJK_FONT.test(ff) && VIET.test(el.textContent)) out.push({ lv: 'do', code: 'vietFont', slot: el.dataset.filled, msg: `Chữ Việt ở ô ${el.dataset.filled} đang dùng font ${ff.replace(/["']/g, '')} (RB-CH-04)`, src: 'Mẫu' }); }
     const words = filled.map(e => e.textContent).join(' ').split(/\s+/).filter(Boolean).length;
-    if (words > STD.maxWords && !STD.wordsSkip.test(host.dataset.comp)) out.push({ lv: 'vang', code: 'words', msg: `${words} từ (chuẩn ≤ ${STD.maxWords} từ / slide)`, src: 'Nội dung' });
+    if (STD.maxWords && words > STD.maxWords && !STD.wordsSkip.test(host.dataset.comp)) out.push({ lv: 'vang', code: 'words', msg: `${words} từ (chuẩn ≤ ${STD.maxWords} từ / slide)`, src: 'Nội dung' });
     const imgs = host.querySelectorAll('.pls-imgslot'); const shown = [...imgs].filter(e => e.offsetParent !== null);
     if (shown.length) out.push({ lv: 'vang', code: 'noImage', msg: `${shown.length} ô thiếu hình: ${shown.map(e => (e.dataset.imgLabel || '').replace(/^Thiếu hình:?\s*/, '') || '?').join(', ')}`, src: 'Ảnh' });
     if (r.missing.length) out.push({ lv: 'do', code: 'noSlot', msg: `Mẫu không có ô: ${r.missing.join(', ')}`, src: 'Nội dung' });
