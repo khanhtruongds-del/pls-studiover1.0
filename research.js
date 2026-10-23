@@ -114,7 +114,7 @@
     for (const f of files) {
       const kind = kindOf(f); if (kind === 'doc' || kind === 'other') { bad.push(f.name); continue; }
       if (f.size > 15 * 1024 * 1024) { bad.push(f.name + ' (quá 15 MB)'); continue; }
-      const s = { id: nextId(), name: f.name, kind, mime: f.type || (kind === 'pdf' ? 'application/pdf' : 'text/plain'), center, date, size: f.size, on: true, added: Date.now() };
+      const s = { id: nextId(), name: f.name, kind, mime: f.type || (kind === 'pdf' ? 'application/pdf' : 'text/plain'), center, date, size: f.size, on: true, added: Date.now(), autoName: /^(ảnh dán|img|image|scan|screenshot|ảnh chụp|document|untitled|new|tài liệu|\d)/i.test(f.name) };
       if (kind === 'pdf' || kind === 'image') s.blob = f;
       else if (kind === 'sheet') { if (root.XLSX && !/\.csv$/i.test(f.name)) { const wb = root.XLSX.read(await f.arrayBuffer(), { type: 'array' }); s.text = wb.SheetNames.map(n => '## ' + n + '\n' + root.XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n\n'); } else s.text = await f.text(); s.kind = 'text'; }
       else s.text = await f.text();
@@ -128,8 +128,14 @@
   let sumQ = Promise.resolve();
   async function summarize(s) {
     const { parts, tools } = await sourceParts([s]);
-    const r = await AI.call({ sys: SYS, contents: [{ role: 'user', parts: parts.concat({ text: `Tóm tắt nguồn ${s.id} cho người làm chương trình học: 1 câu nói nguồn này là gì; 3–5 gạch đầu dòng ý chính (cấp độ, số buổi, giáo trình, phương pháp, học phí… nếu có, kèm [${s.id}, tr.x]); 1 dòng "Chủ đề:" gồm 3–6 từ khóa. Ngắn gọn.` }) }], tools, maxTokens: 1024, tier: 'lite' });
-    s.summary = r.text.trim(); s.sumAt = Date.now(); save();
+    const r = await AI.call({ sys: SYS, contents: [{ role: 'user', parts: parts.concat({ text: `Đọc nguồn ${s.id}. Ba dòng đầu GHI ĐÚNG dạng:\nTRUNG TÂM: <tên trung tâm / tổ chức / nhà xuất bản sở hữu nguồn này, lấy từ logo, chân trang, tên miền… ghi "không rõ" nếu không thấy>\nTIÊU ĐỀ: <tên ngắn gọn của tài liệu / khóa học, tối đa 10 chữ>\nNGÀY: <ngày đăng hoặc cập nhật ghi trong nguồn, dạng YYYY-MM-DD, ghi "không rõ" nếu không có>\nSau đó tóm tắt cho người làm chương trình học: 1 câu nói nguồn này là gì; 3–5 gạch đầu dòng ý chính (cấp độ, số buổi, giáo trình, phương pháp, học phí… nếu có, kèm [${s.id}, tr.x]); 1 dòng "Chủ đề:" gồm 3–6 từ khóa. Ngắn gọn.` }) }], tools, maxTokens: 1200, tier: 'lite' });
+    let t = r.text.trim(); const meta = {};
+    t = t.replace(/^\s*\**(TRUNG TÂM|TIÊU ĐỀ|NGÀY)\**\s*:\s*(.*)$/gim, (m, k, v) => { meta[k.toUpperCase()] = v.replace(/\*+/g, '').trim(); return ''; }).trim();
+    const known = v => v && !/^không rõ|^chưa rõ|^n\/?a$/i.test(v);
+    if (!s.center && known(meta['TRUNG TÂM'])) { const c = meta['TRUNG TÂM'].slice(0, 60), same = P.centers.find(x => x.toLowerCase() === c.toLowerCase()); s.center = same || c; if (!same) P.centers.push(c); }
+    if (s.autoName && known(meta['TIÊU ĐỀ'])) { s.name = meta['TIÊU ĐỀ'].slice(0, 80); s.autoName = false; }
+    if (known(meta['NGÀY']) && /^\d{4}-\d\d-\d\d$/.test(meta['NGÀY'])) s.pubDate = meta['NGÀY'];
+    s.summary = t; s.sumAt = Date.now(); save();
   }
   function summarizeLater(list) {
     if (!AI.key() || !list || !list.length) return;
@@ -374,55 +380,50 @@
     const pend = [...(initFiles || [])];
     d = document.createElement('div'); d.id = 'rsAddDlg'; d.className = 'rs-dlg'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', 'Thêm nguồn');
     d.innerHTML = `<div class="rs-dlg-card rs-add-card"><div class="rs-row"><h3 style="flex:1">Thêm nguồn</h3><button type="button" class="rs-x" id="aX" aria-label="Đóng">×</button></div>
-      <p class="muted" style="margin:0">Nguồn dùng để hỏi đáp, so sánh và soạn bài. Ghi tên trung tâm để bảng so sánh chia đúng cột.</p>
-      <div class="rs-add-meta"><label class="rs-f">Trung tâm<input id="aCenter" list="aCenters" placeholder="VD: Trung tâm A" value="${esc(LS.get('pls.rs.center', ''))}" autocomplete="off"></label>
-        <label class="rs-f">Lấy ngày<input id="aDate" type="date" value="${today()}"></label></div>
-      <datalist id="aCenters">${P.centers.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
-      ${P.centers.length ? `<div class="rs-chips">${P.centers.map(c => `<button type="button" class="rs-chip" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
+      <p class="muted" style="margin:0">Chỉ cần thả file hoặc tìm trên web – Gemini tự đọc trung tâm, tiêu đề, ngày đăng trong từng nguồn (sửa lại được khi bấm vào nguồn).</p>
       <label class="rs-drop" id="aDrop"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
         <b>Kéo thả file vào đây hoặc bấm để chọn</b><span>PDF (cả bản scan), ảnh giáo trình, Excel / CSV, txt · tối đa 15 MB/file · dán ảnh bằng Ctrl+V</span>
         <input id="aFiles" type="file" multiple accept=".pdf,image/*,.xlsx,.xls,.csv,.txt,.md" hidden></label>
       <ul class="rs-pend" id="aPend"></ul>
-      <div class="rs-find"><label class="rs-f">Tìm nguồn trên web<span class="rs-row"><input id="aQ" placeholder="VD: lộ trình TOEIC 450 cho người mất gốc, học phí khóa N4…" ${AI.key() ? '' : 'disabled'}><button type="button" class="btn" id="aFind" ${AI.key() ? '' : 'disabled'}>Tìm</button></span></label>
-        ${AI.key() ? '' : '<small class="muted">Kết nối Gemini để tự tìm nguồn</small>'}<ul class="rs-found" id="aFound"></ul></div>
-      <div class="rs-add-two"><label class="rs-f">Link trang web<textarea id="aLinks" rows="3" placeholder="Dán link trang khóa học, lộ trình…\nMỗi dòng 1 link"></textarea></label>
-        <label class="rs-f">Dán văn bản<input id="aTitle" placeholder="Tiêu đề (không bắt buộc)"><textarea id="aText" rows="2" placeholder="Mô tả khóa, lộ trình, bảng giá…"></textarea></label></div>
+      <div class="rs-find"><label class="rs-f">Tìm nguồn trên web hoặc dán link<span class="rs-row"><input id="aQ" placeholder="VD: lộ trình TOEIC cho người mất gốc · hoặc dán https://…" autocomplete="off"><button type="button" class="btn" id="aFind">Tìm</button></span></label>
+        ${AI.key() ? '' : '<small class="muted">Chưa kết nối Gemini: vẫn dán link được, muốn tự tìm thì bấm "Kết nối AI"</small>'}<ul class="rs-found" id="aFound"></ul></div>
       <div class="rs-row"><span class="muted" id="aCount"></span><span style="flex:1"></span><button type="button" class="btn" id="aCancel">Hủy</button><button type="button" class="btn primary" id="aOk">Thêm nguồn</button></div></div>`;
     document.body.appendChild(d);
     const q = x => d.querySelector(x), close = () => { d.remove(); document.removeEventListener('paste', onPaste, true); };
-    const links = () => q('#aLinks').value.split(/\s+/).map(x => x.trim()).filter(x => /^https?:\/\/\S+$/.test(x));
+    const urls = []; const links = () => urls;
     const drawPend = () => { q('#aPend').innerHTML = pend.map((f, i) => `<li><span class="rs-kind k-${kindOf(f) === 'pdf' ? 'PDF' : kindOf(f) === 'image' ? 'ẢNH' : kindOf(f) === 'sheet' ? 'XLS' : 'TXT'}">${kindOf(f) === 'pdf' ? 'PDF' : kindOf(f) === 'image' ? 'ẢNH' : kindOf(f) === 'sheet' ? 'XLS' : 'TXT'}</span><span>${esc(f.name)}</span><small class="muted">${Math.max(1, Math.round(f.size / 1024))} KB</small><button type="button" class="rs-x" data-rm="${i}" aria-label="Bỏ ${esc(f.name)}">×</button></li>`).join('');
       d.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { pend.splice(+b.dataset.rm, 1); drawPend(); }); count(); };
     let found = [];
     const picked = () => found.filter(x => x.on);
-    const drawFound = () => { q('#aFound').innerHTML = found.map((x, i) => `<li><label><input type="checkbox" data-fi="${i}" ${x.on ? 'checked' : ''}><span><b>${esc(x.title || x.url)}</b><small>${esc(x.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))}${x.snippet ? ' · ' + esc(x.snippet) : ''}</small></span></label><input class="rs-fc" data-fc="${i}" value="${esc(x.center || '')}" placeholder="Trung tâm" aria-label="Trung tâm của ${esc(x.title || '')}"></li>`).join('');
+    const drawFound = () => { q('#aFound').innerHTML = found.map((x, i) => `<li><label><input type="checkbox" data-fi="${i}" ${x.on ? 'checked' : ''}><span><b>${esc(x.title || x.url)}</b><small>${esc(x.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))}${x.snippet ? ' · ' + esc(x.snippet) : ''}</small></span></label>${x.center ? `<small class="rs-fcn">${esc(x.center)}</small>` : ''}</li>`).join('') + urls.map((u, i) => `<li><label><input type="checkbox" checked disabled><span><b>${esc(u.replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))}</b><small>Link bạn dán</small></span></label><button type="button" class="rs-x" data-ru="${i}" aria-label="Bỏ link">×</button></li>`).join('');
+      d.querySelectorAll('[data-ru]').forEach(b => b.onclick = () => { urls.splice(+b.dataset.ru, 1); drawFound(); });
       d.querySelectorAll('[data-fi]').forEach(c => c.onchange = () => { found[+c.dataset.fi].on = c.checked; count(); });
-      d.querySelectorAll('[data-fc]').forEach(c => c.oninput = () => { found[+c.dataset.fc].center = c.value; }); count(); };
-    const doFind = async () => { const v = q('#aQ').value.trim(); if (!v) return; const b = q('#aFind'); b.disabled = true; b.textContent = 'Đang tìm…'; q('#aFound').innerHTML = '<li class="muted">Gemini đang tìm trên Google…</li>';
+      count(); };
+    const doFind = async () => { const v = q('#aQ').value.trim(); if (!v) return;
+      const us = v.split(/\s+/).filter(x => /^https?:\/\/\S+$/.test(x)); if (us.length) { us.forEach(u => { if (!urls.includes(u)) urls.push(u); }); q('#aQ').value = ''; q('#aFind').textContent = 'Tìm'; drawFound(); return; }   // dán link → thêm thẳng
+      if (!AI.key()) { q('#aFound').innerHTML = '<li class="muted">Cần kết nối Gemini để tự tìm – hoặc dán link trực tiếp.</li>'; return; } const b = q('#aFind'); b.disabled = true; b.textContent = 'Đang tìm…'; q('#aFound').innerHTML = '<li class="muted">Gemini đang tìm trên Google…</li>';
       try { found = (await discover(v)).map(x => Object.assign(x, { on: true })); if (!found.length) q('#aFound').innerHTML = '<li class="muted">Không tìm thấy trang phù hợp – thử cách hỏi khác.</li>'; else drawFound(); }
       catch (e) { q('#aFound').innerHTML = `<li class="muted">${esc(e.message)}</li>`; } b.disabled = false; b.textContent = 'Tìm'; count(); };
-    if (AI.key()) { q('#aFind').onclick = doFind; q('#aQ').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); doFind(); } }; }
-    const count = () => { const n = pend.length + links().length + picked().length + (q('#aText').value.trim() ? 1 : 0); q('#aCount').textContent = n ? `Sẽ thêm ${n} nguồn` : 'Chưa chọn nguồn nào'; q('#aOk').disabled = !n; q('#aOk').textContent = n > 1 ? `Thêm ${n} nguồn` : 'Thêm nguồn'; };
+    q('#aFind').onclick = doFind; q('#aQ').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); doFind(); } };
+    q('#aQ').oninput = () => { q('#aFind').textContent = /^https?:\/\//.test(q('#aQ').value.trim()) ? 'Thêm link' : 'Tìm'; };
+    const count = () => { const n = pend.length + links().length + picked().length; q('#aCount').textContent = n ? `Sẽ thêm ${n} nguồn` : 'Chưa chọn nguồn nào'; q('#aOk').disabled = !n; q('#aOk').textContent = n > 1 ? `Thêm ${n} nguồn` : 'Thêm nguồn'; };
     const addF = fs => { fs.forEach(f => { if (!pend.some(x => x.name === f.name && x.size === f.size)) pend.push(f); }); drawPend(); };
     function onPaste(e) { const fs = [...((e.clipboardData && e.clipboardData.files) || [])]; if (fs.length) { e.preventDefault(); addF(fs.map((f, i) => f.name && f.name !== 'image.png' ? f : new File([f], `Ảnh dán ${new Date().toLocaleTimeString('vi-VN').replace(/:/g, '-')}${i ? '-' + i : ''}.png`, { type: f.type }))); } }
     document.addEventListener('paste', onPaste, true);
     q('#aFiles').onchange = e => { addF([...e.target.files]); e.target.value = ''; };
     const dz = q('#aDrop'); dz.ondragover = e => { e.preventDefault(); dz.classList.add('on'); }; dz.ondragleave = () => dz.classList.remove('on'); dz.ondrop = e => { e.preventDefault(); dz.classList.remove('on'); addF([...e.dataTransfer.files]); };
-    d.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { q('#aCenter').value = b.dataset.c; });
-    ['#aLinks', '#aText'].forEach(x => q(x).oninput = count);
     q('#aX').onclick = q('#aCancel').onclick = close; d.onclick = e => { if (e.target === d) close(); }; d.onkeydown = e => { if (e.key === 'Escape') close(); };
     q('#aOk').onclick = async () => {
-      const c = q('#aCenter').value.trim(), dt = q('#aDate').value || today(); LS.set('pls.rs.center', c);
+      const c = '', dt = today();   // trung tâm + tiêu đề: Gemini tự đọc trong nguồn lúc tóm tắt · ngày lấy = hôm nay
       q('#aOk').disabled = true; q('#aOk').textContent = 'Đang thêm…';
       const bad = pend.length ? await addFiles(pend, c, dt) : [];
-      picked().forEach(x => addSource({ kind: 'link', name: (x.title || x.url).slice(0, 80), url: x.url, center: (x.center || '').trim() || c, date: dt, note: x.snippet || '' }));
-      links().forEach(u => addSource({ kind: 'link', name: u.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '').slice(0, 70), url: u, center: c, date: dt }));
-      const t = q('#aText').value.trim(); if (t) addSource({ kind: 'text', name: q('#aTitle').value.trim() || t.split('\n')[0].slice(0, 60) || 'Văn bản dán', text: t, center: c, date: dt });
-      const n = pend.length - bad.length + links().length + picked().length + (t ? 1 : 0);
-      close(); if (c && !P.centers.includes(c)) P.centers.push(c); save(); render();
+      picked().forEach(x => addSource({ kind: 'link', name: (x.title || x.url).slice(0, 80), url: x.url, center: (x.center || '').trim(), date: dt, note: x.snippet || '' }));
+      links().forEach(u => addSource({ kind: 'link', name: u.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '').slice(0, 70), url: u, center: '', date: dt, autoName: true }));
+      const n = pend.length - bad.length + links().length + picked().length;
+      close(); save(); render();
       toast(bad.length ? `Đã thêm ${n} nguồn · chưa đọc được: ${bad.join(', ')} (Word → lưu thành PDF rồi thêm lại)` : `Đã thêm ${n} nguồn${AI.key() ? ' · Gemini đang tóm tắt từng nguồn' : ''}`, !!bad.length);
     };
-    drawPend(); q(pend.length ? '#aCenter' : '#aDrop').focus();
+    drawPend(); q('#aQ').focus();
   }
   // XEM NGUỒN: nội dung gốc + tóm tắt (tự tạo khi thêm) + sửa tên / trung tâm / ngày
   function viewer(id) {
@@ -430,7 +431,7 @@
     let d = $('#rsView'); if (d) d.remove(); d = document.createElement('div'); d.id = 'rsView'; d.className = 'rs-dlg'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Xem nguồn ' + id);
     const url = s.blob ? URL.createObjectURL(s.blob) : null;
     d.innerHTML = `<div class="rs-dlg-card wide"><div class="rs-row"><h3 style="flex:1">${esc(s.id)} · ${esc(s.name)}</h3><button type="button" class="rs-x" id="rsViewX2" aria-label="Đóng">×</button></div>
-      <div class="rs-add-meta three"><label class="rs-f">Tên nguồn<input id="vName" value="${esc(s.name)}"></label><label class="rs-f">Trung tâm<input id="vCenter" list="vCenters" value="${esc(s.center || '')}"></label><label class="rs-f">Lấy ngày<input id="vDate" type="date" value="${esc(s.date || '')}"></label></div>
+      <div class="rs-add-meta three"><label class="rs-f">Tên nguồn<input id="vName" value="${esc(s.name)}"></label><label class="rs-f">Trung tâm<input id="vCenter" list="vCenters" value="${esc(s.center || '')}"></label><label class="rs-f">Lấy ngày<input id="vDate" type="date" value="${esc(s.date || '')}"></label></div>${s.pubDate ? `<p class="muted" style="margin:0;font-size:12px">Ngày đăng / cập nhật ghi trong nguồn: ${esc(s.pubDate)}</p>` : ''}
       <datalist id="vCenters">${P.centers.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
       <div class="rs-guide"><b>Tóm tắt nguồn</b>${s.summary ? `<div class="rs-md">${md(s.summary)}</div>` : `<p class="muted">${s.sumState === 'run' || s.sumState === 'wait' ? 'Gemini đang tóm tắt…' : s.sumState === 'err' ? 'Chưa tóm tắt được: ' + esc(s.sumErr || '') : 'Chưa có tóm tắt.'}</p>`}
         <button type="button" class="rs-mini" id="vSum" ${AI.key() ? '' : 'disabled'}>${s.summary ? 'Tóm tắt lại' : 'Tóm tắt nguồn này'}</button></div>
@@ -461,7 +462,7 @@
         <button type="button" class="rs-x" data-del="${s.id}" aria-label="Xóa nguồn ${esc(s.id)}">×</button></li>`;
     const gnames = [...new Set(P.sources.map(s => s.center || ''))].sort((a, b) => !a - !b || P.centers.indexOf(a) - P.centers.indexOf(b));
     const groups = gnames.map(g => { const ss = P.sources.filter(s => (s.center || '') === g), allOn = ss.every(s => s.on !== false);
-      return `<div class="rs-grp"><label class="rs-grp-h"><input type="checkbox" data-grp="${esc(g)}" ${allOn ? 'checked' : ''}><b>${esc(g || 'Chưa ghi trung tâm')}</b><span class="muted">${ss.length}</span></label><ul class="rs-srcs">${ss.map(item).join('')}</ul></div>`; }).join('');
+      return `<div class="rs-grp"><label class="rs-grp-h"><input type="checkbox" data-grp="${esc(g)}" ${allOn ? 'checked' : ''}><b>${esc(g || (ss.some(s => s.sumState === 'wait' || s.sumState === 'run') ? 'Gemini đang đọc trung tâm…' : 'Chưa rõ trung tâm'))}</b><span class="muted">${ss.length}</span></label><ul class="rs-srcs">${ss.map(item).join('')}</ul></div>`; }).join('');
     const allOn = P.sources.length && P.sources.every(s => s.on !== false);
     box.innerHTML = `
       <section class="rs-col rs-left" aria-label="Nguồn">
