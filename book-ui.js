@@ -22,7 +22,8 @@
     await ensureFonts(S.brand);
     if (!S.book || !S.book.s6) return null;
     const buoi = +($('#buoi') && $('#buoi').value) || 1;
-    const list = B.blocks(S.book, buoi, S.brand);
+    let list = B.blocks(S.book, buoi, S.brand);
+    if (S.aud === 'student') { const k = list.findIndex(b => /Section/.test(b.comp || '') && b.data && (b.data.title === 'Đáp án' || b.data.text === 'Đáp án')); if (k >= 0) list = list.slice(0, k); }   // bản học viên: bỏ phần Đáp án cuối sách
     const running = ((S.spec && S.spec.lesson) || '').toUpperCase();
     const bk = B.paginate(list, { size, brand: S.brand, stage: stage(), running, prep: null });   // sách in ra PDF: Chrome nhúng font web vào PDF → giữ đủ độ đậm (font an toàn của PPTX chỉ có thường / đậm)
     bk.blocks = list.length; return bk;
@@ -30,7 +31,7 @@
   // tên file PDF theo cùng mẫu tên PPTX (RB-CH-02) + khổ sách; Chrome lấy tiêu đề trang làm tên file khi "Lưu dưới dạng PDF"
   function pdfName(size) {
     const base = window.PLS_STD && I.stdCtx ? window.PLS_STD.fileName(I.stdCtx(), 'pdf').replace(/\.pdf$/i, '') : 'sach';
-    return `${base}_Sach${size === '19x27' ? '19x27' : 'A4'}`;
+    return `${base}_Sach${size === '19x27' ? '19x27' : 'A4'}${S.aud === 'student' ? '_HocVien' : ''}`;
   }
   function printBook(bk, size) {
     let pr = $('#printRoot'); if (!pr) { pr = document.createElement('div'); pr.id = 'printRoot'; document.body.appendChild(pr); }
@@ -72,9 +73,14 @@
     say(`Đã tải ${pp && pp.name || 'PPTX'} · hộp thoại in sách ${B.SIZES[size].label} (${bk.pages.length} trang): chọn "Lưu dưới dạng PDF" rồi bấm Lưu`);
     printBook(bk, size); return { pptx: pp, pdf: pdfName(size) + '.pdf', pages: bk.pages.length };
   }
-  { const b = document.createElement('button'); b.id = 'btnAll'; b.type = 'button'; b.className = 'btn primary'; b.textContent = 'Xuất bài (PPTX + PDF)';
+  { const b = document.createElement('button'); b.id = 'btnAll'; b.type = 'button'; b.className = 'btn primary'; b.textContent = 'Xuất bài';
     b.title = 'Tải PPTX rồi mở hộp thoại in sách (chọn Lưu dưới dạng PDF). Đang xem sách thì in theo khổ đang xem, đang xem slide thì in A4.';
-    const anchor = document.querySelector('.menuwrap') || $('#btnPdf'); if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor.nextSibling); b.onclick = () => exportAll(); }
+    const anchor = document.querySelector('.menuwrap') || $('#btnPdf'); if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor.nextSibling); b.onclick = () => exportAll();
+    // CHỌN BẢN XUẤT (đặc tả §31.2): Giáo viên = có đáp án, ghi chú giảng, hiệu ứng khoanh đáp án · Học viên = bỏ hẳn đáp án, slide đáp án, ghi chú, phần Đáp án cuối sách
+    const a = document.createElement('select'); a.id = 'aud'; a.setAttribute('aria-label', 'Bản xuất'); a.title = 'Bản giáo viên: có đáp án + ghi chú giảng. Bản học viên: không có đáp án, không ghi chú.';
+    a.add(new Option('Giáo viên', 'teacher')); a.add(new Option('Học viên', 'student')); a.value = S.aud || 'teacher';
+    a.onchange = () => { S.aud = a.value; b.textContent = S.aud === 'student' ? 'Xuất bản HV' : 'Xuất bài'; b.title = (S.aud === 'student' ? 'Bản học viên – không đáp án, không ghi chú. ' : 'Bản giáo viên – có đáp án, ghi chú giảng. ') + 'Tải PPTX rồi mở hộp thoại in sách (Lưu dưới dạng PDF).'; if (B.SIZES[S.view]) build(); };
+    b.parentNode.insertBefore(a, b); }
   function setView(v) {
     S.view = v; const rs = v === 'research', bk = !!B.SIZES[v];
     document.body.classList.toggle('research', rs);   // tab NGHIÊN CỨU (người dùng chốt 23/10): che slide/sách, hiện #researchView – xem research.js
