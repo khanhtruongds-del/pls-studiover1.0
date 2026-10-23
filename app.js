@@ -4,7 +4,7 @@
   'use strict';
   const E = window.PLS_ENGINE;
   const $ = s => document.querySelector(s);
-  const state = { tr: { style: 'NONE', duration: 0.5, scope: 'all' }, fx: { on: true, pace: 'vừa', hideAnswer: true }, fxStep: null, fxp: {}, fontMode: 'safe', hier: true, device: 'win', spec: null, brand: 'Betreux', slides: [], sel: 0, overrides: {}, imgOv: {}, choice: {}, building: false };
+  const state = { tr: { style: 'NONE', duration: 0.5, scope: 'all' }, fx: { on: true, pace: 'vừa', hideAnswer: true }, fxStep: null, fxp: {}, notesOv: {}, fontMode: 'safe', hier: true, device: 'win', spec: null, brand: 'Betreux', slides: [], sel: 0, overrides: {}, imgOv: {}, choice: {}, building: false };
   const BRANDS = ['Betreux', 'Creative English', 'Créatis', 'Saechang', 'Sakumi', 'Đắc Nhân'];
 
   // ---------- dựng cả bài ----------
@@ -102,7 +102,7 @@
   }
   function drawMain() {
     const r = state.slides[state.sel]; const box = $('#canvas'); box.innerHTML = '';
-    if (!r) return;
+    drawNotes(r); if (!r) return;
     $('#selTitle').textContent = `Slide ${state.sel + 1} · ${r.host.dataset.comp.replace(/^Slide\//, '')}`;
     $('#selMeta').textContent = `Điểm ${r.score}/100 · ${r.fitLog.length ? r.fitLog.length + ' ô đã co chữ' : 'không phải co chữ'}` + (r.plans ? ` · ${r.plans.find(p => p.active).label}` : '');
     const w = Math.min(box.clientWidth - 32, 1100);
@@ -322,6 +322,20 @@
       return x;
     });
   }
+  // GHI CHÚ GIẢNG (Notes dưới slide): máy soạn từ Excel (import-excel.js / auto.js), người dùng sửa được; bản sửa giữ theo slide (nguồn/phần)
+  const notesKey = r => r.src + '/' + r.part;
+  function notesOf(r) { const k = notesKey(r); return k in state.notesOv ? state.notesOv[k] : ((r.spec && r.spec.notes) || ''); }
+  function drawNotes(r) {
+    let box = $('#notesBox'); if (!box) { box = document.createElement('details'); box.id = 'notesBox'; box.open = true; $('#canvas').after(box); }
+    if (!r) { box.hidden = true; return; } box.hidden = false;
+    const k = notesKey(r), edited = k in state.notesOv;
+    box.innerHTML = `<summary><b>Ghi chú giảng</b> <span class="muted">· ẩn dưới slide (Notes trong PowerPoint / Google Slides)${edited ? ' · đã sửa tay' : ''}</span></summary>`;
+    const ta = document.createElement('textarea'); ta.id = 'notesText'; ta.rows = 7; ta.value = notesOf(r); ta.setAttribute('aria-label', 'Ghi chú giảng của slide');
+    ta.placeholder = 'GIẢNG\n• …\n\nLƯU Ý\n• …';
+    ta.oninput = () => { state.notesOv[k] = ta.value; };
+    box.appendChild(ta);
+    if (edited) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = 'Về ghi chú máy soạn'; b.onclick = () => { delete state.notesOv[k]; drawNotes(r); }; box.appendChild(b); }
+  }
   function stdCtx() { const m = (state.spec && state.spec.meta) || {}; return { transition: state.tr, brand: state.brand, level: m.level || '', no: m.no || 1, sessionType: m.sessionType || '', title: m.title || (state.spec && state.spec.lesson) || 'Bai' }; }
   function curDevice() { const devs = E.devicesOf(state.brand); return devs.find(d => d.key === state.device) || devs[0]; }
   function drawDeviceSel() {
@@ -336,6 +350,7 @@
     const xs = exportView(device.font ? device : null);
     const bad = xs.flatMap(x => x.issues.filter(i => i.lv === 'do').map(i => `slide ${x.slide}: ${i.msg}`));
     const model = await E.toModel(xs.map(x => x.host), { transition: state.tr });
+    model.slides.forEach((m, i) => { if (state.slides[i]) m.notes = notesOf(state.slides[i]); });   // ghi chú giảng → Notes của từng slide
     const bytes = window.PPTX.build(model);
     $('#xstage').innerHTML = '';
     let name = window.PLS_STD ? window.PLS_STD.fileName(stdCtx(), 'pptx') : `${(state.spec.lesson || 'bai').replace(/[^\p{L}\p{N}]+/gu, '_')}.pptx`;   // RB-CH-02
@@ -376,6 +391,8 @@
     issues() { return state.slides.map((r, i) => ({ slide: i + 1, comp: r.host.dataset.comp, score: r.score, issues: r.issues })); },
     typo() { return state.slides.map((r, i) => ({ slide: i + 1, comp: r.host.dataset.comp, typo: r.typo || [] })).filter(x => x.typo.length); },
     set(slide, slot, text) { const r = state.slides[slide - 1]; if (!r) throw new Error('Không có slide ' + slide); setSlot(r, slot, text); return build(); },
+    notes(slide) { const r = state.slides[slide - 1]; return r ? notesOf(r) : null; },
+    setNotes(slide, text) { const r = state.slides[slide - 1]; if (!r) throw new Error('Không có slide ' + slide); if (text == null) delete state.notesOv[notesKey(r)]; else state.notesOv[notesKey(r)] = String(text); if (state.sel === slide - 1) drawNotes(r); return notesOf(r); },
     fxDetect(slide) { const r = state.slides[slide - 1]; return r && window.PLS_FXP ? window.PLS_FXP.detect(r) : null; },
     fxPreset(slide, id, all) { const r = state.slides[slide - 1]; if (!r) throw new Error('Không có slide ' + slide); const t = window.PLS_FXP.detect(r).type; const ks = all && t ? state.slides.filter(x => window.PLS_FXP.detect(x).type === t).map(x => x.src + '/' + x.part) : [r.src + '/' + r.part]; ks.forEach(k => { if (id === 'auto') delete state.fxp[k]; else state.fxp[k] = id; }); return build(); },
     choose(slide, label) { const r = state.slides[slide - 1]; state.choice[r.src] = label; return build(); },
