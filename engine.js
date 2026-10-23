@@ -584,7 +584,11 @@
       if (fam === native && VIET.test(txt) && !CJK.test(txt)) fam = role === 'heading' ? PPTX_CFG.heading : PPTX_CFG.body;   // RB-CH-04 / fixFontViet: chữ Việt không nằm trong font Hán–Hàn–Nhật
       if (native && CJK.test(txt) && PPTX_CFG.latinInNative.includes(brand)) fam = native;
       el.style.fontFamily = `'${fam}'` + (native ? `, '${native}'` : '') + ', sans-serif';
-      el.style.fontWeight = (parseFloat(getComputedStyle(el).fontWeight) || 400) >= 600 ? '700' : '400';
+      // khối sách được xử lý TRƯỚC khi gắn vào trang → getComputedStyle rỗng → mọi chữ đậm thành thường (lỗi phân cấp sách);
+      // chưa gắn thì đọc độ đậm từ style của mẫu (var(--fw-…, 700) → 700)
+      const fwIn = String(el.style.fontWeight || ''), fwNum = parseFloat((fwIn.match(/(\d{3})\s*\)?\s*$/) || [])[1]) || parseFloat(fwIn);
+      const fw = el.isConnected ? (parseFloat(getComputedStyle(el).fontWeight) || fwNum || 400) : (fwNum || 400);
+      el.style.fontWeight = fw >= 600 ? '700' : '400';
     });
   }
 
