@@ -22,7 +22,7 @@
     const s5row = tab(s5, /^S5$/).find(r => isB(r, buoi)) || {};
     const B = (comp, data) => out.push({ comp, data });
     // ĐỀ MỤC LỚN theo mẫu sách đã duyệt (Figma "TEST PDF tiếng Anh"): Block/Section Bar = chữ cái A, B, C… to + tên mục + kẻ ngang màu brand
-    let secNo = 0; const SEC = text => B(TPL('Block/Section Bar') ? 'Block/Section Bar' : 'Block/Section Heading', TPL('Block/Section Bar') ? { letter: String.fromCharCode(65 + secNo++), title: text, lesson: '' } : { text });
+    let secNo = 0, curSec = ''; const SEC = text => (curSec = text, B(TPL('Block/Section Bar') ? 'Block/Section Bar' : 'Block/Section Heading', TPL('Block/Section Bar') ? { letter: String.fromCharCode(65 + secNo++), title: text, lesson: '' } : { text }));
     let exNo = 0; const ex = () => String(++exNo);
     const title = S(info['Tên buổi']) || 'Buổi ' + buoi;
     B('Block/Lesson Header', { lesson: 'Bài ' + (info['Bài'] ? Number(info['Bài']) : buoi), 'title.vi': title, 'title.native': course['Tên khoá'] || '' });
@@ -82,7 +82,26 @@
     if (hw.length) { SEC('Bài tập về nhà'); exercises(hw, ''); }
 
     if (keys.length) { SEC('Đáp án');
-      for (const part of chunk(keys, 30)) B('Block/Answer Key', { title: '', text: part.map(k => `${k[0]}. ${k[1]}`).join('     ') }); }
+      // ĐÁP ÁN THEO MỤC → THEO BÀI (người dùng chốt 23/10: như sách giáo trình – không dồn 1 khối chữ chạy liền):
+      // mỗi mục (Ngữ pháp, Nghe…) 1 tiêu đề con; mỗi bài 1 nhãn "Bài 2 · Làm các câu sau."; có giải thích → bảng Câu | Đáp án | Giải thích,
+      // đáp án ngắn không giải thích → lưới 4 cặp Câu – Đáp án / hàng, dài → bảng Câu | Đáp án
+      const bySec = []; for (const k of keys) { let g = bySec.find(x => x.sec === k.sec); if (!g) bySec.push(g = { sec: k.sec, ex: [] }); let e = g.ex.find(x => x.no === k.ex); if (!e) g.ex.push(e = { no: k.ex, ins: k.ins, items: [] }); e.items.push(k); }
+      for (const g of bySec) {
+        if (bySec.length > 1 || g.sec) { B('Block/Sub Heading', { text: g.sec || 'Bài tập' }); }
+        for (const e of g.ex) {
+          B('Block/Paragraph', { text: `Bài ${e.no} · ${e.ins}` }); out[out.length - 1].role = 'label';
+          const why = e.items.some(k => k.why), long = e.items.some(k => k.a.length > 22);
+          if (why || long) {
+            const head = why ? { 'row_0.c1': 'Câu', 'row_0.c2': 'Đáp án', 'row_0.c3': 'Giải thích' } : { 'row_0.c1': 'Câu', 'row_0.c2': 'Đáp án' };
+            for (const [pi, part] of chunkEven(e.items, 8).entries()) { const d = Object.assign({}, head); part.forEach((k, i) => { d[`row_${i + 1}.c1`] = String(k.i); d[`row_${i + 1}.c2`] = k.a || '–'; if (why) d[`row_${i + 1}.c3`] = k.why || ''; });
+              B('Block/Table N', d); out[out.length - 1].role = why ? 'ans3' : 'ans2'; if (pi) out[out.length - 1].cont = true; }
+          } else {
+            const rows = chunk(e.items, 4), d = {}; for (let c = 0; c < Math.min(4, e.items.length); c++) { d[`row_0.c${c * 2 + 1}`] = 'Câu'; d[`row_0.c${c * 2 + 2}`] = 'Đáp án'; }
+            for (const [pi, part] of chunk(rows, 8).entries()) { const dd = Object.assign({}, d); part.forEach((r, ri) => r.forEach((k, c) => { dd[`row_${ri + 1}.c${c * 2 + 1}`] = String(k.i); dd[`row_${ri + 1}.c${c * 2 + 2}`] = k.a || '–'; }));
+              B('Block/Table N', dd); out[out.length - 1].role = 'ansgrid'; if (pi) out[out.length - 1].cont = true; }
+          }
+        }
+      } }
     return out;
 
     // bài tập: gom theo phần + dạng → Exercise (trắc nghiệm, viết) / Matching / Sentence Order, tối đa 5 câu/khối; đáp án gom cuối sách
@@ -99,7 +118,7 @@
           if (gr.kind === 'match') { d[`item_${i + 1}.no`] = String(i + 1); d[`item_${i + 1}.text`] = q.replace(/^nối\s*[:：]?\s*/i, ''); d[`item_${i + 1}.blank`] = '____'; }
           else if (gr.kind === 'order') { d[`item_${i + 1}.no`] = String(i + 1); d[`item_${i + 1}.words`] = q.replace(/^[^:]{0,60}:\s*/, ''); d[`item_${i + 1}.answer`] = ''; }
           else { const opts = /trắc nghiệm/i.test(S(r['Dạng câu'])) ? LET.map(L => S(r[L])).map((o, j) => o ? `${LET[j]}. ${o}` : '').filter(Boolean) : []; d[`item_${i + 1}.no`] = String(i + 1); d[`item_${i + 1}.text`] = q + (opts.length ? '\n' + opts.join('      ') : '\n______________________________'); }
-          const a = S(r['Đáp án']); keys.push([n, /trắc nghiệm/i.test(S(r['Dạng câu'])) && LET.includes(a.toUpperCase().charAt(0)) && S(r[a.toUpperCase().charAt(0)]) ? `${a.toUpperCase().charAt(0)}. ${S(r[a.toUpperCase().charAt(0)])}` : a]); });
+          const a = S(r['Đáp án']); keys.push({ sec: curSec, ex: no, ins: gr.ins, i: i + 1, why: S(r['Giải thích']), a: /trắc nghiệm/i.test(S(r['Dạng câu'])) && LET.includes(a.toUpperCase().charAt(0)) && S(r[a.toUpperCase().charAt(0)]) ? `${a.toUpperCase().charAt(0)}. ${S(r[a.toUpperCase().charAt(0)])}` : a }); });
         if (gr.kind === 'match') { const rs = part.map(r => S(r['Đáp án'])); const sh = rs.map((_, i) => rs[(i * 2 + 1) % rs.length]); const ok = new Set(sh).size === rs.length; (ok ? sh : rs.slice().reverse()).forEach((m, i) => { d[`item_${i + 1}.key`] = 'abcde'[i]; d[`item_${i + 1}.match`] = m; }); }
         out.push({ comp: gr.kind === 'match' ? 'Block/Matching' : gr.kind === 'order' ? 'Block/Sentence Order' : 'Block/Exercise', data: d });
       }
@@ -171,6 +190,11 @@
     if (/Table/.test(comp)) {
       el.querySelectorAll('[data-n$="_cell"]').forEach(c => { Object.assign(c.style, { justifyContent: 'flex-start', padding: '5px 8px' }); const t = c.querySelector('[data-text]'); if (t) t.style.textAlign = 'left'; });
       el.querySelectorAll('[data-n^="row_"]').forEach(r => { if (!/^row_\d+$/.test(r.dataset.n)) return; r.style.height = 'auto'; const c1 = r.querySelector('[data-n="c1"]'); if (c1 && r.dataset.n !== 'row_0') c1.style.fontWeight = '600'; });
+      // bảng đáp án: cột số câu hẹp, căn giữa, màu brand; giải thích chiếm phần lớn bề ngang
+      const AW = b && { ans3: { c1: 9, c2: 28, c3: 63 }, ans2: { c1: 10, c2: 90 }, ansgrid: { c1: 7, c2: 18, c3: 7, c4: 18, c5: 7, c6: 18, c7: 7, c8: 18 } }[b.role];
+      if (AW) el.querySelectorAll('[data-n$="_cell"]').forEach(c => { const k = c.dataset.n.replace('_cell', ''); if (!AW[k]) return; c.style.flex = `${AW[k]} 1 0px`;
+        const num = AW[k] <= 10; if (num) { c.style.justifyContent = 'center'; c.style.padding = '5px 4px'; const t = c.querySelector('[data-text]'); if (t) { t.style.textAlign = 'center'; t.style.fontWeight = '700'; t.style.color = 'var(--color-primary-ink, var(--color-primary, #406864))'; } }
+        else if (b.role === 'ans3' && k === 'c3') { const t = c.querySelector('[data-text]'); if (t) t.style.fontWeight = '400'; } });
       if (/Vocab Table/.test(comp)) { const W = { c1: 27, c2: 22, c3: 14, c4: 37 }; el.querySelectorAll('[data-n$="_cell"]').forEach(c => { const k = c.dataset.n.replace('_cell', ''); if (W[k]) c.style.flex = `${W[k]} 1 0px`; }); }
     }
     // hộp ví dụ: các câu cách đều 6px, đệm 10/14
@@ -258,7 +282,7 @@
     const probeOf = b => nRows(b) > 3 ? Object.assign({}, b, { data: sliceT(b, 0, 2) }) : b;   // kiểm tiêu đề mồ côi: chỉ cần đầu bảng + 2 dòng theo kèm
     const trySplit = (pg, i, el) => { const b = list[i], n = nRows(b); if (n < 4 || pg.blocks.length < 2) return null;
       for (let k = n - 2; k >= 2; k--) { const part = Object.assign({}, b, { data: sliceT(b, 0, k) }); const e2 = mk(part); pg.content.replaceChild(e2, el); pg.blocks[pg.blocks.length - 1] = e2; head0(pg);
-        if (fits(pg)) { list.splice(i + 1, 0, { comp: b.comp, data: sliceT(b, k, n), cont: true, space: 0 }); list[i] = part; return e2; }
+        if (fits(pg)) { list.splice(i + 1, 0, { comp: b.comp, data: sliceT(b, k, n), cont: true, space: 0, role: b.role }); list[i] = part; return e2; }
         el = e2; }
       return el; };
     const isHead = x => /(Heading|Section Bar)$/.test(x.comp) || x.role === 'label' || x.role === 'practice';   // nhãn "Lời bài nghe", "Luyện tập" không đứng trơ cuối trang
