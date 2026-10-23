@@ -35,7 +35,7 @@
     drawRecent();
   }
   // FILE GẦN ĐÂY (người dùng chốt 23/10): lưu bộ Excel đã nhập (đã đọc thành dữ liệu) trong IndexedDB của trình duyệt – chỉ trên máy này, tối đa 6 bộ
-  const RECENT_MAX = 6;
+  const RECENT_MAX = 30, RECENT_SHOW = 5;   // giữ 30 bộ gần nhất; hiện 5, còn lại bấm "Xem thêm" / ô tìm (người dùng hỏi 23/10)
   const RDB = (() => { let dbp;
     const open = () => dbp || (dbp = new Promise((res, rej) => { const q = indexedDB.open('pls-studio', 1); q.onupgradeneeded = () => q.result.createObjectStore('recent', { keyPath: 'id' }); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }));
     const run = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('recent', mode); const q = fn(t.objectStore('recent')); t.oncomplete = () => res(q && 'result' in q ? q.result : undefined); t.onerror = () => rej(t.error); }); };
@@ -53,7 +53,19 @@
     try { rs = (await RDB.all()).sort((a, b) => b.at - a.at); } catch (e) { box.innerHTML = '<p class="muted">Trình duyệt này không cho lưu file gần đây.</p>'; return; }
     if (!rs.length) { box.innerHTML = '<div class="w-empty"><b>Chưa có file nào</b><span class="muted">Bộ Excel bạn nhập sẽ hiện ở đây để mở lại lần sau.</span></div>'; return; }
     box.innerHTML = '';
-    rs.forEach(r => { const it = document.createElement('div'); it.className = 'item recent';
+    // nhiều hơn 5 bộ → ô tìm (theo tên khoá, tên file, brand, buổi) + nút Xem thêm
+    const list = document.createElement('div'); let q = '', all = false;
+    const textOf = r => { const c = ((r.books.s6 || {})['S6-Thông tin khoá'] || []).find(x => /Tên khoá/.test(x['Mục'] || '')) || {}; return [c['Nội dung'], ...r.names, r.brand, r.buoi ? 'buổi ' + r.buoi : ''].join(' ').toLowerCase(); };
+    const fold = t => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');   // gõ không dấu vẫn tìm được
+    let more = null;
+    const paint = () => { list.innerHTML = ''; const toks = fold(q.toLowerCase()).split(/[\s_.-]+/).filter(Boolean), hit = toks.length ? rs.filter(r => { const t = fold(textOf(r)).replace(/[_.-]+/g, ' '); return toks.every(k => t.includes(k)); }) : rs; /* nhiều từ: khớp đủ từng từ, không cần đúng thứ tự */ const shown = q || all ? hit : hit.slice(0, RECENT_SHOW);
+      if (!shown.length) list.innerHTML = '<p class="muted">Không thấy bộ nào khớp.</p>';
+      shown.forEach(row); if (more) { more.hidden = !!q || rs.length <= RECENT_SHOW; more.textContent = all ? 'Thu gọn' : `Xem thêm (${rs.length - RECENT_SHOW})`; } };
+    if (rs.length > RECENT_SHOW) { const sq = document.createElement('input'); sq.type = 'search'; sq.className = 'rc-search'; sq.placeholder = `Tìm trong ${rs.length} bộ (tên khoá, file, brand, buổi)…`; sq.setAttribute('aria-label', 'Tìm file gần đây');
+      sq.oninput = () => { q = sq.value.trim(); paint(); }; box.appendChild(sq); }
+    box.appendChild(list);
+    if (rs.length > RECENT_SHOW) { more = document.createElement('button'); more.type = 'button'; more.className = 'btn rc-more'; more.onclick = () => { all = !all; paint(); }; box.appendChild(more); }
+    function row(r) { const box = list; const it = document.createElement('div'); it.className = 'item recent';
       const course = ((r.books.s6 || {})['S6-Thông tin khoá'] || []).find(x => /Tên khoá/.test(x['Mục'] || '')) || {};
       const open = document.createElement('button'); open.type = 'button'; open.className = 'rc-open';
       open.innerHTML = `<b></b><span class="muted"></span><span class="tag" style="--c:var(--ui-accent)"></span>`;
@@ -63,7 +75,8 @@
       open.onclick = () => { if (r.brand) { state.brand = r.brand; $('#brand').value = r.brand; } openBooks(r.books, r.names, r.buoi, true); state.recentId = r.id; };
       const del = document.createElement('button'); del.type = 'button'; del.className = 'rc-del'; del.textContent = '×'; del.title = 'Bỏ khỏi danh sách'; del.setAttribute('aria-label', 'Bỏ ' + r.id + ' khỏi danh sách');
       del.onclick = async () => { await RDB.del(r.id); drawRecent(); };
-      it.append(open, del); box.appendChild(it); });
+      it.append(open, del); box.appendChild(it); }
+    paint();
   }
   // mở 1 bộ Excel đã đọc (nhập mới hoặc từ File gần đây)
   function openBooks(books, names, buoi, fromRecent) {
