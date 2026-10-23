@@ -4,7 +4,7 @@
   'use strict';
   const TPL = () => root.PLS_TPL;
   const LADDER = [120, 79.5, 64.5, 55.5, 48, 40.5, 36, 30, 28, 26, 24, 22, 20];   // thang cỡ chữ slide (Core size/*)
-  const STD = { minFont: 20, warnFont: 24, safe: 48, maxWords: 40, wordsSkip: /Reading|Transcript|Dialog/ }; // chuẩn v2.0 RB-PPT-02/03/06
+  const STD = { minFont: 20, warnFont: 24, safe: 48, maxWords: 40, wordsSkip: /Reading|Transcript|Dialog|Answer Key/ }; // chuẩn v2.0 RB-PPT-02/03/06
   const CONTENT_IMG = n => n !== 'bg.img' && /^(img(_\d+)?|.+\.img)$/.test(n);   // ô ảnh nội dung → khung chờ ảnh; ảnh khác (nền, trang trí brand, logo) giữ nguyên
   const ASSET = h => { const v = root.PLS_ASSETS && root.PLS_ASSETS[h]; return v ? (v.startsWith('data:') ? v : 'assets/' + v) : null; };   // bản 1 file: ảnh nhúng sẵn data:
 
@@ -53,6 +53,7 @@
       else { e.classList.add('pls-imgslot'); e.dataset.imgLabel = ''; }
     });
     host.querySelectorAll('[data-n]').forEach(e => { if (!e.dataset.img && CONTENT_IMG(e.dataset.n) && !e.querySelector('[data-text]')) e.classList.add('pls-imgslot'); });
+    if (spec.comp === 'Slide/Answer Key' && spec.layout === 'flow') ansFlow(rootEl, data);
     // đổ nội dung
     for (const [k, v] of Object.entries(data)) {
       if (k.startsWith('img:')) continue;
@@ -90,7 +91,7 @@
     rootEl.querySelectorAll('[data-n="speaker"], [data-n$=".speaker"], [data-n="who"], [data-n$=".who"], [data-n="name"], [data-n$=".name"]').forEach(t => { if (!t.dataset.text) return;
       const w = parseFloat(t.style.width) || 0; Object.assign(t.style, { whiteSpace: 'nowrap', overflowWrap: 'normal', wordBreak: 'keep-all' }); if (w && w < 300) Object.assign(t.style, { width: 'auto', minWidth: w + 'px', maxWidth: '300px' }); });
     // Đáp án (lưới): ô cao vừa chữ, rộng đều 1/3 hàng, hàng thiếu ô thì căn giữa, lưới ngay dưới tiêu đề
-    if (spec.comp === 'Slide/Answer Key') {
+    if (spec.comp === 'Slide/Answer Key' && spec.layout !== 'flow') {
       const grid = rootEl.querySelector('[data-n="grid"]'); if (grid) Object.assign(grid.style, { justifyContent: 'flex-start', rowGap: '28px', gap: '28px', paddingTop: '8px' });
       rootEl.querySelectorAll('[data-n^="row_"]').forEach(rw => { if (!/^row_\d+$/.test(rw.dataset.n)) return; Object.assign(rw.style, { flex: '0 0 auto', justifyContent: 'center', overflow: 'visible', alignItems: 'stretch' });   // ô cùng hàng cao bằng ô cao nhất
         const list = spec.layout === 'list';   // đáp án dài (câu): mỗi ô 1 hàng rộng hết khung, cùng kiểu thẻ + vòng số
@@ -176,6 +177,48 @@
     });
   }
   const TY = () => root.PLS_TYPO;
+  // TRANG ĐÁP ÁN GỌN: thay 4 hàng × 3 ô cố định của mẫu bằng một lưới chảy (flex-wrap) đủ số ô, xếp trái → phải, trên → dưới.
+  // Số cột chọn theo độ dài đáp án (đa số ngắn → 4 cột; câu dài → 2 / 1 cột); đáp án dài hơn ô thì chiếm 2+ cột, vẫn đúng thứ tự câu.
+  // Ô ôm chữ (không kéo cao cho đầy trang), các ô cùng hàng cao bằng ô cao nhất. Cỡ chữ cả trang chỉnh sau khi dựng (ansFit).
+  const ANS_CPC = { 5: 10, 4: 14, 3: 22, 2: 40, 1: 1e9 }, ANS_GAP = 20;   // số ký tự vừa 1 ô ở cỡ 36–40
+  function ansCols(grid, C, flat) {   // flat: mọi ô 1 cột (đáp án dài xuống dòng trong ô)   // C cột; ô có đáp án dài chiếm 2+ cột, vẫn đúng thứ tự câu
+    grid.dataset.cols = String(C);
+    [...grid.children].forEach(a => { const n = +a.dataset.len || 0;
+      const span = flat ? 1 : Math.min(C, [1, 2, 3, 4, 5].find(s => n <= ANS_CPC[C] * s * 1.15) || C); a.dataset.span = String(span);
+      a.style.flex = `0 0 calc((100% - ${(C - 1) * ANS_GAP}px) / ${C} * ${span} + ${(span - 1) * ANS_GAP}px)`; });
+  }
+  function ansFlow(rootEl, data) {
+    const grid = rootEl.querySelector('[data-n="grid"]'), proto = rootEl.querySelector('[data-n="a_1"]'); if (!grid || !proto) return;
+    const items = []; for (let k = 1; data[`a_${k}.key`] != null || data[`a_${k}.text`] != null; k++) items.push(String(data[`a_${k}.text`] || ''));
+    if (!items.length) return;
+    const lens = items.map(t => t.length).sort((a, b) => a - b), med = lens[Math.floor((lens.length - 1) / 2)];
+    let C = med <= ANS_CPC[4] ? 4 : med <= ANS_CPC[3] ? 3 : med <= ANS_CPC[2] ? 2 : 1;
+    if (items.length <= 3) C = Math.min(C, items.length === 1 ? 1 : 2);
+    const tpl = proto.cloneNode(true);
+    grid.innerHTML = '';
+    Object.assign(grid.style, { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'stretch', alignContent: 'flex-start', justifyContent: 'flex-start', gap: ANS_GAP + 'px', rowGap: ANS_GAP + 'px', columnGap: ANS_GAP + 'px', paddingTop: '4px' });
+    grid.dataset.pref = String(C); grid.dataset.med = String(med);
+    items.forEach((t, i) => {
+      const a = tpl.cloneNode(true); a.dataset.n = `a_${i + 1}`; a.dataset.len = String(t.length);
+      Object.assign(a.style, { alignSelf: 'stretch', minHeight: '0', height: 'auto', padding: '16px 24px', gap: '18px', alignItems: 'center' });
+      grid.appendChild(a);
+    });
+    ansCols(grid, C);
+  }
+  // chọn cỡ chữ LỚN NHẤT (thang chuẩn 40,5 → 28) mà trang vẫn vừa; ở mỗi cỡ thử số cột ưu tiên trước rồi thêm cột (ô hẹp, chữ xuống dòng).
+  // Không vừa ở 28 → để nguyên, soát lỗi báo tràn → app chọn phương án chia trang.
+  function ansFit(r) {
+    const grid = r.host.querySelector('[data-n="grid"][data-cols]'); if (!grid) return;
+    const cells = [...grid.children], txt = cells.map(c => c.querySelector('[data-n="text"]')).filter(Boolean), keys = cells.map(c => c.querySelector('[data-n="key_box"]')).filter(Boolean);
+    const fits = () => grid.scrollHeight <= grid.clientHeight + 1 && txt.every(e => e.scrollWidth <= e.clientWidth + 1);
+    const pref = +grid.dataset.pref || 3, colsTry = [pref]; for (let c = pref + 1; c <= (med => med <= ANS_CPC[5] ? 5 : 4)(+grid.dataset.med || 99); c++) if (cells.length >= c) colsTry.push(c); for (let c = pref - 1; c >= 1; c--) colsTry.push(c);
+    const maxN = Math.max(0, ...keys.map(b => (b.textContent || '').trim().length));
+    const apply = fs => { txt.forEach(e => { e.style.fontSize = fs + 'px'; e.style.lineHeight = '1.3'; e.dataset.fs = String(fs); });
+      const kb = Math.max(44, Math.round(fs * 1.35)), kf = Math.max(24, Math.round(kb * (maxN >= 3 ? 0.36 : maxN === 2 ? 0.5 : 0.6)));
+      keys.forEach(b => { Object.assign(b.style, { flex: '0 0 auto', width: kb + 'px', minWidth: kb + 'px', height: kb + 'px' }); b.dataset.circle = String(kb); const k = b.querySelector('[data-text]'); if (k) { k.style.fontSize = kf + 'px'; k.dataset.fs = String(kf); } }); };
+    for (const fs of LADDER.filter(v => v <= 40.5 && v >= 28)) { apply(fs); for (const C of colsTry) for (const flat of [false, true]) { ansCols(grid, C, flat); if (fits()) return; } }
+    ansCols(grid, pref);
+  }
   function setText(e, v) { const s = e.querySelector('[data-t]'); (s || e).textContent = v; }
 
   // Ô CHỮ TRONG MỤC ĐANG DÙNG MÀ KHÔNG CÓ DỮ LIỆU (vd item_1.meta) → ẩn, không để lộ chữ mẫu (lỗi "chữ mẫu còn sót" trong BACKLOG)
@@ -282,6 +325,7 @@
 
   // luật bố cục chữ đặc biệt (typo.js): ô to + khối chữ chính trước khi co chữ; giãn đều chống hở đáy sau khi co
   function typoLayout(r) {
+    ansFit(r);   // trang đáp án gọn: chọn cỡ chữ chung cho cả trang trước các luật khác
     // tên người nói cùng slide: ô rộng bằng nhau (= tên dài nhất, ≤ 300px) để các câu thẳng hàng
     const sp = [...r.host.querySelectorAll('[data-n="speaker"], [data-n$=".speaker"]')].filter(e => e.dataset.text && e.offsetParent);
     if (sp.length > 1) { const s = scaleOf(r.host); const w = Math.min(300, Math.max(...sp.map(e => R(e).width / s))); sp.forEach(e => { e.style.width = Math.ceil(w) + 'px'; e.style.minWidth = ''; }); }
@@ -424,7 +468,7 @@
   }
   function expand(spec, common) {   // spec auto → các phương án [{label, slides:[{comp,data}], fill, cover, fillW}]
     const X = (root.PLS_AUTO || {})[spec.auto];
-    if (X && X.expand) return X.expand(spec).map(p => Object.assign(p, { slides: p.slides.map(s => ({ comp: s.comp, common, data: s.data })) }));
+    if (X && X.expand) return X.expand(spec).map(p => Object.assign(p, { slides: p.slides.map(s => ({ comp: s.comp, layout: s.layout, common, data: s.data })) }));
     const A = AUTO[spec.auto];
     return plans(spec).map(p => {
       const parts = splitItems(spec.items, p, A.cap);
