@@ -38,7 +38,13 @@
     const kpe = () => { const d = { title: g.title, point: g.formula[0] ? ftxt(g.formula[0]) : g.intro, position: g.uses[0] ? g.uses[0].use : '' }; g.signals.forEach((s, i) => { d[`chip_${i + 1}.text`] = s; }); g.ex.slice(0, 2).forEach((e, i) => { d[`ex_${i + 1}.de`] = e.de; d[`ex_${i + 1}.vi`] = e.vi; }); return { comp: 'Slide/Key Point Examples', data: head(d, sec), fill: (Math.min(8, g.signals.length) / 8 + Math.min(2, E) / 2) / 2 }; };
     const mistakes = () => { const d = { title: 'Lỗi hay gặp – ' + g.title.split(' – ')[0], 'row_0.c1': 'Sai', 'row_0.c2': 'Đúng' }; g.notes.filter(n => n.wrong).slice(0, 6).forEach((n, i) => { d[`row_${i + 1}.c1`] = n.wrong; d[`row_${i + 1}.c2`] = n.right; }); return { comp: 'Slide/Grammar Table', data: head(d, sec), fill: Math.min(6, N) / 6 }; };
     const add = (label, slides, c) => out.push({ label, slides, cover: cov(c), fill: slides.reduce((a, s) => a + s.fill, 0) / slides.length, fillW: 15 });
-    const base = [['Quy tắc + ví dụ', rule, { f: 3, e: 3 }]];
+    // QUY TẮC 35/65 (mẫu bổ sung): quy tắc ngắn (≤ 3 dòng, ≤ 200 ký tự) + 2–4 ví dụ → ô quy tắc bên trái, ví dụ đánh số bên phải.
+    // Đặt trước "Quy tắc + ví dụ" để bằng điểm thì chọn mẫu mới; quy tắc dài / ít ví dụ thì không sinh phương án này.
+    const splitTxt = g.formula.slice(0, 3).map(ftxt).join('\n');
+    const split = () => { const d = { title: g.title, rule: splitTxt }; g.ex.slice(0, 4).forEach((e, i) => { d[`ex_${i + 1}.no`] = String(i + 1); d[`ex_${i + 1}.de`] = e.de; d[`ex_${i + 1}.vi`] = e.vi; }); return { comp: 'Slide/Grammar Rule Split', data: head(d, sec), fill: Math.min(1, (Math.min(4, E) + 1) / 4) }; };
+    const canSplit = E >= 2 && F >= 1 && F <= 3 && splitTxt.length <= 200 && root.PLS_TPL && root.PLS_TPL.slides && root.PLS_TPL.slides['Slide/Grammar Rule Split'];
+    const base = canSplit ? [['Quy tắc 35/65', split, { f: 3, e: 4 }]] : [];
+    base.push(['Quy tắc + ví dụ', rule, { f: 3, e: 3 }]);
     if (F >= 2) base.push(['Công thức từng dạng', formula, { f: 3, e: Math.min(3, E) }]);
     if (lab.length >= 2) base.push(['Bảng ngữ pháp', table, { f: lab.length }]);
     if (SG) base.push(['Điểm chính + dấu hiệu', kpe, { f: 1, e: 2, s: 1, u: 1 }]);
@@ -108,6 +114,14 @@
   // (không tách đáp án ngắn / dài ra 2 trang). Chỉ khi 1 trang không đủ chỗ ở cỡ chữ ≥ 28 mới chia 2–3 trang, vẫn giữ thứ tự câu.
   // Trả về 1 spec auto → app dựng thử các phương án 1 / 2 / 3 trang và chọn phương án điểm cao nhất (ít trang được ưu tiên).
   function answerSlides(keys, sec, title) { return keys.length ? [{ auto: 'ans', keys, section: sec, title }] : []; }
+  // TỔNG KẾT + DẶN DÒ: gộp 1 slide (mẫu bổ sung Summary Homework) hoặc tách 2 slide như cũ – máy dựng thử cả hai, gộp được ưu tiên
+  function sumhwPlans(spec) {
+    const sm = spec.summary, hw = spec.homework, d = { 'header.section': sm['header.section'] || spec.section || '', title: sm.title || 'Tổng kết buổi học', 'hw.title': hw.title || 'Dặn dò', deadline: hw.deadline || '' };
+    let k = 0; for (let i = 1; i <= 4; i++) { const t = S(sm[`col_${i}.text`]); if (!t || t === '–') continue; k++; d[`item_${k}.no`] = String(k); d[`item_${k}.label`] = sm[`col_${i}.title`] || ''; d[`item_${k}.text`] = t; }
+    for (let i = 1; i <= 3; i++) if (hw[`item_${i}.text`]) { d[`hw_${i}.no`] = String(i); d[`hw_${i}.text`] = hw[`item_${i}.text`]; }
+    return [{ label: 'Gộp tổng kết + dặn dò', slides: [{ comp: 'Slide/Summary Homework', data: d }], fill: 1, fillW: 20, cover: 1 },
+      { label: 'Tách 2 slide', slides: [{ comp: 'Slide/Summary', data: sm }, { comp: 'Slide/Homework', data: hw }], fill: 0.7, fillW: 20, cover: 1 }];
+  }
   function ansRows(keys) { return keys.map(([n, v]) => [n, v && typeof v === 'object' ? `${v.l} – ${v.r}` : S(v)]).filter(([, v]) => v); }
   function ansPlans(spec) {
     const rows = ansRows(spec.keys); if (!rows.length) return [];
@@ -152,5 +166,5 @@
     return out;
   }
 
-  root.PLS_AUTO = { grammar: { expand: grammarPlans }, ex: { expand: exPlans }, dlg: { expand: dlgPlans }, read: { expand: readPlans }, parseGrammar, exercises, answerSlides, ans: { expand: ansPlans } };
+  root.PLS_AUTO = { grammar: { expand: grammarPlans }, ex: { expand: exPlans }, dlg: { expand: dlgPlans }, read: { expand: readPlans }, parseGrammar, exercises, answerSlides, ans: { expand: ansPlans }, sumhw: { expand: sumhwPlans } };
 })(typeof window !== 'undefined' ? window : globalThis);
