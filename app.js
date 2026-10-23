@@ -8,7 +8,36 @@
   const BRANDS = ['Betreux', 'Creative English', 'Créatis', 'Saechang', 'Sakumi', 'Đắc Nhân'];
 
   // ---------- dựng cả bài ----------
+  // MÀN HÌNH CHƯA CÓ BÀI (người dùng chốt 23/10: bỏ bài mẫu Betreux lúc mở trang) – lời chào + 3 bước + việc app làm giúp
+  function showEmpty() {
+    document.body.classList.add('empty'); state.slides = [];
+    const w = $('#welcome'); if (!w || w.dataset.done) return; w.dataset.done = '1';
+    const svg = { c1: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><rect x="22" y="18" width="70" height="88" rx="3"/><path d="M34 40h46M34 52h46M34 64h30M34 76h38"/><path d="M70 86l10 10 22-26" stroke-width="3"/></svg>',
+      c2: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><circle cx="64" cy="64" r="44"/><ellipse cx="64" cy="64" rx="18" ry="44"/><path d="M20 64h88M28 42h72M28 86h72"/></svg>',
+      c3: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><rect x="16" y="30" width="62" height="44" rx="2"/><rect x="44" y="52" width="62" height="44" rx="2" fill="currentColor" fill-opacity=".15"/><path d="M58 70h34M58 80h22"/></svg>' };
+    const h = new Date().getHours(), hi = h < 11 ? 'Chào buổi sáng' : h < 14 ? 'Chào buổi trưa' : h < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
+    w.innerHTML = `<section class="w-hero"><div><p class="hi">${hi}</p><h1>Dựng slide và sách của một buổi học trong vài phút</h1>
+        <div class="acts"><button type="button" class="btn primary" id="wImport">Nhập Excel S5 + S6</button><span class="muted">Chọn cùng lúc 2 file .xlsx</span></div></div>
+      <div class="w-cards"><div class="w-card c1"><span class="n">01</span><b>Nhập<br>Excel</b><p>File S6 (nội dung) và S5 (khung buổi, dặn dò)</p>${svg.c1}</div>
+        <div class="w-card c2"><span class="n">02</span><b>Chọn buổi<br>& brand</b><p>Máy tự chọn mẫu, co chữ, soát 29 luật chuẩn</p>${svg.c2}</div>
+        <div class="w-card c3"><span class="n">03</span><b>Xuất PPTX<br>+ PDF</b><p>Một lần bấm: slide có hiệu ứng, ghi chú giảng và sách in</p>${svg.c3}</div></div></section>
+      <div class="w-low"><section><p class="muted" style="margin:0 0 2px;font-size:12px">Quy trình</p><h2>Từ Excel tới lớp học</h2><p class="sub">Mọi bước dưới đây chạy tự động sau khi nhập Excel – bạn chỉ xem và sửa chỗ cần.</p>
+        <ol class="w-steps">
+          <li><span class="ic">⇪</span><b>Đọc giáo trình</b><span>Lấy từ vựng, ngữ pháp, phát âm, mẫu câu, bài nghe – đọc, BTVN của buổi</span></li>
+          <li><span class="ic">▦</span><b>Chọn mẫu slide</b><span>Thử nhiều phương án, giữ phương án ít lỗi, chữ to và đủ nội dung</span></li>
+          <li><span class="ic">✓</span><b>Soát lỗi chuẩn v2.0</b><span>Tràn chữ, thiếu ảnh, sai font, tên file – báo đỏ / vàng để sửa</span></li>
+          <li class="dark"><span class="ic">▶</span><b>Hiệu ứng & ghi chú</b><span>Bộ hiệu ứng nhanh (khoanh đáp án, nối dây) và ghi chú giảng dưới slide</span></li>
+          <li class="dark"><span class="ic">▤</span><b>Sách A4 / 19×27</b><span>Dàn trang, đáp án theo bài kèm giải thích, xuất PDF</span></li>
+        </ol></section>
+        <section class="w-side"><p class="muted" style="margin:0 0 2px;font-size:12px">Cần chuẩn bị</p><h2>Trước khi nhập</h2><p class="sub">Để máy dựng đúng ngay lần đầu.</p>
+          <div class="item"><b>File S6 có các tab "S6-…"</b><span class="muted">Cột "Lên PPT" / "Lên PDF" = Không sẽ được bỏ qua</span><span class="tag" style="--c:var(--ui-accent)">Bắt buộc</span></div>
+          <div class="item"><b>File S5 có timeline buổi</b><span class="muted">"1. Mở đầu: 5p…" để xếp thứ tự slide và số phút</span><span class="tag" style="--c:var(--ui-yellow)">Nên có</span></div>
+          <div class="item"><b>Cột "Giải thích" của câu hỏi</b><span class="muted">Đi vào đáp án sách và ghi chú giảng</span><span class="tag" style="--c:#2f8a55">Tốt hơn</span></div></section></div>`;
+    $('#wImport').onclick = () => $('#xlsx').click();
+  }
   async function build() {
+    if (!state.spec) { showEmpty(); return; }
+    document.body.classList.remove('empty');
     if (state.building) return; state.building = true; setStatus('Đang dựng…'); drawDeviceSel();
     const t0 = performance.now();
     const stage = $('#stage'); stage.innerHTML = ''; state.deck = { count: {} };
@@ -437,7 +466,7 @@
     document.querySelectorAll('[role=tab]').forEach(t => t.onclick = () => { document.querySelectorAll('[role=tab]').forEach(x => x.setAttribute('aria-selected', x === t)); drawPanel(); });
     if ($('#file')) $('#file').onchange = async ev => { const f = ev.target.files[0]; if (!f) return; try { const spec = JSON.parse(await f.text()); window.PLS.load(spec); } catch (e) { setStatus('File không đọc được: ' + e.message); } };
     let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawMain, 150); });
-    state.spec = JSON.parse(JSON.stringify(window.PLS_SAMPLE)); state.brand = state.spec.brand; sel.value = state.brand;
+    state.spec = null; sel.value = state.brand;   // mở trang: chưa có bài → màn hình bắt đầu (không dựng bài mẫu)
     // nạp sẵn font brand trước khi đo (font web chỉ tải khi được dùng → đo sớm sẽ sai)
     const FONTS = ['900 40px "Zalando Sans Expanded"', '400 40px Montserrat', '600 40px Montserrat', '700 40px Montserrat', '900 40px Montserrat', '600 40px "Barlow Condensed"', '700 40px Lexend', '400 40px Inter', '700 40px Inter', '400 20px "Source Sans 3"', '700 20px "Source Sans 3"', '400 40px "Gothic A1"', '700 40px "Gothic A1"', '400 40px "Noto Sans JP"', '400 20px "Noto Serif KR"'];
     Promise.race([Promise.allSettled(FONTS.map(f => document.fonts.load(f, 'Aaăâđêôơư'))), new Promise(r => setTimeout(r, 4000))]).then(() => build())
