@@ -469,11 +469,12 @@
   }
   function expand(spec, common) {   // spec auto → các phương án [{label, slides:[{comp,data}], fill, cover, fillW}]
     const X = (root.PLS_AUTO || {})[spec.auto];
-    if (X && X.expand) return X.expand(spec).map(p => Object.assign(p, { slides: p.slides.map(s => ({ comp: s.comp, layout: s.layout, common, data: s.data, ans: s.ans })) }));
+    if (X && X.expand) return X.expand(spec).map(p => Object.assign(p, { slides: p.slides.map(s => ({ comp: s.comp, layout: s.layout, common, data: s.data, ans: s.ans, notes: s.notes || spec.notes })) }));
     const A = AUTO[spec.auto];
     return plans(spec).map(p => {
       const parts = splitItems(spec.items, p, A.cap);
-      return { fill: spec.items.length / p.reduce((a, c) => a + A.cap(c), 0), cover: 1, fillW: 30, label: p.map(c => c.replace('Slide/Vocab Grid ', 'lưới ')).join(' + ') + ` (${p.length} slide)`, slides: parts.map((part, si) => ({ comp: p[si], common, data: Object.assign({ 'header.section': spec.section || '' }, ...part.map((it, i) => A.item(it, i + 1))) })) };
+      return { fill: spec.items.length / p.reduce((a, c) => a + A.cap(c), 0), cover: 1, fillW: 30, label: p.map(c => c.replace('Slide/Vocab Grid ', 'lưới ')).join(' + ') + ` (${p.length} slide)`, slides: parts.map((part, si) => ({ comp: p[si], common, data: Object.assign({ 'header.section': spec.section || '' }, ...part.map((it, i) => A.item(it, i + 1))),
+        notes: [spec.notes || '', part.some(it => it.nt) ? 'TỪ TRÊN SLIDE\n' + part.filter(it => it.nt).map(it => '• ' + it.nt).join('\n') : '', part.some(it => it.nw) ? 'LƯU Ý\n' + part.filter(it => it.nw).map(it => '• ' + it.nw).join('\n') : ''].filter(Boolean).join('\n\n') })) };   // ghi chú giảng: từng từ của đúng phần này
     });
   }
 
