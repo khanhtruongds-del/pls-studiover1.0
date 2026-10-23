@@ -32,6 +32,15 @@
   const sentences = t => S(t).split(/(?<=[.!?])\s+(?=[A-ZÀ-Ỹ])/u).map(x => x.trim()).filter(Boolean);
   const chunk = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
 
+  // "an uncle" + phiên âm "ən ˈʌŋkəl" → "an‿uncle": nối khi âm cuối từ trước là phụ âm và âm đầu từ sau là nguyên âm (hoặc /j/, /w/).
+  // Ưu tiên phiên âm (an hour → an‿hour); số từ không khớp phiên âm thì xét theo chữ cái.
+  const VOW = 'aeiouæɑɒɔəɜɝɚɪʊʌɛɐ';
+  function linkMark(words, ipa) {
+    const ws = S(words).split(/\s+/).filter(Boolean), ips = S(ipa).replace(/[ˈˌ.]/g, '').split(/\s+/).filter(Boolean), useIpa = ips.length === ws.length;
+    const endC = i => useIpa ? !VOW.includes(ips[i].replace(/ː/g, '').slice(-1)) : /[bcdfgjklmnpqrstvxz]$/i.test(ws[i].replace(/[^a-z]/gi, ''));
+    const startV = i => useIpa ? (VOW + 'jw').includes(ips[i].charAt(0)) : /^[aeiou]/i.test(ws[i]);
+    return ws.map((w, i) => i < ws.length - 1 ? w + (endC(i) && startV(i + 1) ? '‿' : ' ') : w).join('');
+  }
   function timeline(txt) {   // "1. Mở đầu: 5p\n2. Warm-up: 5p" → [{name, min}]
     return S(txt).split(/\n+/).map(l => l.match(/^\s*\d+\.\s*(.+?)\s*:\s*(\d+)\s*p/i)).filter(Boolean).map(m => ({ name: m[1].trim(), min: +m[2] }));
   }
@@ -92,6 +101,12 @@
       } else if (/phát âm|bảng chữ|hán tự/.test(n) && !used.has('pron')) {
         used.add('pron');
         for (const p of pron) {
+          // NỐI ÂM (mẫu bổ sung): nhóm "Nối âm" → cụm từ có dấu nối ‿ giữa phụ âm cuối và nguyên âm đầu (theo phiên âm), tối đa 6 cụm
+          if (/nối âm|linking/i.test(S(p['Bảng chữ / nhóm âm']) + ' ' + S(p['Chữ / âm'])) && root.PLS_TPL && root.PLS_TPL.slides['Slide/Pronunciation Linking']) {
+            const d = { 'title': S(p['Chữ / âm']), 'tip': S(p['Hướng dẫn phát âm']) };
+            S(p['Ví dụ']).split(/;\s*/).filter(Boolean).slice(0, 6).forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.no`] = String(i + 1); d[`ex_${i + 1}.word`] = linkMark(m ? m[1] : x, m ? m[2] : ''); d[`ex_${i + 1}.ipa`] = m ? '/' + m[2] + '/' : ''; });
+            slides.push({ comp: 'Slide/Pronunciation Linking', data: sec(L.pron, d) }); continue;
+          }
           const d = { 'sound': S(p['Chữ / âm']), 'ipa': S(p['Bảng chữ / nhóm âm']), 'tip': S(p['Hướng dẫn phát âm']) };
           S(p['Ví dụ']).split(/;\s*/).filter(Boolean).slice(0, 4).forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.word`] = m ? m[1] : x; d[`ex_${i + 1}.vi`] = m ? '/' + m[2] + '/' : ''; });
           slides.push({ comp: 'Slide/Pronunciation', data: sec(L.pron, d) });
@@ -100,16 +115,36 @@
       } else if (/nói/.test(n) && !used.has('speak')) {
         used.add('speak'); divider(st.name, mins);
         const groups = {}; speak.forEach(r => { const k = S(r['Chủ đề / tình huống']) || S(r['Mã bài']); (groups[k] = groups[k] || []).push(r); });
-        for (const [title, rows] of Object.entries(groups)) for (const part of chunk(rows, 4)) {
+        for (const [title, all] of Object.entries(groups)) {
+          // HỘI THOẠI (Loại = Hội thoại): 2 vai, ≤ 6 câu, câu ngắn → bong bóng (mẫu bổ sung); dài hơn → máy chọn Dialogue / Dialogue Long
+          const dl = all.filter(r => /hội thoại/i.test(S(r['Loại']))), rows = all.filter(r => !/hội thoại/i.test(S(r['Loại'])));
+          for (const part of chunk(rows, 4)) {
           const d = { title }; part.forEach((r, i) => { d[`p_${i + 1}.no`] = String(i + 1); d[`p_${i + 1}.de`] = S(r['Câu']); d[`p_${i + 1}.ipa`] = S(r['Phiên âm']) ? '/' + S(r['Phiên âm']) + '/' : ''; d[`p_${i + 1}.vi`] = S(r['Nghĩa']); });
           slides.push({ comp: 'Slide/Pattern List', data: sec(L.speak, d) });
+          }
+          if (dl.length) {
+            const who = r => S(r['Vai']) || '–', roles = [...new Set(dl.map(who))];
+            if (roles.length <= 2 && dl.length <= 6 && dl.every(r => S(r['Câu']).length <= 90) && root.PLS_TPL && root.PLS_TPL.slides['Slide/Dialogue Bubbles']) {
+              const d = { title, pair: 'Làm theo cặp: đọc hội thoại, sau đó đổi vai.' };
+              dl.forEach((r, i) => { const w = who(r); d[`line_${i + 1}.who`] = w.length <= 3 ? w : w.charAt(0).toUpperCase(); d[`line_${i + 1}.de`] = S(r['Câu']); d[`line_${i + 1}.vi`] = S(r['Nghĩa']); });
+              slides.push({ comp: 'Slide/Dialogue Bubbles', data: sec(L.speak, d) });
+            } else slides.push({ auto: 'dlg', section: L.speak, situation: title, lines: dl.map(r => ({ sp: who(r), de: S(r['Câu']), vi: S(r['Nghĩa']) })) });
+          }
         }
       } else if (/tổng kết/.test(n)) {
-        slides.push({ comp: 'Slide/Summary', data: sec(L.summary, { 'title': 'Tổng kết buổi học',
+        const sumD = sec(L.summary, { 'title': 'Tổng kết buổi học',
           'col_1.title': 'Từ vựng', 'col_1.text': vocab.slice(0, 8).map(r => S(r['Từ'])).join(', ') + (vocab.length > 8 ? ` … (${vocab.length} từ)` : ''),
           'col_2.title': 'Ngữ pháp', 'col_2.text': grammar.map(g => S(g['Tên ngữ pháp'])).join('\n') || '–',
-          'col_3.title': pron.length ? 'Phát âm' : 'Mẫu câu', 'col_3.text': pron.length ? pron.map(p => S(p['Chữ / âm'])).join('\n') : speak.slice(0, 3).map(r => S(r['Câu'])).join('\n') || '–' }) });
+          'col_3.title': pron.length ? 'Phát âm' : 'Mẫu câu', 'col_3.text': pron.length ? pron.map(p => S(p['Chữ / âm'])).join('\n') : speak.slice(0, 3).map(r => S(r['Câu'])).join('\n') || '–' });
+        // TỔNG KẾT + DẶN DÒ gộp 1 slide (mẫu bổ sung) khi buổi có bước "Dặn dò" ngay sau và dặn dò ≤ 3 ý; máy vẫn so với cách tách 2 slide
+        const hwItems = sentences(s5row['Dặn dò']).slice(0, 3), hasDD = steps.some(x => /dặn dò/i.test(x.name));
+        const hwD = { 'title': 'Dặn dò', 'deadline': `Trước buổi ${Number(buoi) + 1}` }; hwItems.forEach((t, i) => { hwD[`item_${i + 1}.no`] = String(i + 1); hwD[`item_${i + 1}.text`] = t; });
+        if (hasDD && hwItems.length && root.PLS_AUTO && root.PLS_AUTO.sumhw && root.PLS_TPL && root.PLS_TPL.slides['Slide/Summary Homework']) {
+          used.add('dd'); slides.push({ auto: 'sumhw', section: L.summary, summary: sumD, homework: sec(L.homework, hwD) });
+        } else slides.push({ comp: 'Slide/Summary', data: sumD });
         for (const x of extra) slides.push({ comp: 'Slide/Section', data: { 'section.title': S(x['Tiêu đề']), 'section.sub': S(x['Loại']) } });
+      } else if (/dặn dò/.test(n) && used.has('dd')) {
+        continue;   // đã gộp vào slide Tổng kết + Dặn dò
       } else if (/dặn dò/.test(n)) {
         const items = sentences(s5row['Dặn dò']).slice(0, 3);
         if (items.length) { const d = { 'title': 'Dặn dò', 'deadline': `Trước buổi ${Number(buoi) + 1}` }; items.forEach((t, i) => { d[`item_${i + 1}.no`] = String(i + 1); d[`item_${i + 1}.text`] = t; }); slides.push({ comp: 'Slide/Homework', data: sec(L.homework, d) }); }
