@@ -9,33 +9,51 @@
 
   // ---------- dựng cả bài ----------
   // MÀN HÌNH CHƯA CÓ BÀI (người dùng chốt 23/10: bỏ bài mẫu Betreux lúc mở trang) – lời chào + 3 bước + việc app làm giúp
+  // Mỗi tab có TRANG GIỚI THIỆU riêng (người dùng chốt 23/10): Slide · Sách (ở đây) · Nghiên cứu (research.js) – dùng chung bộ khung .w-*
+  const W_SVG = { doc: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><rect x="22" y="18" width="70" height="88" rx="3"/><path d="M34 40h46M34 52h46M34 64h30M34 76h38"/><path d="M70 86l10 10 22-26" stroke-width="3"/></svg>',
+    globe: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><circle cx="64" cy="64" r="44"/><ellipse cx="64" cy="64" rx="18" ry="44"/><path d="M20 64h88M28 42h72M28 86h72"/></svg>',
+    slides: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><rect x="16" y="30" width="62" height="44" rx="2"/><rect x="44" y="52" width="62" height="44" rx="2" fill="currentColor" fill-opacity=".15"/><path d="M58 70h34M58 80h22"/></svg>',
+    play: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><rect x="14" y="24" width="92" height="62" rx="3"/><path d="M52 42l22 13-22 13z" fill="currentColor" fill-opacity=".2"/><path d="M30 100h60"/></svg>',
+    book: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><path d="M60 32c-12-8-28-10-42-8v66c14-2 30 0 42 8 12-8 28-10 42-8V24c-14-2-30 0-42 8z"/><path d="M60 32v66"/><path d="M28 44h20M28 54h20M72 44h20M72 54h20"/></svg>',
+    key: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><rect x="20" y="20" width="80" height="80" rx="3"/><path d="M32 42h56M32 60h56M32 78h56M56 30v62"/><path d="M38 50l4 4 8-8M38 68l4 4 8-8" stroke-width="2.5"/></svg>',
+    print: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><rect x="34" y="18" width="52" height="28" rx="2"/><rect x="18" y="46" width="84" height="38" rx="3"/><rect x="34" y="70" width="52" height="34" rx="2" fill="currentColor" fill-opacity=".15"/><path d="M42 82h36M42 92h24"/></svg>' };
+  const W_PAGES = {
+    slide: { h1: 'Dựng slide bài giảng của một buổi học trong vài phút', cta: 'Nhập Excel S5 + S6', note: 'Chọn cùng lúc 2 file .xlsx',
+      cards: [['Nhập<br>Excel', 'File S6 (nội dung) và S5 (khung buổi, dặn dò)', 'doc'], ['Máy chọn<br>mẫu & soát', 'Thử nhiều phương án, co chữ, soát 29 luật chuẩn v2.0', 'globe'], ['Hiệu ứng<br>& ghi chú', 'Khoanh đáp án, nối dây, ghi chú giảng – xuất PPTX sửa tiếp được', 'play']],
+      kicker: 'Slide làm được gì', h2: 'Từ Excel tới slide lên lớp', sub: 'Chạy tự động sau khi nhập Excel – bạn chỉ xem và sửa chỗ cần.',
+      steps: [['⇪', 'Đọc giáo trình', 'Từ vựng, ngữ pháp, phát âm, mẫu câu, bài nghe – đọc, BTVN của buổi'],
+        ['▦', 'Chọn mẫu slide', 'Mỗi slide thử nhiều mẫu, giữ mẫu ít lỗi, chữ to và đủ nội dung'],
+        ['✓', 'Soát lỗi chuẩn v2.0', 'Tràn chữ, thiếu ảnh, sai font – báo đỏ / vàng và trỏ thẳng tới slide'],
+        ['✎', 'Sửa trực tiếp', 'Bấm vào chữ trên slide để sửa; đổi ảnh, đổi phương án ở bảng bên phải'],
+        ['▶', 'Hiệu ứng & ghi chú', 'Bộ hiệu ứng nhanh theo loại slide; ghi chú giảng, lưu ý, đáp án dưới mỗi slide', 1],
+        ['⤓', 'Xuất PPTX + PDF', 'Một lần bấm: PPTX có hiệu ứng + ghi chú, kèm sách in', 1]] },
+    book: { h1: 'Dàn sách in A4 và 19×27 từ cùng file Excel', cta: 'Nhập Excel S5 + S6', note: 'Sách dựng từ đúng buổi bạn chọn',
+      cards: [['Hai khổ<br>sách', 'A4 và 19×27, lề trong – ngoài bằng nhau, đánh số trang', 'book'], ['Đáp án<br>kèm giải thích', 'Bảng đáp án theo từng Bài, có lời giải thích như sách giáo khoa', 'key'], ['In ra<br>PDF', 'Mở hộp thoại in đã đặt sẵn tên file và khổ giấy → Lưu PDF', 'print']],
+      kicker: 'Sách làm được gì', h2: 'Từ Excel tới sách in', sub: 'Cùng dữ liệu với slide – sửa Excel là slide và sách khớp nhau.',
+      steps: [['⇪', 'Đọc giáo trình', 'Lấy nội dung buổi học giống hệt phần slide'],
+        ['Aa', 'Một họ font', 'Noto cho mọi ngôn ngữ, hiện đúng chữ Hán, Kana, Hangul – dễ canh, dễ so'],
+        ['▤', 'Dàn trang tự động', 'Phân cấp tiêu đề, khoảng cách theo nhịp; bảng dài tự tách sang trang sau'],
+        ['№', 'Nhãn "Bài 1, Bài 2…"', 'Bài tập đánh số rõ ràng, phần Luyện tập và Lời bài nghe tách riêng'],
+        ['✓', 'Đáp án cuối sách', 'Theo từng phần, từng Bài, kèm giải thích', 1],
+        ['⎙', 'Xuất PDF', 'Chọn "Lưu dưới dạng PDF" trong hộp thoại in', 1]] } };
   function showEmpty() {
     document.body.classList.add('empty'); state.slides = [];
-    const w = $('#welcome'); if (!w || w.dataset.done) return; w.dataset.done = '1';
-    const svg = { c1: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><rect x="22" y="18" width="70" height="88" rx="3"/><path d="M34 40h46M34 52h46M34 64h30M34 76h38"/><path d="M70 86l10 10 22-26" stroke-width="3"/></svg>',
-      c2: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><circle cx="64" cy="64" r="44"/><ellipse cx="64" cy="64" rx="18" ry="44"/><path d="M20 64h88M28 42h72M28 86h72"/></svg>',
-      c3: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><rect x="16" y="30" width="62" height="44" rx="2"/><rect x="44" y="52" width="62" height="44" rx="2" fill="currentColor" fill-opacity=".15"/><path d="M58 70h34M58 80h22"/></svg>' };
+    const kind = state.view && state.view !== 'slide' && state.view !== 'research' ? 'book' : 'slide';
+    const w = $('#welcome'); if (!w || w.dataset.kind === kind) return; w.dataset.kind = kind;
+    const P = W_PAGES[kind];
     const h = new Date().getHours(), hi = h < 11 ? 'Chào buổi sáng' : h < 14 ? 'Chào buổi trưa' : h < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
-    w.innerHTML = `<section class="w-hero"><div><p class="hi">${hi}</p><h1>Dựng slide và sách của một buổi học trong vài phút</h1>
-        <div class="acts"><button type="button" class="btn primary" id="wImport">Nhập Excel S5 + S6</button><span class="muted">Chọn cùng lúc 2 file .xlsx</span></div></div>
-      <div class="w-cards"><div class="w-card c1"><span class="n">01</span><b>Nhập<br>Excel</b><p>File S6 (nội dung) và S5 (khung buổi, dặn dò)</p>${svg.c1}</div>
-        <div class="w-card c2"><span class="n">02</span><b>Chọn buổi<br>& brand</b><p>Máy tự chọn mẫu, co chữ, soát 29 luật chuẩn</p>${svg.c2}</div>
-        <div class="w-card c3"><span class="n">03</span><b>Xuất PPTX<br>+ PDF</b><p>Một lần bấm: slide có hiệu ứng, ghi chú giảng và sách in</p>${svg.c3}</div></div></section>
-      <div class="w-low"><section><p class="muted" style="margin:0 0 2px;font-size:12px">Quy trình</p><h2>Từ Excel tới lớp học</h2><p class="sub">Mọi bước dưới đây chạy tự động sau khi nhập Excel – bạn chỉ xem và sửa chỗ cần.</p>
-        <ol class="w-steps">
-          <li><span class="ic">⇪</span><b>Đọc giáo trình</b><span>Lấy từ vựng, ngữ pháp, phát âm, mẫu câu, bài nghe – đọc, BTVN của buổi</span></li>
-          <li><span class="ic">▦</span><b>Chọn mẫu slide</b><span>Thử nhiều phương án, giữ phương án ít lỗi, chữ to và đủ nội dung</span></li>
-          <li><span class="ic">✓</span><b>Soát lỗi chuẩn v2.0</b><span>Tràn chữ, thiếu ảnh, sai font, tên file – báo đỏ / vàng để sửa</span></li>
-          <li class="dark"><span class="ic">▶</span><b>Hiệu ứng & ghi chú</b><span>Bộ hiệu ứng nhanh (khoanh đáp án, nối dây) và ghi chú giảng dưới slide</span></li>
-          <li class="dark"><span class="ic">▤</span><b>Sách A4 / 19×27</b><span>Dàn trang, đáp án theo bài kèm giải thích, xuất PDF</span></li>
-        </ol></section>
+    w.innerHTML = `<section class="w-hero"><div><p class="hi">${hi}</p><h1>${P.h1}</h1>
+        <div class="acts"><button type="button" class="btn primary" id="wImport">${P.cta}</button><span class="muted">${P.note}</span></div></div>
+      <div class="w-cards">${P.cards.map((c, i) => `<div class="w-card c${i + 1}"><span class="n">0${i + 1}</span><b>${c[0]}</b><p>${c[1]}</p>${W_SVG[c[2]]}</div>`).join('')}</div></section>
+      <div class="w-low"><section><p class="muted" style="margin:0 0 2px;font-size:12px">${P.kicker}</p><h2>${P.h2}</h2><p class="sub">${P.sub}</p>
+        <ol class="w-steps">${P.steps.map(x => `<li${x[3] ? ' class="dark"' : ''}><span class="ic">${x[0]}</span><b>${x[1]}</b><span>${x[2]}</span></li>`).join('')}</ol></section>
         <section class="w-side"><p class="muted" style="margin:0 0 2px;font-size:12px">Mở lại</p><h2>File gần đây</h2><p class="sub">Các bộ Excel đã nhập trên máy này – bấm để mở lại đúng buổi, đúng brand.</p>
           <div id="wRecent"><p class="muted">Đang tải…</p></div></section></div>`;
     $('#wImport').onclick = () => $('#xlsx').click();
     drawRecent();
   }
   // FILE GẦN ĐÂY (người dùng chốt 23/10): lưu bộ Excel đã nhập (đã đọc thành dữ liệu) trong IndexedDB của trình duyệt – chỉ trên máy này, tối đa 6 bộ
-  const RECENT_MAX = 30, RECENT_SHOW = 5;   // giữ 30 bộ gần nhất; hiện 5, còn lại bấm "Xem thêm" / ô tìm (người dùng hỏi 23/10)
+  const RECENT_MAX = 30, RECENT_SHOW = 6;   // giữ 30 bộ gần nhất; hiện 6 (lưới 2 cột × 3 hàng – người dùng chốt 23/10: khung to, ít nhất 2 hàng thẻ), còn lại bấm "Xem thêm" / ô tìm (người dùng hỏi 23/10)
   const RDB = (() => { let dbp;
     const open = () => dbp || (dbp = new Promise((res, rej) => { const q = indexedDB.open('pls-studio', 1); q.onupgradeneeded = () => q.result.createObjectStore('recent', { keyPath: 'id' }); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }));
     const run = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('recent', mode); const q = fn(t.objectStore('recent')); t.oncomplete = () => res(q && 'result' in q ? q.result : undefined); t.onerror = () => rej(t.error); }); };
@@ -51,15 +69,15 @@
   async function drawRecent() {
     const box = $('#wRecent'); if (!box) return; let rs = [];
     try { rs = (await RDB.all()).sort((a, b) => b.at - a.at); } catch (e) { box.innerHTML = '<p class="muted">Trình duyệt này không cho lưu file gần đây.</p>'; return; }
-    if (!rs.length) { box.innerHTML = '<div class="w-empty"><b>Chưa có file nào</b><span class="muted">Bộ Excel bạn nhập sẽ hiện ở đây để mở lại lần sau.</span></div>'; return; }
+    if (!rs.length) { box.innerHTML = '<div class="rc-list"><div class="w-empty rc-ghost"><b>Chưa có file nào</b><span class="muted">Bộ Excel bạn nhập sẽ hiện ở đây để mở lại lần sau.</span></div><div class="rc-ghost"></div><div class="rc-ghost"></div></div>'; return; }
     box.innerHTML = '';
     // nhiều hơn 5 bộ → ô tìm (theo tên khoá, tên file, brand, buổi) + nút Xem thêm
-    const list = document.createElement('div'); let q = '', all = false;
+    const list = document.createElement('div'); list.className = 'rc-list'; let q = '', all = false;
     const textOf = r => { const c = ((r.books.s6 || {})['S6-Thông tin khoá'] || []).find(x => /Tên khoá/.test(x['Mục'] || '')) || {}; return [c['Nội dung'], ...r.names, r.brand, r.buoi ? 'buổi ' + r.buoi : ''].join(' ').toLowerCase(); };
     const fold = t => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');   // gõ không dấu vẫn tìm được
     let more = null;
     const paint = () => { list.innerHTML = ''; const toks = fold(q.toLowerCase()).split(/[\s_.-]+/).filter(Boolean), hit = toks.length ? rs.filter(r => { const t = fold(textOf(r)).replace(/[_.-]+/g, ' '); return toks.every(k => t.includes(k)); }) : rs; /* nhiều từ: khớp đủ từng từ, không cần đúng thứ tự */ const shown = q || all ? hit : hit.slice(0, RECENT_SHOW);
-      if (!shown.length) list.innerHTML = '<p class="muted">Không thấy bộ nào khớp.</p>';
+      if (!shown.length) list.innerHTML = '<p class="muted" style="grid-column:1/-1">Không thấy bộ nào khớp.</p>';
       shown.forEach(row); if (more) { more.hidden = !!q || rs.length <= RECENT_SHOW; more.textContent = all ? 'Thu gọn' : `Xem thêm (${rs.length - RECENT_SHOW})`; } };
     if (rs.length > RECENT_SHOW) { const sq = document.createElement('input'); sq.type = 'search'; sq.className = 'rc-search'; sq.placeholder = `Tìm trong ${rs.length} bộ (tên khoá, file, brand, buổi)…`; sq.setAttribute('aria-label', 'Tìm file gần đây');
       sq.oninput = () => { q = sq.value.trim(); paint(); }; box.appendChild(sq); }
@@ -485,7 +503,7 @@
     setImage(slide, slotKey, value) { const r = state.slides[slide - 1]; const k = r.src + '/' + r.part; (state.imgOv[k] = state.imgOv[k] || {})['img:' + slotKey] = value; return build(); },
     get spec() { return state.spec; },
     _modelForTest: () => E.toModel(state.slides.map(r => r.host), {}),
-    _int: { state, setSlot, build, curDevice, stdCtx, openBooks, saveRecent, select(i) { state.sel = i; state.fxStep = null; drawList(); drawMain(); drawPanel(); }, redraw() { drawPanel(); }, setStatus }
+    _int: { state, setSlot, build, showEmpty, curDevice, stdCtx, openBooks, saveRecent, select(i) { state.sel = i; state.fxStep = null; drawList(); drawMain(); drawPanel(); }, redraw() { drawPanel(); }, setStatus }
   };
 
   // ---------- khởi động ----------
