@@ -44,13 +44,21 @@
     // Danh sách model đổi theo thời gian → hỏi API, chọn bản số cao nhất, không ghi cứng.
     async pick(key) {
       const r = await fetch(`${AI.BASE}/models?pageSize=200`, { headers: { 'x-goog-api-key': key } });
-      if (!r.ok) throw new Error(r.status === 400 || r.status === 403 ? 'Key không hợp lệ' : 'Không kết nối được Gemini (' + r.status + ')');
+      if (!r.ok) { let m = ''; try { m = (await r.json()).error.message || ''; } catch (e) {} if (/denied access/i.test(m)) throw new Error(AI.DENIED); throw new Error(r.status === 400 || r.status === 403 ? 'Key không hợp lệ' + (m ? ' (' + m + ')' : '') : 'Không kết nối được Gemini (' + r.status + ')'); }
       const ns = ((await r.json()).models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent')).map(m => m.name.replace(/^models\//, ''));
-      const ver = n => parseFloat(n.split('-')[1]) || 0, top = re => ns.filter(n => re.test(n)).sort((a, b) => ver(b) - ver(a) || a.length - b.length)[0] || '';
-      const best = top(/^gemini-[\d.]+-flash$/) || top(/^gemini-[\d.]+-flash-preview$/), lite = top(/^gemini-[\d.]+-flash-lite$/) || top(/^gemini-[\d.]+-flash-lite-preview$/);
-      if (!best && !lite) throw new Error('Key này không có model Gemini Flash nào');
-      return { best: best || lite, lite: lite || best };
+      const ver = n => parseFloat(n.split('-')[1]) || 0, all = re => ns.filter(n => re.test(n)).sort((a, b) => ver(b) - ver(a) || a.length - b.length);
+      const flash = [...all(/^gemini-[\d.]+-flash$/), ...all(/^gemini-[\d.]+-flash-preview(-[\d-]+)?$/), ...all(/^gemini-flash-latest$/)];
+      const lites = [...all(/^gemini-[\d.]+-flash-lite$/), ...all(/^gemini-[\d.]+-flash-lite-preview(-[\d-]+)?$/), ...all(/^gemini-flash-lite-latest$/)];
+      if (!flash.length && !lites.length) throw new Error('Key này không có model Gemini Flash nào');
+      // THỬ THẬT từng model (1 câu rất ngắn): có tài khoản bị Google chặn riêng vài model (403) → bỏ qua model đó, giữ model chạy được
+      const test = async m => { const t = await fetch(`${AI.BASE}/models/${m}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Hi' }] }], generationConfig: { maxOutputTokens: 5 } }) });
+        if (t.ok || t.status === 429) return 'ok'; let m2 = ''; try { m2 = (await t.json()).error.message || ''; } catch (e) {} return t.status + (m2 ? ': ' + m2 : ''); };
+      const tried = [], ok = async list => { for (const m of list.slice(0, 4)) { const x = await test(m); tried.push(m + ' → ' + (x === 'ok' ? 'chạy được' : x)); if (x === 'ok') return m; } return ''; };
+      const lite = await ok(lites), best = await ok(flash);
+      if (!best && !lite) { const e = new Error(tried.every(t => /denied access/i.test(t)) ? AI.DENIED : 'Không model nào chạy được với key này'); e.tried = tried; throw e; }
+      return { best: best || lite, lite: lite || best, tried };
     },
+    DENIED: 'Google đã chặn tài khoản / project của key này (403 "denied access") – không phải lỗi của web. Cách sửa: (1) vào myaccount.google.com → Thông tin cá nhân, kiểm tra ngày sinh + xác minh tuổi (18+), rồi tạo key mới; (2) nếu vẫn bị, tạo key bằng một Gmail cá nhân khác (không dùng tài khoản trường .edu.vn) tại aistudio.google.com/apikey.',
     day: () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }),   // lượt/ngày của Google reset theo giờ Mỹ (Thái Bình Dương)
     use() { let u = {}; try { u = JSON.parse(LS.get('pls.gemini.use', '{}')); } catch (e) {} return u.day === AI.day() ? u : { day: AI.day(), m: {} }; },
     count(model) { const u = AI.use(); u.m[model] = (u.m[model] || 0) + 1; LS.set('pls.gemini.use', JSON.stringify(u)); },
@@ -61,11 +69,12 @@
       if (sys) body.systemInstruction = { parts: [{ text: sys }] };
       if (tools && tools.length) body.tools = tools; else if (json) body.generationConfig.responseMimeType = 'application/json';
       const order = [...new Set(tier === 'best' ? [best, lite] : [lite, best])];
-      let daily = false;
+      let daily = false, denied = false;
       for (const model of order) {
         const r = await fetch(`${AI.BASE}/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
         if (!r.ok) { let m = ''; try { m = (await r.json()).error.message || ''; } catch (e) {}
           if (r.status === 429) { if (/day|PerDay/i.test(m)) daily = true; continue; }   // hết lượt model này → thử model còn lại
+          if (r.status === 403 && /denied access/i.test(m)) { denied = true; continue; }   // model này bị chặn với tài khoản → thử model kia
           if (r.status === 413 || /too large|exceeds/i.test(m)) throw new Error('Nguồn quá nặng cho một lần gửi – bỏ bớt nguồn (bỏ chọn ở cột trái) rồi thử lại');
           throw new Error('Gemini báo lỗi ' + r.status + (m ? ': ' + m : '')); }
         AI.count(model); AI.last = model;
@@ -74,6 +83,7 @@
         if (!text) throw new Error('Gemini không trả lời' + (c && c.finishReason ? ' (' + c.finishReason + ')' : (d.promptFeedback && d.promptFeedback.blockReason ? ' (chặn: ' + d.promptFeedback.blockReason + ')' : '')));
         return { text, cut: c.finishReason === 'MAX_TOKENS', model, meta: c.groundingMetadata || null };
       }
+      if (denied && !daily) throw new Error(AI.DENIED);
       throw new Error(daily ? 'Hết lượt miễn phí của Gemini hôm nay – lượt mới có lại khoảng 14–15 giờ chiều (giờ Việt Nam)' : 'Gemini đang giới hạn lượt mỗi phút – đợi khoảng 1 phút rồi thử lại');
     },
     parse(t) { const s = String(t).trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
@@ -345,8 +355,8 @@
     const close = () => { d.remove(); render(); };
     d.querySelector('#rsKeyX').onclick = close; d.onclick = e => { if (e.target === d) close(); }; d.onkeydown = e => { if (e.key === 'Escape') close(); };
     if (d.querySelector('#rsKeyDel')) d.querySelector('#rsKeyDel').onclick = () => { LS.set('pls.gemini.key', null); LS.set('pls.gemini.model', null); LS.set('pls.gemini.lite', null); close(); };
-    d.querySelector('#rsKeyOk').onclick = async () => { const k = inp.value.trim(), msg = d.querySelector('#rsKeyMsg'); if (!k) return; msg.textContent = 'Đang kiểm tra key…';
-      try { const m = await AI.pick(k); LS.set('pls.gemini.key', k); LS.set('pls.gemini.model', m.best); LS.set('pls.gemini.lite', m.lite); msg.textContent = 'Đã kết nối: ' + m.best + (m.lite !== m.best ? ' + ' + m.lite : ''); setTimeout(close, 700); } catch (e) { msg.textContent = e.message; } };
+    d.querySelector('#rsKeyOk').onclick = async () => { const k = inp.value.trim(), msg = d.querySelector('#rsKeyMsg'); if (!k) return; msg.textContent = 'Đang kiểm tra key và thử từng model…';
+      try { const m = await AI.pick(k); LS.set('pls.gemini.key', k); LS.set('pls.gemini.model', m.best); LS.set('pls.gemini.lite', m.lite); msg.textContent = 'Đã kết nối: ' + m.best + (m.lite !== m.best ? ' + ' + m.lite : ''); setTimeout(close, 1200); } catch (e) { msg.innerHTML = esc(e.message) + (e.tried && e.tried.length ? '<small style="display:block;margin-top:6px;opacity:.75">Đã thử: ' + e.tried.map(esc).join('<br>') + '</small>' : ''); } };
   }
   // TÌM NGUỒN TRÊN WEB (kiểu "Discover" của NotebookLM): Gemini + Google Search → danh sách trang web để chọn rồi thêm thành nguồn link
   async function discover(q) {
