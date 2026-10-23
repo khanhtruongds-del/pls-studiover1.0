@@ -150,13 +150,38 @@
     if (/Dialogue/.test(comp)) el.style.gap = '5px';
   }
 
+  // ---------- MỘT FONT CHO CẢ SÁCH (người dùng chốt 23/10) ----------
+  // Cả cuốn dùng một họ Noto: Noto Sans cho chữ Latin / Việt / IPA; chữ Hán – Kana – Hangul rơi sang Noto Sans JP / KR / SC
+  // (cùng nhà thiết kế, cùng độ cao chữ, cùng nét) → dòng chữ Việt và chữ tượng hình thẳng hàng, dễ canh, dễ so.
+  // Phân cấp chỉ bằng CỠ + ĐỘ ĐẬM của cùng một font (400 thường · 500 nhãn · 600 tiêu đề con · 700 tiêu đề).
+  const BOOK_CJK = { Sakumi: 'Noto Sans JP', Saechang: 'Noto Sans KR', 'Đắc Nhân': 'Noto Sans SC' };
+  const bookFont = brand => `'Noto Sans', '${BOOK_CJK[brand] || 'Noto Sans JP'}', 'Noto Sans SC', 'Noto Sans KR', sans-serif`;
+  const bookFamilies = brand => ['Noto Sans', BOOK_CJK[brand]].filter(Boolean);
+  function bookCss() {
+    if (typeof document === 'undefined' || document.getElementById('plsBookCss')) return; const st = document.createElement('style'); st.id = 'plsBookCss';
+    // ép một font cho mọi chữ trong trang sách (mẫu Figma gắn font riêng từng ô: heading / body / native / doc)
+    st.textContent = '.pls-book-page, .pls-book-page *{font-family:var(--book-font) !important;font-synthesis:none}'
+      + '.pls-book-page [data-text]{font-kerning:normal;font-variant-ligatures:common-ligatures;text-rendering:optimizeLegibility}';
+    document.head.appendChild(st);
+  }
+
+  // LỀ TRANG: lề ngoài rộng hơn mẫu (48 → 56), đầu trang có chữ chạy + kẻ mảnh, cách nội dung 14px; chân trang kẻ mảnh, số trang.
+  function pageFrame(host, size) {
+    const pg = host.firstElementChild; if (!pg) return; const run = host.querySelector('[data-n="running"]'), foot = host.querySelector('[data-n="footer"]');
+    if (size !== '19x27') pg.style.padding = '40px 56px 28px 56px'; pg.style.gap = '0px';
+    if (run) Object.assign(run.style, { paddingBottom: '6px', marginBottom: '16px', borderBottom: '0.5px solid var(--scale-200, #c8c8c8)', letterSpacing: '0.06em', fontWeight: '500' });
+    if (foot) Object.assign(foot.style, { marginTop: '12px', paddingTop: '7px', borderTop: '0.5px solid var(--scale-200, #c8c8c8)' });
+  }
+
   function paginate(list, opt) {
+    bookCss();
     list.forEach((b, i) => { b.space = SPACE(list[i - 1], b); });
     const E = root.PLS_ENGINE, size = SIZES[opt.size] || SIZES.A4, stage = opt.stage, pages = [], warns = [];
     const running = opt.running || '';
     const newPage = () => { const n = pages.length + 1; const comp = size.page(n);
       const r = E.render({ comp, data: { running, page_no: opt.size === '19x27' && n % 2 === 0 ? '' : String(n), page_no_l: opt.size === '19x27' && n % 2 === 0 ? String(n) : '' } }, opt.brand);
-      stage.appendChild(r.host); const content = r.host.querySelector('[data-n="content"]'); [...content.children].forEach(c => c.remove()); content.style.gap = '0px'; content.style.rowGap = '0px';
+      stage.appendChild(r.host); r.host.classList.add('pls-book-page'); r.host.style.setProperty('--book-font', bookFont(opt.brand)); pageFrame(r.host, opt.size);
+      const content = r.host.querySelector('[data-n="content"]'); [...content.children].forEach(c => c.remove()); content.style.gap = '0px'; content.style.rowGap = '0px';
       const pg = { host: r.host, content, n, blocks: [] }; pages.push(pg); return pg; };
     const head0 = pg => { const f = pg.blocks[0]; const h0 = f && f.querySelector('[data-n="row_0"][data-cont]'); if (h0) h0.style.display = 'flex'; };   // bảng nối đứng đầu trang → hiện đầu bảng TRƯỚC khi đo
     const fits = pg => pg.content.scrollHeight <= pg.content.clientHeight + 1;
@@ -174,28 +199,39 @@
       if (b.comp === 'Block/Section Bar') { el.querySelectorAll('[data-n="avatar"], [data-n="lesson_box"]').forEach(x => { x.style.display = 'none'; x.dataset.hid = '1'; });
         // chữ cái và tên mục to gần bằng nhau, cùng nằm giữa theo chiều dọc (người dùng chốt 23/10: "C" và "Ngữ pháp" phải cân)
         const L = el.querySelector('[data-n="letter"]'), T = el.querySelector('[data-n="title"]');
-        if (L) Object.assign(L.style, { flex: '0 0 auto', height: 'auto', minHeight: '0', fontSize: '30px', lineHeight: '1', textAlign: 'left' });
-        if (T) Object.assign(T.style, { flex: '1 1 0px', height: 'auto', minHeight: '0', fontSize: '24px', lineHeight: '1.15', color: 'var(--color-primary, #406864)' });
+        if (L) Object.assign(L.style, { flex: '0 0 auto', height: 'auto', minHeight: '0', fontSize: '28px', lineHeight: '1', textAlign: 'left', fontWeight: '700' });
+        if (T) Object.assign(T.style, { flex: '1 1 0px', height: 'auto', minHeight: '0', fontSize: '22px', lineHeight: '1.15', fontWeight: '700', color: 'var(--color-primary, #406864)' });
         Object.assign(el.style, { alignItems: 'center', gap: '12px', paddingBottom: '8px' }); }
       // Lesson Header: ô "Bài N" và khung tên bài cao bằng nhau (mẫu để ô bài cao 72 cố định, khung tên cao theo chữ → lệch)
-      if (b.comp === 'Block/Lesson Header') { el.style.alignItems = 'stretch'; el.querySelectorAll('[data-n="lesson_box"], [data-n="title_box"]').forEach(x => { x.style.height = 'auto'; x.style.minHeight = '72px'; x.style.alignSelf = 'stretch'; }); }
+      if (b.comp === 'Block/Lesson Header') { el.style.alignItems = 'stretch'; el.querySelectorAll('[data-n="lesson_box"], [data-n="title_box"]').forEach(x => { x.style.height = 'auto'; x.style.minHeight = '72px'; x.style.alignSelf = 'stretch'; });
+        const tb = el.querySelector('[data-n="title_box"]'); if (tb) { tb.style.borderWidth = '1px'; tb.style.borderColor = 'var(--color-primary, #406864)'; } }   // viền khung tên bài mảnh 1px (mẫu 2px nặng hơn cả chữ)
       // ô đánh số không có dữ liệu (vd ex_6 của khối Phát âm khi chỉ có 5 ví dụ) → ẩn, khỏi lộ chữ mẫu Figma ("fünf")
-      el.querySelectorAll('[data-text]').forEach(x => { const n = x.dataset.n || ''; const m = n.match(/^([a-z]+_)\d+\.[\w.]+$/); if (m && !(n in (b.data || {})) && keys.some(k => k.startsWith(m[1]))) { x.style.display = 'none'; x.dataset.hid = '1'; } });
+      el.querySelectorAll('[data-text]').forEach(x => { const n = x.dataset.n || ''; const m = n.match(/^([a-z]+_)\d+\.[\w.]+$/); if (m && !(n in (b.data || {})) && keys.some(k => k.startsWith(m[1]))) { if (/Pronunciation/.test(b.comp)) x.style.visibility = 'hidden'; else x.style.display = 'none'; x.dataset.hid = '1'; } });   // khối Phát âm: giữ chỗ ô trống để lưới cặp từ – phiên âm thẳng cột
       bookStyle(el, b.comp); if (b.cont) { const h0 = el.querySelector('[data-n="row_0"]'); if (h0) { h0.style.display = 'none'; h0.dataset.cont = '1'; } } el.style.marginTop = (b.space || 0) + 'px'; el.dataset.space = String(b.space || 0);
       if (opt.prep) opt.prep(el); return el; };
+    // BẢNG DÀI ĐƯỢC CẮT QUA TRANG (sách thật không đẩy cả bảng + tiêu đề mục sang trang sau để lại nửa trang trắng)
+    const nRows = b => { if (!/Table/.test(b.comp) || !b.data) return 0; let n = 0; while (Object.keys(b.data).some(k => k.startsWith(`row_${n + 1}.`))) n++; return n; };
+    const sliceT = (b, from, to) => { const d = {}; for (const [k, v] of Object.entries(b.data)) { const m = k.match(/^row_(\d+)\.(.+)$/); if (!m) { d[k] = v; continue; } const r = +m[1]; if (r === 0) d[k] = v; else if (r > from && r <= to) d[`row_${r - from}.${m[2]}`] = v; } return d; };
+    const probeOf = b => nRows(b) > 3 ? Object.assign({}, b, { data: sliceT(b, 0, 2) }) : b;   // kiểm tiêu đề mồ côi: chỉ cần đầu bảng + 2 dòng theo kèm
+    const trySplit = (pg, i, el) => { const b = list[i], n = nRows(b); if (n < 4 || pg.blocks.length < 2) return null;
+      for (let k = n - 2; k >= 2; k--) { const part = Object.assign({}, b, { data: sliceT(b, 0, k) }); const e2 = mk(part); pg.content.replaceChild(e2, el); pg.blocks[pg.blocks.length - 1] = e2; head0(pg);
+        if (fits(pg)) { list.splice(i + 1, 0, { comp: b.comp, data: sliceT(b, k, n), cont: true, space: 0 }); list[i] = part; return e2; }
+        el = e2; }
+      return el; };
     let pg = newPage();
     for (let i = 0; i < list.length; i++) {
       const b = list[i], el = mk(b); pg.content.appendChild(el); pg.blocks.push(el); head0(pg);
       const heading = /(Heading|Section Bar)$/.test(b.comp);
       if (heading && i + 1 < list.length) {   // tiêu đề phải đi cùng khối sau nó
         // thử kèm mọi tiêu đề liền sau + khối nội dung đầu tiên; không vừa → tiêu đề (và tiêu đề ngay trước nó) sang trang mới
-        const tmp = []; for (let j = i + 1; j < list.length; j++) { const nx = mk(list[j]); pg.content.appendChild(nx); tmp.push(nx); if (!/(Heading|Section Bar)$/.test(list[j].comp)) break; }
+        const tmp = []; for (let j = i + 1; j < list.length; j++) { const nx = mk(probeOf(list[j])); pg.content.appendChild(nx); tmp.push(nx); if (!/(Heading|Section Bar)$/.test(list[j].comp)) break; }
         const ok = fits(pg); tmp.forEach(x => x.remove());
         if (!ok && pg.blocks.length > 1) { const mv = [el]; el.remove(); pg.blocks.pop();
           while (pg.blocks.length > 1 && /(Heading|Section Bar)$/.test(pg.blocks[pg.blocks.length - 1].dataset.block)) { const h = pg.blocks.pop(); h.remove(); mv.unshift(h); }
           pg = newPage(); mv.forEach(x => { pg.content.appendChild(x); pg.blocks.push(x); }); }
         continue;
       }
+      if (!fits(pg) && nRows(b) >= 4 && pg.blocks.length > 1) { const r = trySplit(pg, i, el); if (r && fits(pg)) continue; if (r && r !== el) { r.remove(); pg.blocks.pop(); pg.content.appendChild(el); pg.blocks.push(el); } }
       if (!fits(pg)) { if (pg.blocks.length === 1) { warns.push(`Trang ${pg.n}: khối ${b.comp.replace('Block/', '')} cao hơn trang`); continue; }
         el.remove(); pg.blocks.pop(); const prev = pg.blocks[pg.blocks.length - 1]; let carry = [];
         if (prev && /(Heading|Section Bar)$/.test(prev.dataset.block)) { prev.remove(); pg.blocks.pop(); carry = [prev]; }   // tiêu đề mồ côi cuối trang → sang trang mới
@@ -213,5 +249,5 @@
     st.textContent = `@page{size:${s.mm[0]}mm ${s.mm[1]}mm;margin:0}`;
     window.print();
   }
-  root.PLS_BOOK = { blocks, paginate, print, SIZES };
+  root.PLS_BOOK = { blocks, paginate, print, SIZES, bookFamilies, bookFont };
 })(typeof window !== 'undefined' ? window : globalThis);
