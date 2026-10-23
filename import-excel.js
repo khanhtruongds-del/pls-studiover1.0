@@ -82,7 +82,26 @@
       if (/mở đầu/.test(n)) continue;
       if (/từ vựng/.test(n) && !used.has('vocab')) {
         used.add('vocab'); divider(st.name, `${vocab.length} từ · ${mins}`);
-        for (const part of chunk(vocab, Math.ceil(vocab.length / Math.ceil(vocab.length / 24)))) slides.push({ auto: 'vocab', section: L.vocab, items: part.map(r => ({ de: S(r['Từ']), vi: S(r['Nghĩa']) })) });
+        const TPL = (root.PLS_TPL || {}).slides || {};
+        // CHỮ + MINH HOẠ LỚN (mẫu bổ sung): 3–5 từ cùng giá trị cột "Hình minh hoạ" → 1 slide danh sách + ảnh chung; các từ này không vào lưới
+        const picG = {}; vocab.forEach(r => { const k = S(r['Hình minh hoạ']); if (k) (picG[k] = picG[k] || []).push(r); });
+        const pics = TPL['Slide/Vocab Picture'] ? Object.entries(picG).filter(([, rs]) => rs.length >= 3 && rs.length <= 5) : [], inPic = new Set(pics.flatMap(([, rs]) => rs));
+        const grid = vocab.filter(r => !inPic.has(r));
+        if (grid.length) for (const part of chunk(grid, Math.ceil(grid.length / Math.ceil(grid.length / 24)))) slides.push({ auto: 'vocab', section: L.vocab, items: part.map(r => ({ de: S(r['Từ']), vi: S(r['Nghĩa']) })) });
+        for (const [lab, rs] of pics) { const d = { title: lab, 'img:img': lab }; rs.forEach((r, i) => { d[`item_${i + 1}.no`] = String(i + 1); d[`item_${i + 1}.de`] = S(r['Từ']); d[`item_${i + 1}.vi`] = S(r['Nghĩa']); }); slides.push({ comp: 'Slide/Vocab Picture', data: sec(L.vocab, d) }); }
+        // SƠ ĐỒ QUAN HỆ TỪ (mẫu bổ sung): ≥ 3 cặp đồng nghĩa / trái nghĩa trong từ của buổi → 1 slide (tối đa 6 cặp)
+        if (TPL['Slide/Vocab Map']) {
+          const mean = {}; tab(s6, /Từ vựng$/).forEach(r => { const w = S(r['Từ']).toLowerCase(); if (w && !mean[w]) mean[w] = S(r['Nghĩa']); });
+          const pairs = [], seen = new Set();
+          for (const r of vocab) for (const [col, rel] of [['Đồng nghĩa', '='], ['Trái nghĩa', '≠']]) for (const o of S(r[col]).split(/[;,]\s*/).map(S).filter(Boolean)) {
+            const a = S(r['Từ']), key = [a.toLowerCase(), o.toLowerCase()].sort().join('|') + rel; if (seen.has(key) || o.length > 24 || a.length > 24) continue; seen.add(key); pairs.push({ a, b: o, rel }); }
+          if (pairs.length >= 3) {
+            const d = { title: 'Từ đồng nghĩa – trái nghĩa' }; const ps = pairs.slice(0, 6); const kw = [];
+            ps.forEach((x, i) => { d[`pair_${i + 1}.a`] = x.a; d[`pair_${i + 1}.b`] = x.b; d[`pair_${i + 1}.rel`] = x.rel; [x.a, x.b].forEach(w => { if (!kw.includes(w)) kw.push(w); }); });
+            kw.slice(0, 8).forEach((w, i) => { d[`kv_${i + 1}.de`] = w; d[`kv_${i + 1}.vi`] = mean[w.toLowerCase()] || ''; });
+            slides.push({ comp: 'Slide/Vocab Map', data: sec(L.vocab, d) });
+          }
+        }
         if (!vocab.length) warns.push('Bước "Từ vựng" nhưng S6 không có từ nào của buổi này (hoặc đều Lên PPT = Không).');
       } else if (/ngữ pháp/.test(n) && !used.has('grammar')) {
         used.add('grammar'); divider(st.name, mins);
@@ -107,6 +126,15 @@
             S(p['Ví dụ']).split(/;\s*/).filter(Boolean).slice(0, 6).forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.no`] = String(i + 1); d[`ex_${i + 1}.word`] = linkMark(m ? m[1] : x, m ? m[2] : ''); d[`ex_${i + 1}.ipa`] = m ? '/' + m[2] + '/' : ''; });
             slides.push({ comp: 'Slide/Pronunciation Linking', data: sec(L.pron, d) }); continue;
           }
+          // PHÁT ÂM TỪNG BƯỚC (mẫu bổ sung): ví dụ là cụm / câu (trung bình ≥ 3 từ) → Nghe (câu mẫu) → Chú ý (ý chính) → Đọc lại + "Luyện thêm"
+          const exs = S(p['Ví dụ']).split(/;\s*/).filter(Boolean).map(x => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); return { w: m ? m[1] : x, ipa: m ? m[2] : '' }; });
+          if (exs.length && exs.reduce((a, x) => a + x.w.split(/\s+/).length, 0) / exs.length >= 3 && root.PLS_TPL && root.PLS_TPL.slides['Slide/Pronunciation Steps']) {
+            const d = { 'title': S(p['Chữ / âm']), 'step_1.head': 'Nghe', 'step_2.head': 'Chú ý', 'step_3.head': 'Đọc lại', 'step_1.no': '1', 'step_1.text': exs[0].w, 'step_1.sub': exs[0].ipa ? '/' + exs[0].ipa + '/' : '',
+              'step_2.no': '2', 'step_2.text': sentences(p['Hướng dẫn phát âm'])[0] || S(p['Hướng dẫn phát âm']), 'step_2.sub': '',
+              'step_3.no': '3', 'step_3.text': 'Nghe lại, đọc theo đúng nhịp, rồi tự nói 1 câu tương tự.', 'step_3.sub': '' };
+            exs.slice(1, 6).forEach((x, i) => { d[`chip_${i + 1}.text`] = x.w; });
+            slides.push({ comp: 'Slide/Pronunciation Steps', data: sec(L.pron, d) }); continue;
+          }
           const d = { 'sound': S(p['Chữ / âm']), 'ipa': S(p['Bảng chữ / nhóm âm']), 'tip': S(p['Hướng dẫn phát âm']) };
           S(p['Ví dụ']).split(/;\s*/).filter(Boolean).slice(0, 4).forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.word`] = m ? m[1] : x; d[`ex_${i + 1}.vi`] = m ? '/' + m[2] + '/' : ''; });
           slides.push({ comp: 'Slide/Pronunciation', data: sec(L.pron, d) });
@@ -118,6 +146,12 @@
         for (const [title, all] of Object.entries(groups)) {
           // HỘI THOẠI (Loại = Hội thoại): 2 vai, ≤ 6 câu, câu ngắn → bong bóng (mẫu bổ sung); dài hơn → máy chọn Dialogue / Dialogue Long
           const dl = all.filter(r => /hội thoại/i.test(S(r['Loại']))), rows = all.filter(r => !/hội thoại/i.test(S(r['Loại'])));
+          // CÂU HỎI TRỌNG TÂM (mẫu bổ sung): mẫu câu hỏi đầu tiên có ≥ 2 từ thay thế → câu hỏi lớn giữa slide + chip từ thay thế, trước danh sách mẫu câu
+          const fq = rows.find(r => /\?\s*$/.test(S(r['Câu'])) && S(r['Từ thay thế']).split(/;\s*/).filter(Boolean).length >= 2);
+          if (fq && root.PLS_TPL && root.PLS_TPL.slides['Slide/Focus Question']) {
+            const d = { title, question: S(fq['Câu']), 'question.vi': S(fq['Nghĩa']) }; S(fq['Từ thay thế']).split(/;\s*/).map(S).filter(Boolean).slice(0, 6).forEach((x, i) => { d[`chip_${i + 1}.text`] = x; });
+            slides.push({ comp: 'Slide/Focus Question', data: sec(L.speak, d) });
+          }
           for (const part of chunk(rows, 4)) {
           const d = { title }; part.forEach((r, i) => { d[`p_${i + 1}.no`] = String(i + 1); d[`p_${i + 1}.de`] = S(r['Câu']); d[`p_${i + 1}.ipa`] = S(r['Phiên âm']) ? '/' + S(r['Phiên âm']) + '/' : ''; d[`p_${i + 1}.vi`] = S(r['Nghĩa']); });
           slides.push({ comp: 'Slide/Pattern List', data: sec(L.speak, d) });
