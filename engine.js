@@ -469,7 +469,7 @@
   }
   function expand(spec, common) {   // spec auto → các phương án [{label, slides:[{comp,data}], fill, cover, fillW}]
     const X = (root.PLS_AUTO || {})[spec.auto];
-    if (X && X.expand) return X.expand(spec).map(p => Object.assign(p, { slides: p.slides.map(s => ({ comp: s.comp, layout: s.layout, common, data: s.data })) }));
+    if (X && X.expand) return X.expand(spec).map(p => Object.assign(p, { slides: p.slides.map(s => ({ comp: s.comp, layout: s.layout, common, data: s.data, ans: s.ans })) }));
     const A = AUTO[spec.auto];
     return plans(spec).map(p => {
       const parts = splitItems(spec.items, p, A.cap);
@@ -511,6 +511,8 @@
         if (cs.display === 'none' || cs.visibility === 'hidden') return;
         const op = parseFloat(cs.opacity);
         const b = box(el); if (b.w < 0.5 && b.h < 0.5 && !el.children.length) return;
+        if (el.dataset.line) { const [fh, fv, lw] = el.dataset.line.split(',').map(Number); const c = toRGB(cs.color) || { c: [0, 0, 0], a: 1 };   // dây nối của bộ hiệu ứng nhanh → đường thẳng thật trong PPTX
+          items.push({ k: 'line', id: 'n' + (uid++), name: el.dataset.n || 'line', ...b, op, flipH: !!fh, flipV: !!fv, lw: lw || 6, c }); return; }
         const bg = toRGB(cs.backgroundColor); const shadow = cs.boxShadow !== 'none' ? cs.boxShadow : '';
         const ins = shadow.match(/(rgba?\([^)]+\))\s+0px\s+0px\s+0px\s+([\d.]+)px\s+inset/) || shadow.match(/inset\s+0px\s+0px\s+0px\s+([\d.]+)px\s+(rgba?\([^)]+\))/);
         let stroke = null;
