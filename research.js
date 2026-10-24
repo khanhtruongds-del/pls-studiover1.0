@@ -38,9 +38,9 @@
   // ---------- GEMINI ----------
   const AI = {
     // 2 NHÀ CUNG CẤP, CẢ HAI MIỄN PHÍ (người dùng chốt 24/10: "tuyệt đối miễn phí"): Gemini (Google) · OpenRouter (chỉ model giá 0, đuôi :free)
-    prov: () => LS.get('pls.ai.prov', '') || (LS.get('pls.gemini.key', '') ? 'gemini' : LS.get('pls.or.key', '') ? 'openrouter' : 'gemini'),
-    name: () => AI.prov() === 'openrouter' ? 'OpenRouter' : 'Gemini',
-    key: () => AI.prov() === 'openrouter' ? LS.get('pls.or.key', '') : LS.get('pls.gemini.key', ''),
+    prov: () => 'claude',
+    name: () => 'Claude',
+    key: () => 'claude',
     model: () => AI.prov() === 'openrouter' ? (AI.orList()[0] || '') : LS.get('pls.gemini.model', ''), lite: () => AI.prov() === 'openrouter' ? (AI.orList()[0] || '') : LS.get('pls.gemini.lite', ''),
     orList: () => { try { return JSON.parse(LS.get('pls.or.models', '[]')) || []; } catch (e) { return []; } },
     orVision: () => { try { return JSON.parse(LS.get('pls.or.vision', '[]')) || []; } catch (e) { return []; } },
@@ -69,10 +69,10 @@
     useKey: () => AI.prov() === 'openrouter' ? 'pls.or.use' : 'pls.gemini.use',
     use() { let u = {}; try { u = JSON.parse(LS.get(AI.useKey(), '{}')); } catch (e) {} return u.day === AI.day() ? u : { day: AI.day(), m: {} }; },
     count(model) { const u = AI.use(); u.m[model] = (u.m[model] || 0) + 1; LS.set(AI.useKey(), JSON.stringify(u)); },
-    usage() { const u = AI.use(), b = AI.model(), l = AI.lite();
+    usage() { if (root.PLS_LOCAL) return root.PLS_LOCAL.usage(); const u = AI.use(), b = AI.model(), l = AI.lite();
       if (AI.prov() === 'openrouter') return `${Object.values(u.m).reduce((a, x) => a + x, 0)}/50 lượt hôm nay`;
       return b === l ? `${u.m[b] || 0} lượt hôm nay` : `Flash ${u.m[b] || 0} · Lite ${u.m[l] || 0} hôm nay`; },
-    async call(o) { return AI.prov() === 'openrouter' ? AI.callOR(o) : AI.callGem(o); },
+    async call(o) { if (!root.PLS_LOCAL) throw new Error('Thiếu research-local.js – tải lại trang'); return root.PLS_LOCAL.aiCall(o, AI); },
     async callGem({ sys, contents, json, tools, maxTokens, tier }) {
       const key = AI.key(), best = AI.model(), lite = AI.lite() || best; if (!key || !best) throw new Error('Chưa kết nối AI – bấm "Kết nối AI" ở cột trái');
       const body = { contents, generationConfig: { temperature: 0.3, maxOutputTokens: maxTokens || 8192 } };
@@ -168,8 +168,9 @@
     const parts = []; let links = false;
     for (const s of (list || on())) {
       parts.push({ text: `=== NGUỒN ${s.id}: ${s.name} · Trung tâm: ${s.center || 'chưa ghi'} · Lấy ngày: ${s.date || '?'} · Loại: ${s.kind} ===` });
-      if ((s.kind === 'pdf' || s.kind === 'image') && s.blob) parts.push({ inline_data: { mime_type: s.mime, data: await b64(s.blob) } });
-      else if (s.kind === 'link' && AI.prov() === 'openrouter') parts.push({ text: 'Trang web ' + s.url + ':\n' + (await webText(s)) + (s.text ? '\nNội dung dán kèm:\n' + s.text : '') });
+      if (s.ex && s.ex.pages && s.ex.pages.length) parts.push({ text: s.ex.pages.map((t, i) => (s.ex.pages.length > 1 ? '[trang ' + (i + 1) + ']\n' : '') + t).join('\n\n') + (s.text && s.kind !== 'text' ? '\nNội dung dán kèm:\n' + s.text : '') });
+      else if ((s.kind === 'pdf' || s.kind === 'image') && s.blob) parts.push({ inline_data: { mime_type: s.mime, data: await b64(s.blob) } });
+      else if (s.kind === 'link') parts.push({ text: 'Trang web ' + s.url + ':\n' + (await webText(s)) + (s.text ? '\nNội dung dán kèm:\n' + s.text : '') });
       else if (s.kind === 'link') { links = true; parts.push({ text: 'Link (đọc nội dung trang này): ' + s.url + (s.text ? '\nNội dung dán kèm:\n' + s.text : '') }); }
       else parts.push({ text: s.text || '' });
     }
@@ -200,6 +201,7 @@
   // TÓM TẮT NGUỒN (kiểu "hướng dẫn nguồn" của NotebookLM): mỗi nguồn mới tự tóm tắt bằng Flash-Lite (rẻ lượt), lần lượt từng cái
   let sumQ = Promise.resolve();
   async function summarize(s) {
+    if (root.PLS_LOCAL) return root.PLS_LOCAL.summarize(s, { save, render });   // máy đọc + trích câu, không cần AI
     const { parts, tools } = await sourceParts([s]);
     const r = await AI.call({ sys: SYS, contents: [{ role: 'user', parts: parts.concat({ text: `Đọc nguồn ${s.id}. Ba dòng đầu GHI ĐÚNG dạng:\nTRUNG TÂM: <tên trung tâm / tổ chức / nhà xuất bản sở hữu nguồn này, lấy từ logo, chân trang, tên miền… ghi "không rõ" nếu không thấy>\nTIÊU ĐỀ: <tên ngắn gọn của tài liệu / khóa học, tối đa 10 chữ>\nNGÀY: <ngày đăng hoặc cập nhật ghi trong nguồn, dạng YYYY-MM-DD, ghi "không rõ" nếu không có>\nSau đó tóm tắt cho người làm chương trình học: 1 câu nói nguồn này là gì; 3–5 gạch đầu dòng ý chính (cấp độ, số buổi, giáo trình, phương pháp, học phí… nếu có, kèm [${s.id}, tr.x]); 1 dòng "Chủ đề:" gồm 3–6 từ khóa. Ngắn gọn.` }) }], tools, maxTokens: 1200, tier: 'lite' });
     let t = r.text.trim(); const meta = {};
@@ -255,7 +257,7 @@
       'Xếp từ dễ đến khó, ngữ pháp sau dựa trên ngữ pháp trước; có buổi ôn tập / kiểm tra hợp lý. basis = fact khi căn cứ trực tiếp từ nguồn (ghi [S..] trong why). Chỉ trả JSON.';
     const r = await AI.call({ sys: SYS, contents: [{ role: 'user', parts: (parts.length ? parts : [{ text: '(chưa có nguồn – đề xuất theo kinh nghiệm, mọi buổi basis = inference)' }]).concat({ text: prompt }) }], json: true, tools, maxTokens: 16384, tier: 'best' });
     const d = AI.parse(r.text);
-    if (!Array.isArray(d.lessons) || !d.lessons.length) throw new Error('AI chưa trả khung khóa – thử lại');
+    if (!Array.isArray(d.lessons) || !d.lessons.length) throw new Error('Claude chưa trả khung khóa – thử lại');
     const ver = ((P.outline && P.outline.ver) || 0) + 1;
     P.outline = { ver, at: Date.now(), locked: null, course: d.course || {}, lessons: d.lessons.map((l, i) => ({ buoi: +l.buoi || i + 1, name: l.name || '', type: l.type || 'Buổi học', goals: l.goals || '', topics: l.topics || '', vocab: Array.isArray(l.vocab) ? l.vocab.join(', ') : (l.vocab || ''), grammar: Array.isArray(l.grammar) ? l.grammar.join('; ') : (l.grammar || ''), skills: l.skills || '', basis: l.basis === 'fact' ? 'fact' : 'inference', why: l.why || '' })) };
     log('Khung khóa v' + ver); if (root.PLS_BRIDGE) root.PLS_BRIDGE.request('dir');
@@ -354,7 +356,7 @@
     const d = AI.parse(r.text);
     C.ai = { at: Date.now(), model: r.model, findings: (d.findings || []).filter(f => f && f.issue).map(f => ({ group: RUBRIC.includes(f.group) ? f.group : 'Khác', sev: /cao/i.test(f.severity) ? 'cao' : /vừa/i.test(f.severity) ? 'vừa' : 'thấp', where: f.where || '', issue: f.issue, fix: f.fix || '' })),
       objectives: (d.objectives || []).filter(o => o && o.text).map(o => ({ text: o.text, by: Array.isArray(o.covered_by) ? o.covered_by : [], st: /thiếu/i.test(o.status) ? 'thiếu' : /ít/i.test(o.status) ? 'ít' : 'đủ' })), orphans: (d.orphans || []).filter(Boolean), summary: d.summary || '' };
-    log('AI soát buổi ' + buoi);
+    log('Claude soát buổi ' + buoi);
   }
   // PHÁT HÀNH (đặc tả §14): khóa 1 bộ S5 + S6 tương thích để giáo viên dùng; xem lại / mở / tải lại bản đã phát hành
   function blockers() {
@@ -363,8 +365,8 @@
     O.lessons.forEach(l => { const L = P.lessons[l.buoi]; if (!L) { out.push(`Buổi ${l.buoi} chưa soạn`); return; }
       if (L.ver !== O.ver) out.push(`Buổi ${l.buoi} soạn theo khung cũ`);
       const bad = L.issues.filter(x => x.lv === 'bad').length; if (bad) out.push(`Buổi ${l.buoi}: ${bad} lỗi máy soát`);
-      const hi = L.ai ? L.ai.findings.filter(f => f.sev === 'cao').length : 0; if (hi) out.push(`Buổi ${l.buoi}: ${hi} lỗi AI mức cao`);
-      if (!L.ai) out.push(`Buổi ${l.buoi} chưa AI soát`); });
+      const hi = L.ai ? L.ai.findings.filter(f => f.sev === 'cao').length : 0; if (hi) out.push(`Buổi ${l.buoi}: ${hi} lỗi Claude mức cao`);
+      if (!L.ai) out.push(`Buổi ${l.buoi} chưa Claude soát`); });
     return out;
   }
   function release(note) {
@@ -403,24 +405,24 @@
     les: '<svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2"><rect x="18" y="20" width="66" height="84" rx="3"/><path d="M30 40h42M30 52h42M30 64h28"/><path d="M70 96l30-30 10 10-30 30H70z" fill="currentColor" fill-opacity=".15"/></svg>' };
   function intro(box) {
     box.className = 'rs-intro'; const ok = !!AI.key();
-    box.innerHTML = `<section class="w-hero"><div><p class="hi">Nghiên cứu <span class="rs-badge ok">Chạy bằng AI miễn phí</span></p><h1>Nghiên cứu, định hướng rồi soạn bài – trên cùng một chỗ</h1>
-        <div class="acts"><button type="button" class="btn primary" id="rsOpen">${ok ? 'Mở không gian nghiên cứu' : 'Bắt đầu'}</button><span class="muted">${ok ? 'Đã kết nối ' + AI.name() + ' trên máy này' : 'Cần 1 key AI miễn phí (Gemini hoặc OpenRouter)'}</span></div></div>
-      <div class="w-cards"><div class="w-card c1"><span class="n">01</span><b>Nạp nguồn & hỏi</b><p>PDF, ảnh giáo trình, link, Excel của trung tâm khác – hỏi đáp có trích dẫn như NotebookLM</p>${SVG.chat}</div>
+    box.innerHTML = `<section class="w-hero"><div><p class="hi">Nghiên cứu <span class="rs-badge ok">Không cần key</span></p><h1>Nghiên cứu, định hướng rồi soạn bài – trên cùng một chỗ</h1>
+        <div class="acts"><button type="button" class="btn primary" id="rsOpen">${ok ? 'Mở không gian nghiên cứu' : 'Bắt đầu'}</button><span class="muted">Không cần đăng nhập – mọi thứ lưu trên máy này</span></div></div>
+      <div class="w-cards"><div class="w-card c1"><span class="n">01</span><b>Nạp nguồn & hỏi</b><p>PDF, ảnh giáo trình, link, Excel của trung tâm khác – tìm ngay trong nguồn hoặc hỏi Claude, luôn có trích dẫn</p>${SVG.chat}</div>
         <div class="w-card c2"><span class="n">02</span><b>So sánh & định hướng</b><p>Bảng so sánh có trích dẫn từng ô, rồi đề xuất khung khóa để bạn sửa và chốt</p>${SVG.src}</div>
         <div class="w-card c3"><span class="n">03</span><b>Soạn bài</b><p>Soạn từng buổi đúng cột Excel S5/S6, máy soát lỗi, mở thẳng ở tab Slide / Sách</p>${SVG.les}</div></div></section>
       <div class="w-low"><section><p class="muted" style="margin:0 0 2px;font-size:12px">Nghiên cứu làm được gì</p><h2>Từ tài liệu tham khảo tới Excel S5/S6</h2><p class="sub">Soạn xong mở luôn ở tab Slide và Sách, hoặc tải về 2 file Excel S5 + S6.</p>
         <ol class="w-steps">
-          <li><span class="ic">⇪</span><b>Gom nguồn</b><span>PDF (cả bản scan), ảnh, link trang khóa học, Excel – ghi rõ trung tâm nào, lấy ngày nào</span></li>
-          <li><span class="ic">?</span><b>Trò chuyện theo nguồn</b><span>Chỉ trả lời từ tài liệu đã nạp, bấm trích dẫn để xem nguồn; không có thì nói "chưa rõ"</span></li>
-          <li><span class="ic">▦</span><b>Bảng so sánh</b><span>Cấp độ, số buổi, giáo trình, phương pháp, cách kiểm tra, học phí – mỗi ô có trích dẫn</span></li>
+          <li><span class="ic">⇪</span><b>Gom nguồn</b><span>PDF (cả bản scan), ảnh, link, Excel – máy tự đọc chữ, tên trung tâm và ngày</span></li>
+          <li><span class="ic">?</span><b>Trò chuyện theo nguồn</b><span>Tìm đoạn liên quan ngay lập tức, hoặc hỏi Claude; bấm trích dẫn để xem trang gốc</span></li>
+          <li><span class="ic">▦</span><b>Bảng so sánh</b><span>Máy tự điền số buổi, phút, sĩ số, học phí, cấp độ; Claude điền phần còn lại – ô nào cũng có trích dẫn</span></li>
           <li><span class="ic">◎</span><b>Định hướng khung khóa</b><span>Mục tiêu, chủ đề, từ vựng – ngữ pháp từng buổi; ghi rõ căn cứ hay suy luận; sửa rồi chốt</span></li>
-          <li class="dark"><span class="ic">✎</span><b>Soạn bài & soát</b><span>Từ vựng, ngữ pháp, nghe, đọc, BTVN + đáp án; máy soát đáp án, cột, timeline</span></li>
+          <li class="dark"><span class="ic">✎</span><b>Soạn bài & soát</b><span>Claude soạn từ vựng, ngữ pháp, nghe, đọc, BTVN + đáp án; máy kiểm tra đáp án, cột, thời lượng</span></li>
           <li class="dark"><span class="ic">⤓</span><b>Slide · Sách · Excel</b><span>Mở ở tab Slide / Sách, hoặc tải Excel S5 + S6 đúng mẫu</span></li>
         </ol></section>
         <section class="w-side"><p class="muted" style="margin:0 0 2px;font-size:12px">Trước khi bắt đầu</p><h2>Cần biết</h2><p class="sub">Mọi thứ lưu trên trình duyệt của máy này, không cần đăng nhập.</p>
-          <div class="item"><b>1 key AI miễn phí</b><span class="muted">Gemini (aistudio.google.com) hoặc OpenRouter (openrouter.ai) – dán 1 lần, chỉ lưu trên máy này. Không tốn tiền.</span></div>
-          <div class="item"><b>Gói miễn phí</b><span class="muted">Khoảng 20 lượt/ngày cho Định hướng + Soạn bài (Flash) và khoảng 500 lượt/ngày cho Trò chuyện + So sánh (Flash-Lite); model nào hết lượt thì tự chuyển sang model kia. Lượt mới có lại khoảng 14–15h chiều. Google được dùng dữ liệu gói miễn phí để cải thiện sản phẩm.</span></div>
-          <div class="item"><b>AI có thể sai</b><span class="muted">Luôn bấm trích dẫn để kiểm; bài soạn phải được người dạy duyệt trước khi dùng.</span></div></section></div>`;
+          <div class="item"><b>Không cần key, không tốn tiền</b><span class="muted">Đọc PDF, ảnh scan, link; tìm trong nguồn; tự điền số liệu và kiểm tra bài – máy làm ngay trên trình duyệt này.</span></div>
+          <div class="item"><b>Phần cần viết thì nhờ Claude</b><span class="muted">Hỏi đáp, lập bảng so sánh, đề xuất khung, soạn và soát bài sẽ xếp hàng chờ Claude. Ghép đôi một lần ở ô Nhận xét (cột Quy trình).</span></div>
+          <div class="item"><b>Luôn kiểm lại</b><span class="muted">Bấm trích dẫn để xem trang gốc; bài soạn phải được người dạy duyệt trước khi dùng.</span></div></section></div>`;
     box.querySelector('#rsOpen').onclick = () => { mode = 'work'; if (!AI.key()) keyDlg(); render(); };
   }
   function keyDlg(pv) {
@@ -462,7 +464,7 @@
     return out;
   }
   async function discover(q) {
-    if (AI.prov() === 'openrouter') return webSearch(q);
+    return webSearch(q);   // tìm web bằng máy (DuckDuckGo), không cần AI
     const prompt = `Tìm trên web 6–10 trang có thông tin hữu ích cho việc nghiên cứu: "${q}". Ưu tiên trang chính thức của các trung tâm ngoại ngữ / nhà xuất bản / tổ chức thi ở Việt Nam và quốc tế (lộ trình, số buổi, giáo trình, học phí, khung năng lực).\n` +
       'Chỉ dùng URL thật lấy từ kết quả tìm kiếm, không tự đặt URL. Trả JSON: {"results":[{"title":"...","url":"https://...","center":"<tên trung tâm / tổ chức>","snippet":"<1 câu: trang này có gì đáng dùng>"}]}. Chỉ trả JSON.';
     let r; try { r = await AI.call({ sys: 'Bạn là trợ lý tìm tài liệu cho người làm chương trình học ngoại ngữ ở Việt Nam. Viết tiếng Việt.', contents: [{ role: 'user', parts: [{ text: prompt }] }], tools: [{ google_search: {} }], maxTokens: 4096, tier: 'lite' }); }
@@ -478,7 +480,7 @@
     const pend = [...(initFiles || [])];
     d = document.createElement('div'); d.id = 'rsAddDlg'; d.className = 'rs-dlg'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', 'Thêm nguồn');
     d.innerHTML = `<div class="rs-dlg-card rs-add-card"><div class="rs-row"><h3 style="flex:1">Thêm nguồn</h3><button type="button" class="rs-x" id="aX" aria-label="Đóng">×</button></div>
-      <p class="muted" style="margin:0">Chỉ cần thả file hoặc tìm trên web – AI tự đọc trung tâm, tiêu đề, ngày đăng trong từng nguồn (sửa lại được khi bấm vào nguồn).</p>
+      <p class="muted" style="margin:0">Thả file hoặc tìm trên web. Máy tự đọc chữ (cả ảnh scan), tên trung tâm, tiêu đề và ngày – bấm vào nguồn để sửa nếu chưa đúng.</p>
       <label class="rs-drop" id="aDrop"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
         <b>Kéo thả file vào đây hoặc bấm để chọn</b><span>PDF (cả bản scan), ảnh giáo trình, Excel / CSV, txt · tối đa 15 MB/file · dán ảnh bằng Ctrl+V</span>
         <input id="aFiles" type="file" multiple accept=".pdf,image/*,.xlsx,.xls,.csv,.txt,.md" hidden></label>
@@ -519,7 +521,7 @@
       links().forEach(u => addSource({ kind: 'link', name: u.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '').slice(0, 70), url: u, center: '', date: dt, autoName: true }));
       const n = pend.length - bad.length + links().length + picked().length;
       close(); save(); render();
-      toast(bad.length ? `Đã thêm ${n} nguồn · chưa đọc được: ${bad.join(', ')} (Word → lưu thành PDF rồi thêm lại)` : `Đã thêm ${n} nguồn${AI.key() ? ' · AI đang tóm tắt từng nguồn' : ''}`, !!bad.length);
+      toast(bad.length ? `Đã thêm ${n} nguồn · chưa đọc được: ${bad.join(', ')} (Word → lưu thành PDF rồi thêm lại)` : `Đã thêm ${n} nguồn${AI.key() ? ' · máy đang đọc từng nguồn' : ''}`, !!bad.length);
     };
     drawPend(); q('#aQ').focus();
   }
@@ -531,7 +533,7 @@
     d.innerHTML = `<div class="rs-dlg-card wide"><div class="rs-row"><h3 style="flex:1">${esc(s.id)} · ${esc(s.name)}</h3><button type="button" class="rs-x" id="rsViewX2" aria-label="Đóng">×</button></div>
       <div class="rs-add-meta three"><label class="rs-f">Tên nguồn<input id="vName" value="${esc(s.name)}"></label><label class="rs-f">Trung tâm<input id="vCenter" list="vCenters" value="${esc(s.center || '')}"></label><label class="rs-f">Lấy ngày<input id="vDate" type="date" value="${esc(s.date || '')}"></label></div>${s.pubDate ? `<p class="muted" style="margin:0;font-size:12px">Ngày đăng / cập nhật ghi trong nguồn: ${esc(s.pubDate)}</p>` : ''}
       <datalist id="vCenters">${P.centers.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
-      <div class="rs-guide"><b>Tóm tắt nguồn</b>${s.summary ? `<div class="rs-md">${md(s.summary)}</div>` : `<p class="muted">${s.sumState === 'run' || s.sumState === 'wait' ? 'AI đang tóm tắt…' : s.sumState === 'err' ? 'Chưa tóm tắt được: ' + esc(s.sumErr || '') : 'Chưa có tóm tắt.'}</p>`}
+      <div class="rs-guide"><b>Tóm tắt nguồn</b>${s.summary ? `<div class="rs-md">${md(s.summary)}</div>` : `<p class="muted">${s.sumState === 'run' || s.sumState === 'wait' ? 'Máy đang đọc nguồn…' + (s.sumMsg ? ' (' + esc(s.sumMsg) + ')' : '') + '' : s.sumState === 'err' ? 'Chưa tóm tắt được: ' + esc(s.sumErr || '') : 'Chưa có tóm tắt.'}</p>`}
         <button type="button" class="rs-mini" id="vSum" ${AI.key() ? '' : 'disabled'}>${s.summary ? 'Tóm tắt lại' : 'Tóm tắt nguồn này'}</button></div>
       <div class="rs-view-body">${s.kind === 'pdf' ? `<iframe src="${url}" title="${esc(s.name)}"></iframe>` : s.kind === 'image' ? `<img src="${url}" alt="${esc(s.name)}">` : s.kind === 'link' ? `<p><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a></p>${s.text ? '<pre>' + esc(s.text) + '</pre>' : ''}` : '<pre>' + esc((s.text || '').slice(0, 20000)) + '</pre>'}</div>
       <div class="rs-row"><button type="button" class="btn" id="rsViewX">Đóng</button></div></div>`;
@@ -560,13 +562,13 @@
         <button type="button" class="rs-x" data-del="${s.id}" aria-label="Xóa nguồn ${esc(s.id)}">×</button></li>`;
     const gnames = [...new Set(P.sources.map(s => s.center || ''))].sort((a, b) => !a - !b || P.centers.indexOf(a) - P.centers.indexOf(b));
     const groups = gnames.map(g => { const ss = P.sources.filter(s => (s.center || '') === g), allOn = ss.every(s => s.on !== false);
-      return `<div class="rs-grp"><label class="rs-grp-h"><input type="checkbox" data-grp="${esc(g)}" ${allOn ? 'checked' : ''}><b>${esc(g || (ss.some(s => s.sumState === 'wait' || s.sumState === 'run') ? 'AI đang đọc trung tâm…' : 'Chưa rõ trung tâm'))}</b><span class="muted">${ss.length}</span></label><ul class="rs-srcs">${ss.map(item).join('')}</ul></div>`; }).join('');
+      return `<div class="rs-grp"><label class="rs-grp-h"><input type="checkbox" data-grp="${esc(g)}" ${allOn ? 'checked' : ''}><b>${esc(g || (ss.some(s => s.sumState === 'wait' || s.sumState === 'run') ? 'đang đọc…' : 'Chưa rõ trung tâm'))}</b><span class="muted">${ss.length}</span></label><ul class="rs-srcs">${ss.map(item).join('')}</ul></div>`; }).join('');
     const allOn = P.sources.length && P.sources.every(s => s.on !== false);
     box.innerHTML = `
       <section class="rs-col rs-left" aria-label="Nguồn">
         <div class="rs-proj"><select id="rsProj" aria-label="Khóa đang nghiên cứu">${projects.map(p => `<option value="${p.id}" ${p.id === P.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
           <button type="button" class="btn" id="rsNew" title="Khóa nghiên cứu mới">+</button><button type="button" class="btn" id="rsRen" title="Đổi tên">✎</button></div>
-        <button type="button" class="rs-ai ${hasKey ? 'ok' : ''}" id="rsAI" title="AI miễn phí – bấm để đổi Gemini / OpenRouter">${hasKey ? '● ' + AI.name() + ' · ' + esc(AI.usage()) : '○ Kết nối AI (miễn phí)'}</button>
+        <button type="button" class="rs-ai ${hasKey ? 'ok' : ''}" id="rsAI" title="Bấm để xem ghép đôi Claude">${hasKey ? '● ' + AI.name() + ' · ' + esc(AI.usage()) : '○ Kết nối AI (miễn phí)'}</button>
         <div class="rs-src-head"><h3>Nguồn <span class="muted">${P.sources.filter(s => s.on !== false).length}/${P.sources.length} đang dùng</span></h3></div>
         <button type="button" class="rs-addbtn" id="rsAddBtn"><span>＋</span> Thêm nguồn</button>
         ${P.sources.length ? `<label class="rs-all"><input type="checkbox" id="rsAll" ${allOn ? 'checked' : ''}> Chọn tất cả nguồn</label><div class="rs-groups">${groups}</div><p class="rs-hint muted">Kéo thả file vào cột này để thêm nhanh</p>`
@@ -574,7 +576,7 @@
       </section>
       <section class="rs-col rs-body" aria-label="Không gian làm việc">
         <h2 class="rs-ptitle">${esc(STEPS[cur].name)} <small>${esc(STEPS[cur].sub)}</small></h2>
-        ${busy ? `<div class="rs-busy" role="status"><span class="rs-spin"></span>${esc(busy)}… AI đang đọc nguồn, có thể mất 10–60 giây</div>` : ''}
+        ${busy ? `<div class="rs-busy" role="status"><span class="rs-spin"></span>${esc(busy)}… đã gửi Claude – thường xong trong 1–3 phút khi Claude đang trực</div>` : ''}
         ${tmsg ? `<div class="rs-toast ${tmsg.bad ? 'bad' : ''}" role="alert">${esc(tmsg.t)}</div>` : ''}
         <div class="rs-pane">${[paneChat, paneCmp, paneDir, paneLes][cur]()}</div>
       </section>
@@ -588,20 +590,20 @@
   function paneChat() {
     const msgs = P.chat.map((m, i) => m.role === 'user' ? `<div class="rs-msg me">${esc(m.text)}</div>` : `<div class="rs-msg ai"><div class="rs-md">${md(m.text)}</div><button type="button" class="rs-mini" data-note="${i}">Lưu ghi chú</button></div>`).join('');
     const sugg = ['Tóm tắt điểm chính của từng nguồn', 'Các trung tâm dạy bao nhiêu buổi, mỗi buổi bao lâu?', 'Lộ trình ngữ pháp của họ xếp theo thứ tự nào?', 'Điểm yếu / khoảng trống mà PLS có thể làm tốt hơn?'];
-    return `<div class="rs-chat">${msgs || `<div class="rs-empty"><b>Hỏi gì về các nguồn cũng được</b><p class="muted">Câu trả lời chỉ dựa trên nguồn đang chọn ở cột trái, kèm trích dẫn.</p><div class="rs-chips">${sugg.map(s => `<button type="button" class="rs-chip" data-ask="${esc(s)}">${esc(s)}</button>`).join('')}</div></div>`}</div>
-      <form class="rs-ask" id="rsAsk"><textarea id="rsQ" rows="2" placeholder="${P.sources.length ? 'Hỏi về các nguồn… (Enter để gửi)' : 'Thêm nguồn ở cột trái trước'}"></textarea><button type="submit" class="btn primary" ${busy ? 'disabled' : ''}>Hỏi</button></form>
+    return `<div class="rs-chat">${msgs || `<div class="rs-empty"><b>Tìm hoặc hỏi về các nguồn</b><p class="muted"><b>Tìm trong nguồn</b>: ra ngay các đoạn liên quan, kèm trang. <b>Hỏi Claude</b>: Claude đọc và trả lời, có trích dẫn.</p><div class="rs-chips">${sugg.map(s => `<button type="button" class="rs-chip" data-ask="${esc(s)}">${esc(s)}</button>`).join('')}</div></div>`}</div>
+      <form class="rs-ask" id="rsAsk"><textarea id="rsQ" rows="2" placeholder="${P.sources.length ? 'Gõ câu hỏi hoặc từ khóa… (Enter = Hỏi Claude)' : 'Thêm nguồn ở cột trái trước'}"></textarea><button type="submit" class="btn primary" ${busy ? 'disabled' : ''}>Hỏi Claude</button></form>
       ${P.chat.length ? '<button type="button" class="rs-mini" id="rsChatClr">Xóa cuộc trò chuyện</button>' : ''}`;
   }
   function paneCmp() {
     const C = P.centers.length ? P.centers : [...new Set(P.sources.map(s => s.center).filter(Boolean))];
     const cell = (c, k) => { const x = P.cells[c + '||' + k]; if (!x) return '<td class="rs-na">–</td>';
       return `<td class="${x.kind === 'fact' ? '' : 'rs-na'}" ${x.kind === 'fact' ? `title="${esc('“' + x.q + '”')}"` : ''}>${esc(x.v)}${x.kind === 'fact' ? ` <button type="button" class="rs-cite" data-src="${esc(x.src)}" title="${esc('“' + x.q + '”')}">${esc(x.src)}${x.page ? ' · tr.' + esc(x.page) : ''}</button>` : ''}</td>`; };
-    return `<div class="rs-bar"><button type="button" class="btn primary" id="rsCmp" ${busy || !P.sources.length ? 'disabled' : ''}>${P.cmpAt ? 'Làm lại bảng so sánh' : 'Lập bảng so sánh'}</button>
-        <span class="muted">${P.cmpAt ? 'Lập lúc ' + new Date(P.cmpAt).toLocaleString('vi-VN') : 'AI đọc nguồn và điền từng ô, có trích dẫn'}</span></div>
+    return `<div class="rs-bar"><button type="button" class="btn primary" id="rsCmp" ${busy || !P.sources.length ? 'disabled' : ''}>${P.cmpAt ? 'Nhờ Claude lập lại' : 'Nhờ Claude lập bảng'}</button>
+        <span class="muted">${P.cmpAt ? 'Lập lúc ' + new Date(P.cmpAt).toLocaleString('vi-VN') : 'Bấm Tự điền số liệu trước (ngay lập tức), rồi nhờ Claude điền phần còn lại'}</span></div>
       ${C.length ? `<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Tiêu chí</th>${C.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
         <tbody>${P.criteria.map(k => `<tr><th>${esc(k)} <button type="button" class="rs-x" data-delcrit="${esc(k)}" aria-label="Bỏ tiêu chí ${esc(k)}">×</button></th>${C.map(c => cell(c, k)).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="muted">Ghi tên trung tâm khi thêm nguồn để bảng chia cột theo trung tâm.</p>'}
       <div class="rs-row"><input id="rsCrit" placeholder="Thêm tiêu chí…"><button type="button" class="btn" id="rsCritAdd">Thêm</button></div>
-      ${(P.cmpSuggest || []).length ? `<p class="muted">AI gợi ý thêm: ${P.cmpSuggest.map(s => `<button type="button" class="rs-chip" data-crit="${esc(s)}">+ ${esc(s)}</button>`).join(' ')}</p>` : ''}
+      ${(P.cmpSuggest || []).length ? `<p class="muted">Claude gợi ý thêm: ${P.cmpSuggest.map(s => `<button type="button" class="rs-chip" data-crit="${esc(s)}">+ ${esc(s)}</button>`).join(' ')}</p>` : ''}
       ${P.cmpSummary ? `<div class="rs-sum"><b>Nhận định</b><div class="rs-md">${md(P.cmpSummary)}</div><button type="button" class="rs-mini" id="rsSumNote">Lưu ghi chú</button></div>` : ''}`;
   }
   function paneDir() {
@@ -617,7 +619,7 @@
   function paneLes() {
     const O = P.outline; if (!O) return '<div class="rs-empty"><b>Chưa có khung khóa</b><p class="muted">Làm bước 3. Định hướng trước, rồi quay lại soạn từng buổi.</p></div>';
     const n = Object.keys(P.lessons).length, nAI = Object.values(P.lessons).filter(L => L.ai).length;
-    const sub = `<div class="rs-sub" role="tablist" aria-label="Soạn bài">${[['list', 'Các buổi', n + '/' + O.lessons.length], ['matrix', 'Ma trận mục tiêu', nAI ? nAI + ' buổi đã soát' : 'cần AI soát'], ['release', 'Phát hành', (P.releases || []).length ? 'bản ' + P.curRelease : 'chưa có']].map(([k, t, m]) => `<button type="button" role="tab" data-sub="${k}" aria-selected="${lesSub === k}">${t}<small>${esc(m)}</small></button>`).join('')}</div>`;
+    const sub = `<div class="rs-sub" role="tablist" aria-label="Soạn bài">${[['list', 'Các buổi', n + '/' + O.lessons.length], ['matrix', 'Ma trận mục tiêu', nAI ? nAI + ' buổi đã soát' : 'cần Claude soát'], ['release', 'Phát hành', (P.releases || []).length ? 'bản ' + P.curRelease : 'chưa có']].map(([k, t, m]) => `<button type="button" role="tab" data-sub="${k}" aria-selected="${lesSub === k}">${t}<small>${esc(m)}</small></button>`).join('')}</div>`;
     return sub + (lesSub === 'matrix' ? paneMatrix() : lesSub === 'release' ? paneRelease() : paneList());
   }
   function paneList() {
@@ -629,22 +631,22 @@
       const stale = L && L.ver !== O.ver;
       return `<tr><td>${l.buoi}</td><td><b>${esc(l.name)}</b><small class="muted"> · ${esc(l.type)}</small>${L ? `<div class="rs-counts">${Object.entries(L.counts).filter(([, v]) => v).map(([k, v]) => `${esc(k.replace(/^S6-/, ''))} ${v}`).join(' · ')}</div>` : ''}
         ${L && L.issues.length ? `<details class="rs-iss"><summary>Máy soát: ${bad ? `<span class="rs-tag bad">${bad} lỗi</span>` : ''}${warn ? `<span class="rs-tag warn">${warn} lưu ý</span>` : ''}</summary><ul>${L.issues.map(x => `<li class="${x.lv}">${esc(x.t)}</li>`).join('')}</ul></details>` : ''}
-        ${ai ? `<details class="rs-iss"><summary>AI soát: ${aN ? `${aHi ? `<span class="rs-tag bad">${aHi} mức cao</span>` : ''}<span class="rs-tag warn">${aN} góp ý</span>` : '<span class="rs-tag fact">Không thấy lỗi</span>'}</summary>${ai.summary ? `<p class="muted" style="margin:6px 0">${esc(ai.summary)}</p>` : ''}<ul>${ai.findings.map(f => `<li class="${SEV[f.sev]}"><b>${esc(f.group)}</b> · ${esc(f.where)}: ${esc(f.issue)}${f.fix ? ` <span class="muted">→ ${esc(f.fix)}</span>` : ''}</li>`).join('')}</ul></details>` : ''}
+        ${ai ? `<details class="rs-iss"><summary>Claude soát: ${aN ? `${aHi ? `<span class="rs-tag bad">${aHi} mức cao</span>` : ''}<span class="rs-tag warn">${aN} góp ý</span>` : '<span class="rs-tag fact">Không thấy lỗi</span>'}</summary>${ai.summary ? `<p class="muted" style="margin:6px 0">${esc(ai.summary)}</p>` : ''}<ul>${ai.findings.map(f => `<li class="${SEV[f.sev]}"><b>${esc(f.group)}</b> · ${esc(f.where)}: ${esc(f.issue)}${f.fix ? ` <span class="muted">→ ${esc(f.fix)}</span>` : ''}</li>`).join('')}</ul></details>` : ''}
         ${H.length ? `<details class="rs-iss"><summary class="muted">Bản trước (${H.length})</summary><ul class="rs-hist">${H.map((h, k) => `<li>${new Date(h.at).toLocaleString('vi-VN')} · khung v${h.ver} · ${Object.values(h.counts || {}).reduce((a, b) => a + b, 0)} dòng <button type="button" class="rs-mini" data-restore="${l.buoi}/${k}">Khôi phục</button></li>`).join('')}</ul></details>` : ''}</td>
         <td>${!L ? '<span class="muted">Chưa soạn</span>' : stale ? '<span class="rs-tag warn">Cần xem lại – khung đã đổi</span>' : bad || aHi ? '<span class="rs-tag bad">Cần sửa</span>' : ai ? '<span class="rs-tag fact">Đã soạn · đã soát</span>' : '<span class="rs-tag fact">Đã soạn</span>'}</td>
-        <td class="rs-acts"><button type="button" class="btn" data-les="${l.buoi}" ${busy ? 'disabled' : ''}>${L ? 'Soạn lại' : 'Soạn'}</button>${L ? `<button type="button" class="btn" data-rev="${l.buoi}" ${busy ? 'disabled' : ''}>${ai ? 'Soát lại' : 'AI soát'}</button><button type="button" class="btn" data-open="${l.buoi}">Xem slide</button>` : ''}</td></tr>`; }).join('');
+        <td class="rs-acts"><button type="button" class="btn" data-les="${l.buoi}" ${busy ? 'disabled' : ''}>${L ? 'Soạn lại' : 'Soạn'}</button>${L ? `<button type="button" class="btn" data-rev="${l.buoi}" ${busy ? 'disabled' : ''}>${ai ? 'Soát lại' : 'Claude soát'}</button><button type="button" class="btn" data-open="${l.buoi}">Xem slide</button>` : ''}</td></tr>`; }).join('');
     const unrev = O.lessons.filter(l => P.lessons[l.buoi] && !P.lessons[l.buoi].ai).length;
     return `<div class="rs-bar"><button type="button" class="btn primary" id="rsLesAll" ${busy || n === O.lessons.length ? 'disabled' : ''}>Soạn các buổi chưa soạn</button>
-        <button type="button" class="btn" id="rsRevAll" ${busy || !unrev ? 'disabled' : ''}>AI soát ${unrev ? unrev + ' buổi chưa soát' : 'xong hết'}</button>
+        <button type="button" class="btn" id="rsRevAll" ${busy || !unrev ? 'disabled' : ''}>Claude soát ${unrev ? unrev + ' buổi chưa soát' : 'xong hết'}</button>
         <button type="button" class="btn" id="rsXlsx" ${n ? '' : 'disabled'}>Tải Excel S5 + S6</button><span class="muted">${n}/${O.lessons.length} buổi · khung v${O.locked || O.ver}</span></div>
       <div class="rs-tablewrap"><table class="rs-table rs-les"><thead><tr><th>Buổi</th><th>Nội dung</th><th>Trạng thái</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p class="muted">Soạn: mỗi buổi 1 lượt AI (~20–60 giây; Gemini miễn phí khoảng 20 buổi/ngày, OpenRouter 50 lượt/ngày dùng chung). AI soát: 1 lượt/buổi, soát 5 nhóm (chính xác, hợp người học, liên kết mục tiêu, khả thi, nhất quán) và lập ma trận mục tiêu. Soạn lại vẫn giữ 3 bản trước để khôi phục.</p>`;
+      <p class="muted">Soạn và soát: mỗi buổi gửi Claude một lần (thường 1–3 phút khi Claude đang trực). Soát theo 5 nhóm: chính xác, hợp người học, liên kết mục tiêu, khả thi, nhất quán – kèm ma trận mục tiêu. Soạn lại vẫn giữ 3 bản trước để khôi phục.</p>`;
   }
   function paneMatrix() {
     const O = P.outline, ST = { 'đủ': 'fact', 'ít': 'warn', 'thiếu': 'bad' };
     let tot = { 'đủ': 0, 'ít': 0, 'thiếu': 0 }, orph = 0;
     const body = O.lessons.map(l => { const L = P.lessons[l.buoi], ai = L && L.ai;
-      if (!ai) return `<tr><td class="rs-mb">${l.buoi}</td><td colspan="3" class="muted">${L ? `Chưa AI soát – <button type="button" class="rs-mini" data-rev="${l.buoi}" ${busy ? 'disabled' : ''}>soát buổi này</button>` : 'Chưa soạn'}</td></tr>`;
+      if (!ai) return `<tr><td class="rs-mb">${l.buoi}</td><td colspan="3" class="muted">${L ? `Chưa Claude soát – <button type="button" class="rs-mini" data-rev="${l.buoi}" ${busy ? 'disabled' : ''}>soát buổi này</button>` : 'Chưa soạn'}</td></tr>`;
       orph += ai.orphans.length;
       const objs = ai.objectives.length ? ai.objectives : [{ text: l.goals, by: [], st: 'thiếu' }];
       return objs.map((o, k) => { tot[o.st]++; return `<tr>${k ? '' : `<td class="rs-mb" rowspan="${objs.length + (ai.orphans.length ? 1 : 0)}">${l.buoi}</td>`}<td>${esc(o.text)}</td><td>${o.by.length ? o.by.map(esc).join('<br>') : '<span class="muted">Chưa có bài nào đo</span>'}</td><td><span class="rs-tag ${ST[o.st]}">${o.st === 'đủ' ? 'Đủ' : o.st === 'ít' ? 'Ít' : 'Thiếu'}</span></td></tr>`; }).join('')
@@ -667,7 +669,7 @@
     q('#rsBack').onclick = () => { mode = 'intro'; render(); };
     qa('.rs-steps button').forEach(b => b.onclick = () => { cur = +b.dataset.i; render(); const x = box.querySelector(`.rs-steps button[data-i="${cur}"]`); if (x) x.focus(); });
     qa('[data-go]').forEach(li => li.onclick = () => { cur = Math.min(3, +li.dataset.go); render(); });
-    q('#rsAI').onclick = keyDlg;
+    q('#rsAI').onclick = () => root.PLS_LOCAL ? root.PLS_LOCAL.aiInfo() : keyDlg();
     q('#rsProj').onchange = async e => { P = projects.find(p => p.id === e.target.value); LS.set('pls.rs.cur', P.id); render(); };
     q('#rsNew').onclick = () => { const n = prompt('Tên khóa nghiên cứu mới:', 'Khóa mới'); if (!n) return; P = newProj(n.trim()); projects.unshift(P); LS.set('pls.rs.cur', P.id); save(); render(); };
     q('#rsRen').onclick = () => { const n = prompt('Đổi tên:', P.name); if (!n) return; P.name = n.trim(); save(); render(); };
@@ -706,10 +708,10 @@
       l[k] = v; if (P.outline.locked === P.outline.ver) { P.outline.ver++; } save(); render(); });   // sửa sau khi chốt → phiên bản mới, buổi đã soạn thành "cần xem lại"
     // soạn bài
     qa('[data-sub]').forEach(b => b.onclick = () => { lesSub = b.dataset.sub; render(); });
-    qa('[data-rev]').forEach(b => b.onclick = () => job('AI đang soát buổi ' + b.dataset.rev, () => review(+b.dataset.rev)));
-    if (q('#rsRevAll')) q('#rsRevAll').onclick = () => job('AI đang soát', async () => { for (const l of P.outline.lessons) { const L = P.lessons[l.buoi]; if (!L || L.ai) continue; busy = 'AI đang soát buổi ' + l.buoi; render(); await review(l.buoi); save(); } });
+    qa('[data-rev]').forEach(b => b.onclick = () => job('Claude đang soát buổi ' + b.dataset.rev, () => review(+b.dataset.rev)));
+    if (q('#rsRevAll')) q('#rsRevAll').onclick = () => job('Claude đang soát', async () => { for (const l of P.outline.lessons) { const L = P.lessons[l.buoi]; if (!L || L.ai) continue; busy = 'Claude đang soát buổi ' + l.buoi; render(); await review(l.buoi); save(); } });
     qa('[data-restore]').forEach(b => b.onclick = () => { const [bu, k] = b.dataset.restore.split('/').map(Number); if (!confirm('Khôi phục buổi ' + bu + ' về bản trước? Bản đang có sẽ được cất vào lịch sử.')) return; restoreLesson(bu, k); render(); });
-    if (q('#rsRel')) q('#rsRel').onclick = () => { const bl = blockers(); if (bl.length && !confirm(`Còn ${bl.length} điểm nên xử lý (chưa soạn / còn lỗi / chưa AI soát). Vẫn phát hành?`)) return; const no = release(q('#rsRelNote').value.trim()); toast('Đã phát hành bản ' + no); };
+    if (q('#rsRel')) q('#rsRel').onclick = () => { const bl = blockers(); if (bl.length && !confirm(`Còn ${bl.length} điểm nên xử lý (chưa soạn / còn lỗi / chưa Claude soát). Vẫn phát hành?`)) return; const no = release(q('#rsRelNote').value.trim()); toast('Đã phát hành bản ' + no); };
     const relOf = no => (P.releases || []).find(r => r.no === +no);
     qa('[data-relcur]').forEach(b => b.onclick = () => { P.curRelease = +b.dataset.relcur; save(); render(); });
     qa('[data-relopen]').forEach(b => b.onclick = async () => { try { await openInSlide(null, relOf(b.dataset.relopen)); } catch (e) { toast(e.message, true); } });
