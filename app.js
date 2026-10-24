@@ -158,28 +158,34 @@
   function byPath(rootEl, path) { let cur = rootEl; for (const seg of path.split(' > ')) { const i = seg.lastIndexOf('#'), n = seg.slice(0, i), k = +seg.slice(i + 1); let found = null;
       const walk = node => { for (const c of node.children) { if (found) return; if (c.dataset && c.dataset.n === n) { const sib = [...c.parentElement.children].filter(x => x.dataset && x.dataset.n === n); if (sib.indexOf(c) === k) { found = c; return; } } else if (!(c.dataset && c.dataset.n)) walk(c); } };
       walk(cur); if (!found) { const all = [...cur.querySelectorAll('[data-n]')].filter(x => x.dataset.n === n); found = all[k] || null; } if (!found) return null; cur = found; } return cur; }
+  function renumFx(r, keep) { if (!keep) r.fx.sort((a, b) => a.order - b.order); const byOrd = {}; r.host.querySelectorAll('[data-fx-order]').forEach(x => { byOrd[x.dataset.fxOrder] = x; });
+    r.fx.forEach((a, i) => { const x = byOrd[String(a.order)]; a.order = i + 1; if (x) x.dataset.fxOrder = i + 1; }); }
   function applyObjFx(r, pk) { const ov = state.fxObj[pk] || {}; if (!Object.keys(ov).length && !state.fxOrd[pk]) return; r.fx = r.fx || [];
     for (const [path, o] of Object.entries(ov)) { const el = byPath(r.host, path); if (!el) continue; const ord = el.dataset.fxOrder;
       if (o.fx === 'none') { if (ord) { r.fx = r.fx.filter(a => String(a.order) !== String(ord)); delete el.dataset.fx; delete el.dataset.fxWhen; delete el.dataset.fxOrder; } continue; }
-      el.querySelectorAll('[data-fx-order]').forEach(c => { r.fx = r.fx.filter(a => String(a.order) !== c.dataset.fxOrder); delete c.dataset.fx; delete c.dataset.fxWhen; delete c.dataset.fxOrder; });   // khối cha nhận hiệu ứng → con không chạy riêng
+      el.querySelectorAll('[data-fx-order]').forEach(c => { if (/^fx\./.test(c.dataset.n || '')) return; r.fx = r.fx.filter(a => String(a.order) !== c.dataset.fxOrder); delete c.dataset.fx; delete c.dataset.fxWhen; delete c.dataset.fxOrder; });   // khối cha nhận hiệu ứng → con không chạy riêng (trừ khung đáp án fx.*)
       const setD = () => { el.dataset.fx = o.fx; el.dataset.fxWhen = o.when; if (o.dir) el.dataset.fxDir = o.dir; if (o.dur) el.dataset.fxDur = o.dur; };
       if (ord) { const a = r.fx.find(x => String(x.order) === String(ord)); setD(); if (a) { a.fx = o.fx; a.when = o.when; } }
       else {   // khối mới: chen vào đúng chỗ theo vị trí trên slide (trên → dưới), không dồn xuống cuối
         const after = [...r.host.querySelectorAll('[data-fx-order]')].filter(x => el.compareDocumentPosition(x) & Node.DOCUMENT_POSITION_FOLLOWING && !el.contains(x)).map(x => +x.dataset.fxOrder);
         const order = after.length ? Math.min(...after) - 0.5 : Math.max(0, ...r.fx.map(a => +a.order || 0)) + 1;
-        setD(); el.dataset.fxOrder = order; r.fx.push({ n: el.dataset.n, role: 'item', fx: o.fx, when: o.when, order }); } }
+        setD(); el.dataset.fxOrder = order; r.fx.push({ n: el.dataset.n, role: 'item', fx: o.fx, when: o.when, order }); renumFx(r); } }
     r.fx.sort((a, b) => a.order - b.order);
     const want = state.fxOrd[pk]; if (want && want.length) {   // thứ tự người dùng kéo lên / xuống (theo đường dẫn khối)
       const pos = {}; r.host.querySelectorAll('[data-fx-order]').forEach(x => { const i = want.indexOf(pathOf(x, r.host)); if (i >= 0) pos[x.dataset.fxOrder] = i; });
-      r.fx.sort((a, b) => (pos[a.order] ?? 1e6 + a.order) - (pos[b.order] ?? 1e6 + b.order)); }
-    const byOrd = {}; r.host.querySelectorAll('[data-fx-order]').forEach(x => { byOrd[x.dataset.fxOrder] = x; });
-    r.fx.forEach((a, i) => { const x = byOrd[String(a.order)]; a.order = i + 1; if (x) x.dataset.fxOrder = i + 1; }); }
+      r.fx.sort((a, b) => (pos[a.order] ?? 1e6 + a.order) - (pos[b.order] ?? 1e6 + b.order)); renumFx(r, true); }
+    else renumFx(r); }
   // tên dễ hiểu cho khối có hiệu ứng (thay vì fx.ok_1, opt_A…)
   function fxName(e) { const n = e.dataset.n || '', m = n.match(/^(fx\.ok|fx\.key|fx\.ans|fx\.line|opt|question|q|line|item|ex|chip|row|vocab|p|c|s|g|pair|step|part|cando|u|w)_?([A-Z0-9]+)?$/);
     const txt = (e.textContent || '').trim().replace(/\s+/g, ' ');
     const L = { 'fx.ok': 'Đáp án câu', 'fx.key': 'Chữ đáp án', 'fx.ans': 'Đáp án câu', 'fx.line': 'Dây nối', opt: 'Lựa chọn', question: 'Câu hỏi', q: 'Câu', line: 'Lời', item: 'Mục', ex: 'Ví dụ', chip: 'Từ', row: 'Hàng', vocab: 'Thẻ từ', p: 'Mẫu câu', c: 'Câu', s: 'Câu', g: 'Mục', pair: 'Cặp', step: 'Bước', part: 'Phần', cando: 'Mục tiêu', u: 'Cách dùng', w: 'Từ' };
     if (m && L[m[1]]) { const short = /^fx\./.test(m[1]) ? '' : txt.replace(/^[A-D]\s*/, '').slice(0, 22); return `${L[m[1]]} ${m[2] || ''}${short ? ' – ' + short : ''}`.trim(); }
     return txt.slice(0, 30) || n; }
+  // ĐỔI HIỆU ỨNG KHÔNG DỰNG LẠI CẢ BÀI: chỉ gắn lại hiệu ứng cho slide đang chọn rồi vẽ lại khung giữa (không nhảy UI)
+  function refx(i) { const r = state.slides[i]; if (!r) return; const pk = r.src + '/' + r.part;
+    E.planFx(r, state.fx);
+    if (window.PLS_FXP && state.fx.on) { const pid = state.fxp[pk] || (state.fx.hideAnswer ? defPreset(r) : null); if (pid && pid !== 'auto') window.PLS_FXP.apply(r, pid); }
+    applyObjFx(r, pk); state.fxStep = null; drawMain(); drawPanel(); }
   function defPreset(r) { try { const d = window.PLS_FXP.detect(r); return d.type && d.presets[0] ? d.presets[0].id : null; } catch (e) { return null; } }
   function renderOne(s, stage, srcIdx, part, trialDeck) {
     const ov = Object.assign({}, state.overrides[srcIdx] || {}, state.overrides[srcIdx + '/' + (part || 0) + '/' + s.comp] || {});   // sửa tay trên slide tự chọn mẫu: theo phần + mẫu
@@ -309,7 +315,8 @@
   }
   function drawPanel() {
     const tab = document.querySelector('[role=tab][aria-selected=true]').dataset.tab;
-    const p = $('#panel'); p.innerHTML = '';
+    const p = $('#panel'); const keepScroll = p.scrollTop; p.innerHTML = '';
+    requestAnimationFrame(() => { p.scrollTop = keepScroll; });   // đổi tuỳ chọn không nhảy cuộn
     const all = state.slides.flatMap((r, i) => r.issues.map(x => Object.assign({ i }, x)));
     const cnt = lv => all.filter(x => x.lv === lv).length;
     $('#tabIssues').textContent = `Soát lỗi · ${cnt('do') + cnt('vang')}`;
@@ -369,7 +376,7 @@
         body.insertAdjacentHTML('beforeend', '<p class="muted">Bộ hiệu ứng dựng sẵn theo dạng slide (trắc nghiệm, nối, điền từ, từ vựng…). Chọn một bộ, có thể áp cho mọi slide cùng dạng.</p>');
         if (r && window.PLS_FXP) {
           const dt = window.PLS_FXP.detect(r), dflt = defPreset(r) || 'auto', cur = state.fxp[pk] || dflt;
-          const set = (ids, id) => { ids.forEach(k => { if (id === dflt) delete state.fxp[k]; else state.fxp[k] = id; }); stopFx(); state.fxStep = null; build(); setTimeout(playFx, 50); };
+          const set = (ids, id) => { ids.forEach(k => { if (id === dflt) delete state.fxp[k]; else state.fxp[k] = id; }); stopFx(); if (ids.length > 1) build(); else refx(state.sel); setTimeout(playFx, 50); };
           const same = dt.type ? state.slides.filter(x => window.PLS_FXP.detect(x).type === dt.type).map(x => x.src + '/' + x.part) : [pk];
           const allCb = Object.assign(document.createElement('input'), { type: 'checkbox' });
           const sel = document.createElement('select'); sel.setAttribute('aria-label', 'Bộ hiệu ứng');
@@ -387,11 +394,30 @@
         const pace = document.createElement('select'); pace.id = 'fxPace'; ['nhanh', 'vừa', 'chậm'].forEach(v => pace.add(new Option('Nhịp ' + v + (v === 'nhanh' ? ' (≤ 3 lần bấm / nhóm)' : v === 'vừa' ? ' (≤ 6)' : ' (≤ 8)'), v))); pace.value = state.fx.pace;
         pace.onchange = () => { state.fx.pace = pace.value; build(); }; body.appendChild(pace);
       } else if (ft === 'obj') {
+        // CẢ SLIDE: một hiệu ứng cho mọi khối (theo thứ tự trên xuống), hoặc xoá hết
+        if (r) { const rowA = document.createElement('div'); rowA.className = 'row fxall';
+          const selA = document.createElement('select'); selA.setAttribute('aria-label', 'Hiệu ứng cho cả slide');
+          [['', 'Cả slide: chọn hiệu ứng…'], ['appear', 'Hiện ra'], ['fade', 'Hiện dần'], ['fly', 'Bay vào từ dưới'], ['zoom', 'Phóng to'], ['wipe', 'Quét từ trái'], ['none', 'Xoá hết hiệu ứng']].forEach(([v, t]) => selA.add(new Option(t, v)));
+          selA.onchange = () => { const v = selA.value; if (!v) return;
+            // mọi khối nội dung trong thẻ (câu hỏi, lựa chọn, mục, ví dụ, thẻ từ, hình…) – lấy khối NGOÀI CÙNG khớp tên, cộng các khối đã có hiệu ứng (khung đáp án…)
+            const UNIT2 = /^(question|opt|q|ex|line|item|chip|row|vocab|p|c|s|g|pair|kv|step|part|cando|u|f|l|r|word|col|key|ans)_?[A-Z0-9]*$|^(rule_box|img|note|point|rule|text|use|track_box|bank|tl|situation|question)$/;
+            const cardEl0 = r.host.querySelector('[data-n="card"]') || r.host, inCard = e => cardEl0.contains(e) && e !== cardEl0;
+            const units = [...cardEl0.querySelectorAll('[data-n]')].filter(e => e.offsetParent && inCard(e) && UNIT2.test(e.dataset.n) && !/^(no|key|vi|de|ipa)$/.test(e.dataset.n) && e.dataset.n !== 'title' && (e.textContent.trim() || e.classList.contains('pls-imgslot') || e.dataset.img) && !e.closest('[data-n="header"]'));
+            const outer = units.filter(e => !units.some(o => o !== e && o.contains(e)));
+            const els0 = [...new Set([...outer, ...r.host.querySelectorAll('[data-fx-order]')])].filter(e => e.offsetParent); const H = r.host.getBoundingClientRect();
+            const ordered = els0.map(e => { let b = e.getBoundingClientRect(), k = 0;
+              if (/^fx\./.test(e.dataset.n || '')) {   // khung / chữ đáp án: hiện SAU cả nhóm lựa chọn mà nó khoanh
+                const cx = (b.left + b.right) / 2, cy = (b.top + b.bottom) / 2, hit = outer.find(o => { const q = o.getBoundingClientRect(); return cx >= q.left && cx <= q.right && cy >= q.top && cy <= q.bottom; });
+                const grp = hit && hit.parentElement && hit.parentElement.closest('[data-n]'); const g = (grp && cardEl0.contains(grp) && grp !== cardEl0 ? grp : hit || e).getBoundingClientRect(); b = { top: g.bottom - 1, left: 1e9 }; k = 1; }
+              return [Math.round((b.top - H.top) / 40), b.left, k, e]; }).sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2]).map(x => x[3]);
+            const ov = state.fxObj[pk] = {}; ordered.forEach(e => { ov[pathOf(e, r.host)] = v === 'none' ? { fx: 'none' } : { fx: v, when: 'click', dir: v === 'wipe' ? 'left' : 'bottom', dur: 500 }; });
+            state.fxOrd[pk] = ordered.map(e => pathOf(e, r.host)); if (v === 'none') delete state.fxOrd[pk]; stopFx(); state.fxSel = null; refx(state.sel); if (v !== 'none') setTimeout(playFx, 50); };
+          rowA.appendChild(selA); body.appendChild(rowA); }
         // THỨ TỰ: danh sách các khối có hiệu ứng, kéo lên / xuống; số thứ tự cũng hiện trên slide
         if (r && fx.length) { const ol = document.createElement('ol'); ol.className = 'fxord';
           const els = fx.map(a => [...r.host.querySelectorAll('[data-fx-order]')].find(x => String(x.dataset.fxOrder) === String(a.order))).filter(Boolean);
           const paths = els.map(e => pathOf(e, r.host));
-          const move = (i, d) => { const j = i + d; if (j < 0 || j >= paths.length) return; const arr = paths.slice(); [arr[i], arr[j]] = [arr[j], arr[i]]; state.fxOrd[pk] = arr; stopFx(); state.fxStep = null; build(); };
+          const move = (i, d) => { const j = i + d; if (j < 0 || j >= paths.length) return; const arr = paths.slice(); [arr[i], arr[j]] = [arr[j], arr[i]]; state.fxOrd[pk] = arr; stopFx(); refx(state.sel); };
           els.forEach((e, i) => { const a = fx[i]; const li = document.createElement('li'); const nm = fxName(e);
             li.innerHTML = `<b>${i + 1}</b> <span class="fxw">${a.when === 'click' ? 'Bấm' : a.when === 'after' ? 'Sau' : 'Cùng'}</span> <span class="fxn">${nm.replace(/[<>&]/g, '')}</span> <small class="muted">${({ appear: 'hiện', fade: 'hiện dần', fly: 'bay', zoom: 'phóng', wipe: 'quét' })[a.fx] || a.fx}</small>`;
             if (paths[i] === state.fxSel) li.classList.add('on'); li.onclick = () => { state.fxSel = paths[i]; state.fxDemo = paths[i]; drawMain(); drawPanel(); };
@@ -400,26 +426,31 @@
             li.appendChild(bt); ol.appendChild(li); });
           const rowO = document.createElement('div'); rowO.className = 'row';
           const auto = document.createElement('button'); auto.type = 'button'; auto.className = 'btn'; auto.textContent = '↕ Tự xếp từ trên xuống'; auto.title = 'Xếp lại theo vị trí trên slide: trên trước, trái trước';
-          auto.onclick = () => { const H = r.host.getBoundingClientRect(); const arr = els.map(e => { const b = e.getBoundingClientRect(); return [Math.round((b.top - H.top) / 40), b.left, pathOf(e, r.host)]; }).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(x => x[2]); state.fxOrd[pk] = arr; stopFx(); state.fxStep = null; build(); };
+          auto.onclick = () => { const H = r.host.getBoundingClientRect(); const cardEl1 = r.host.querySelector('[data-n="card"]') || r.host;
+            const arr = els.map(e => { let b = e.getBoundingClientRect(), k = 0; if (/^fx\./.test(e.dataset.n || '')) { const cx = (b.left + b.right) / 2, cy = (b.top + b.bottom) / 2;
+                const hit = [...cardEl1.querySelectorAll('[data-n]')].filter(o => o.offsetParent && !o.contains(e) && /^(opt|q|c|s|l|r|w|item|line)_?[A-Z0-9]*$/.test(o.dataset.n)).find(o => { const q = o.getBoundingClientRect(); return cx >= q.left && cx <= q.right && cy >= q.top && cy <= q.bottom; });
+                const grp = hit && hit.parentElement && hit.parentElement.closest('[data-n]'); const g = (grp && cardEl1.contains(grp) && grp !== cardEl1 ? grp : hit || e).getBoundingClientRect(); b = { top: g.bottom - 1, left: 1e9 }; k = 1; }
+              return [Math.round((b.top - H.top) / 40), b.left, k, pathOf(e, r.host)]; }).sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2]).map(x => x[3]); state.fxOrd[pk] = arr; stopFx(); refx(state.sel); };
           rowO.appendChild(auto);
-          if (state.fxOrd[pk]) { const rs0 = document.createElement('button'); rs0.type = 'button'; rs0.className = 'btn'; rs0.textContent = 'Thứ tự mặc định'; rs0.onclick = () => { delete state.fxOrd[pk]; stopFx(); build(); }; rowO.appendChild(rs0); }
+          if (state.fxOrd[pk]) { const rs0 = document.createElement('button'); rs0.type = 'button'; rs0.className = 'btn'; rs0.textContent = 'Thứ tự mặc định'; rs0.onclick = () => { delete state.fxOrd[pk]; stopFx(); refx(state.sel); }; rowO.appendChild(rs0); }
           body.appendChild(rowO); body.appendChild(ol); }
         const el = r && state.fxSel ? byPath(r.host, state.fxSel) : null;
         if (!el) body.insertAdjacentHTML('beforeend', '<p class="muted">Bấm vào một khối trên slide (câu hỏi, lựa chọn, ô từ, hình…) để gắn hiệu ứng riêng. Hiệu ứng sẽ chạy thử ngay trên slide, lặp 3 lần.</p>');
         else { const ov = (state.fxObj[pk] || {})[state.fxSel]; const cur = ov || { fx: el.dataset.fx || 'none', when: el.dataset.fxWhen || 'click', dir: el.dataset.fxDir || 'bottom', dur: +el.dataset.fxDur || 500 };
           const name = fxName(el);
-          body.insertAdjacentHTML('beforeend', `<p><b>Khối đã chọn:</b> <span class="muted">“${name.replace(/[<>&]/g, '')}”</span></p>`);
-          const save = (patch) => { const nv = Object.assign({}, cur, patch); (state.fxObj[pk] = state.fxObj[pk] || {})[state.fxSel] = nv; stopFx(); state.fxStep = null; state.fxDemo = nv.fx === 'none' ? null : state.fxSel; build(); };
-          const mkSel = (label, opts, val, key) => { const w = document.createElement('label'); w.className = 'fxrow'; const sl = document.createElement('select'); opts.forEach(([v, t]) => sl.add(new Option(t, v))); sl.value = String(val); sl.onchange = () => save({ [key]: key === 'dur' ? +sl.value : sl.value }); w.append(document.createTextNode(label + ' '), sl); body.appendChild(w); return sl; };
+          body.insertAdjacentHTML('beforeend', `<p class="fxsel-name"><b>Khối:</b> ${name.replace(/[<>&]/g, '')}</p>`);
+          const save = (patch) => { const nv = Object.assign({}, cur, patch); (state.fxObj[pk] = state.fxObj[pk] || {})[state.fxSel] = nv; stopFx(); state.fxDemo = nv.fx === 'none' ? null : state.fxSel; refx(state.sel); };
+          const grid = document.createElement('div'); grid.className = 'fxgrid'; body.appendChild(grid);
+          const mkSel = (label, opts, val, key) => { const w = document.createElement('label'); w.className = 'fxcell'; const sl = document.createElement('select'); sl.setAttribute('aria-label', label); opts.forEach(([v, t]) => sl.add(new Option(t, v))); sl.value = String(val); sl.onchange = () => save({ [key]: key === 'dur' ? +sl.value : sl.value }); w.append(Object.assign(document.createElement('small'), { textContent: label }), sl); grid.appendChild(w); return sl; };
           const f = mkSel('Hiệu ứng', [['none', 'Không'], ['appear', 'Hiện ra'], ['fade', 'Hiện dần'], ['fly', 'Bay vào'], ['zoom', 'Phóng to'], ['wipe', 'Quét']], cur.fx, 'fx');
           if (cur.fx === 'fly' || cur.fx === 'wipe') mkSel('Hướng', [['bottom', 'Từ dưới'], ['left', 'Từ trái'], ['right', 'Từ phải'], ['top', 'Từ trên']], cur.dir, 'dir');
-          if (cur.fx !== 'none') { mkSel('Thời lượng', [[300, 'Nhanh 0,3 s'], [500, 'Vừa 0,5 s'], [800, 'Chậm 0,8 s']], cur.dur, 'dur'); mkSel('Chạy', [['click', 'Khi bấm'], ['with', 'Cùng khối trước'], ['after', 'Sau khối trước']], cur.when, 'when'); }
+          if (cur.fx !== 'none') { mkSel('Thời lượng', [[300, '0,3 s'], [500, '0,5 s'], [800, '0,8 s']], cur.dur, 'dur'); mkSel('Chạy', [['click', 'Khi bấm'], ['with', 'Cùng khối trước'], ['after', 'Sau khối trước']], cur.when, 'when'); }
           const row2 = document.createElement('div'); row2.className = 'row';
-          const demo = document.createElement('button'); demo.type = 'button'; demo.className = 'btn'; demo.textContent = '↻ Chạy thử khối này'; demo.onclick = () => { state.fxDemo = state.fxSel; drawMain(); }; if (cur.fx !== 'none') row2.appendChild(demo);
-          if (ov) { const u = document.createElement('button'); u.type = 'button'; u.className = 'btn'; u.textContent = 'Trả về như máy gắn'; u.onclick = () => { delete state.fxObj[pk][state.fxSel]; stopFx(); state.fxDemo = null; build(); }; row2.appendChild(u); }
-          const rs = document.createElement('button'); rs.type = 'button'; rs.className = 'btn'; rs.textContent = 'Bỏ chọn'; rs.onclick = () => { state.fxSel = null; state.fxDemo = null; drawMain(); drawPanel(); }; row2.appendChild(rs);
+          const demo = document.createElement('button'); demo.type = 'button'; demo.className = 'btn sm'; demo.textContent = '↻ Chạy thử'; demo.title = 'Chạy thử khối này'; demo.onclick = () => { state.fxDemo = state.fxSel; drawMain(); }; if (cur.fx !== 'none') row2.appendChild(demo);
+          if (ov) { const u = document.createElement('button'); u.type = 'button'; u.className = 'btn sm'; u.textContent = '↶ Mặc định'; u.title = 'Trả về như máy gắn'; u.onclick = () => { delete state.fxObj[pk][state.fxSel]; stopFx(); state.fxDemo = null; refx(state.sel); }; row2.appendChild(u); }
+          const rs = document.createElement('button'); rs.type = 'button'; rs.className = 'btn sm'; rs.textContent = '✕ Bỏ chọn'; rs.onclick = () => { state.fxSel = null; state.fxDemo = null; drawMain(); drawPanel(); }; row2.appendChild(rs);
           body.appendChild(row2);
-          body.insertAdjacentHTML('beforeend', '<p class="muted">Các hiệu ứng này chạy giống nhau trên PowerPoint, Google Slides, Keynote và LibreOffice.</p>'); }
+          }
       } else {
         body.insertAdjacentHTML('beforeend', '<p class="muted">Cách slide chuyển sang slide kế tiếp khi trình chiếu.</p>');
         const trSel = document.createElement('select'); trSel.id = 'trStyle'; trSel.setAttribute('aria-label', 'Kiểu chuyển cảnh');
