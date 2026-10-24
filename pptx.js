@@ -198,13 +198,16 @@
     const effect = (a, delay, nodeType) => {
       const ctn = nid();   // id cha trước con (thứ tự như PowerPoint)
       const dur = a.dur || 500; const sp = `<p:tgtEl><p:spTgt spid="${a.spid}"/></p:tgtEl>`;
-      const preset = { appear: [1, 0], fade: [10, 0], fly: [2, 4], zoom: [53, 16] }[a.fx] || [10, 0];
+      const dir = a.dir || (a.fx === 'wipe' ? 'left' : 'bottom');
+      const FLY = { bottom: [4, '#ppt_x', '1+#ppt_h/2'], left: [8, '0-#ppt_w/2', '#ppt_y'], right: [2, '1+#ppt_w/2', '#ppt_y'], top: [1, '#ppt_x', '0-#ppt_h/2'] }[dir] || [4, '#ppt_x', '1+#ppt_h/2'];
+      const preset = { appear: [1, 0], fade: [10, 0], fly: [2, FLY[0]], zoom: [53, 16], wipe: [22, { left: 8, top: 1, right: 2, bottom: 4 }[dir] || 8] }[a.fx] || [10, 0];
       let beh = `<p:set><p:cBhvr><p:cTn id="${nid()}" dur="1" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst></p:cTn>${sp}<p:attrNameLst><p:attrName>style.visibility</p:attrName></p:attrNameLst></p:cBhvr><p:to><p:strVal val="visible"/></p:to></p:set>`;
       if (a.fx === 'fade') beh += `<p:animEffect transition="in" filter="fade"><p:cBhvr><p:cTn id="${nid()}" dur="${dur}"/>${sp}</p:cBhvr></p:animEffect>`;
       if (a.fx === 'fly') {
-        beh += `<p:anim calcmode="lin" valueType="num"><p:cBhvr additive="base"><p:cTn id="${nid()}" dur="${dur}" fill="hold"/>${sp}<p:attrNameLst><p:attrName>ppt_x</p:attrName></p:attrNameLst></p:cBhvr><p:tavLst><p:tav tm="0"><p:val><p:strVal val="#ppt_x"/></p:val></p:tav><p:tav tm="100000"><p:val><p:strVal val="#ppt_x"/></p:val></p:tav></p:tavLst></p:anim>`;
-        beh += `<p:anim calcmode="lin" valueType="num"><p:cBhvr additive="base"><p:cTn id="${nid()}" dur="${dur}" fill="hold"/>${sp}<p:attrNameLst><p:attrName>ppt_y</p:attrName></p:attrNameLst></p:cBhvr><p:tavLst><p:tav tm="0"><p:val><p:strVal val="1+#ppt_h/2"/></p:val></p:tav><p:tav tm="100000"><p:val><p:strVal val="#ppt_y"/></p:val></p:tav></p:tavLst></p:anim>`;
+        beh += `<p:anim calcmode="lin" valueType="num"><p:cBhvr additive="base"><p:cTn id="${nid()}" dur="${dur}" fill="hold"/>${sp}<p:attrNameLst><p:attrName>ppt_x</p:attrName></p:attrNameLst></p:cBhvr><p:tavLst><p:tav tm="0"><p:val><p:strVal val="${FLY[1]}"/></p:val></p:tav><p:tav tm="100000"><p:val><p:strVal val="#ppt_x"/></p:val></p:tav></p:tavLst></p:anim>`;
+        beh += `<p:anim calcmode="lin" valueType="num"><p:cBhvr additive="base"><p:cTn id="${nid()}" dur="${dur}" fill="hold"/>${sp}<p:attrNameLst><p:attrName>ppt_y</p:attrName></p:attrNameLst></p:cBhvr><p:tavLst><p:tav tm="0"><p:val><p:strVal val="${FLY[2]}"/></p:val></p:tav><p:tav tm="100000"><p:val><p:strVal val="#ppt_y"/></p:val></p:tav></p:tavLst></p:anim>`;
       }
+      if (a.fx === 'wipe') beh += `<p:animEffect transition="in" filter="wipe(${dir})"><p:cBhvr><p:cTn id="${nid()}" dur="${dur}"/>${sp}</p:cBhvr></p:animEffect>`;
       if (a.fx === 'zoom') {
         beh += `<p:anim calcmode="lin" valueType="num"><p:cBhvr><p:cTn id="${nid()}" dur="${dur}" fill="hold"/>${sp}<p:attrNameLst><p:attrName>ppt_w</p:attrName></p:attrNameLst></p:cBhvr><p:tavLst><p:tav tm="0"><p:val><p:fltVal val="0"/></p:val></p:tav><p:tav tm="100000"><p:val><p:strVal val="#ppt_w"/></p:val></p:tav></p:tavLst></p:anim>`;
         beh += `<p:anim calcmode="lin" valueType="num"><p:cBhvr><p:cTn id="${nid()}" dur="${dur}" fill="hold"/>${sp}<p:attrNameLst><p:attrName>ppt_h</p:attrName></p:attrNameLst></p:cBhvr><p:tavLst><p:tav tm="0"><p:val><p:fltVal val="0"/></p:val></p:tav><p:tav tm="100000"><p:val><p:strVal val="#ppt_h"/></p:val></p:tav></p:tavLst></p:anim>`;
