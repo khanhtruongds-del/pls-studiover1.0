@@ -58,7 +58,10 @@
     const rad = Math.max(8, Math.round((parseFloat(getComputedStyle(el).borderTopLeftRadius) || 12) * (b.w / Math.max(1, el.getBoundingClientRect().width || b.w))));
     const w = div(`left:${b.x - o}px;top:${b.y - o}px;width:${b.w + 2 * o}px;height:${b.h + 2 * o}px;border:5px solid ${INK};border-radius:${rad + o}px`, n);
     const d = Math.max(28, Math.min(44, b.h - 14));
-    w.appendChild(textDiv(`right:${Math.round(d * 0.35)}px;top:${(b.h + 2 * o - 10 - d) / 2}px;width:${d}px;height:${d}px;border-radius:50%;background:${INK};color:${ON};font-size:${Math.round(d * 0.6)}px;font-weight:700;line-height:${d}px;text-align:center`, '✓', ff, n + '.tick'));
+    // dấu đúng = icon "check" của bộ Lucide (người dùng 24/10: không dùng ký tự ✓ của font – nét xấu, mỗi máy một kiểu)
+    { const t = div(`right:${Math.round(d * 0.35)}px;top:${(b.h + 2 * o - 10 - d) / 2}px;width:${d}px;height:${d}px;border-radius:50%;background:${INK}`, n + '.tick'), k = Math.round(d * 0.62);
+      const ic = div(`left:${(d - k) / 2}px;top:${(d - k) / 2}px;width:${k}px;height:${k}px;color:${ON}`, n + '.tick.icon'); const I = root.PLS_ICONS || {}; if (!I['check-bold'] && I.check) I['check-bold'] = I.check.replace(/stroke-width="2"/g, 'stroke-width="3"');   // bản nét dày, dùng cả khi xuất PPTX
+      ic.dataset.icon = 'check-bold'; ic.innerHTML = I['check-bold'] || ''; t.appendChild(ic); w.appendChild(t); }
     layer(r).appendChild(w); return w; }
   // dây nối: khung = hộp bao của đoạn thẳng; SVG để xem trên web, data-line để xuất PPTX thành đường thẳng thật
   function line(r, a, b, n) { const g = geo(r), A = g(a), B = g(b);
