@@ -1038,8 +1038,10 @@
   function mapAxes() { const p = P(), cr = p.criteria || [], m = p.map || (p.map = {}), C = fcent(centersOf(p));
     if (!m.v2) { ['x', 'y'].forEach(a => { if (m[a] && /học phí|chi phí/i.test(m[a])) m[a] = FPH; else if (m[a] && /số buổi/i.test(m[a])) m[a] = HRS; }); m.v2 = 1; }   // trục cũ (học phí tổng, số buổi) → thước đo chung
     const cnt = k => C.filter(c => metric(c, k)).length, out = cr.find(k => /đầu ra|cam kết/i.test(k));
-    const x = m.x || (cnt(FPH) >= 3 ? FPH : cnt(HRS) >= 3 ? HRS : (cr.find(k => NUMK.test(k)) || cr[0] || 'Trục ngang'));
-    const y = m.y || [HRS, out, CAMKET].concat(cr.filter(k => NUMK.test(k))).find(k => k && k !== x && cnt(k) >= 3) || cr.find(k => k !== x) || 'Trục dọc'; return { x, y }; }
+    const num = cr.filter(k => NUMK.test(k) && !/học phí|chi phí|số buổi|phút/i.test(k)), need = Math.max(1, Math.min(2, C.length));   // không bao giờ rơi về số thô (học phí tổng, số buổi)
+    const pick = (L, not) => { L = L.filter(k => k && k !== not); return L.find(k => cnt(k) >= need) || L.slice().sort((p1, p2) => cnt(p2) - cnt(p1))[0]; };
+    const x = m.x || pick([FPH, HRS, out].concat(num)) || cr[0] || 'Trục ngang';
+    const y = m.y || pick([HRS, out, CAMKET].concat(num), x) || cr.find(k => k !== x) || 'Trục dọc'; return { x, y }; }
   function mapData(C) { const { x, y } = mapAxes(), key = x + '|' + y;
     const ents = ['PLS'].concat(C).map(name => { const a = metric(name, x), b = metric(name, y); return { name, rx: a ? fmtV(x, a.v) + (a.est ? ' (ước tính)' : '') + ' · ' + rawOf(name, x) : rawOf(name, x), ry: b ? fmtV(y, b.v) + (b.est ? ' (ước tính)' : '') + ' · ' + rawOf(name, y) : rawOf(name, y), vx: a ? a.v : null, vy: b ? b.v : null, est: !!((a && a.est) || (b && b.est)) }; });
     const span = vs => { const a = vs.filter(v => v != null); return a.length ? [Math.min(...a), Math.max(...a)] : null; }, sx = span(ents.map(e => e.vx)), sy = span(ents.map(e => e.vy));
