@@ -139,6 +139,10 @@
   function ansPlans(spec) {
     const rows = ansRows(spec.keys); if (!rows.length) return [];
     const out = [];
+    if (rows.filter(r => r[2]).length * 2 >= rows.length) {   // QC P1 "chữa có bằng chứng": đa số câu có giải thích → bảng Câu | Đáp án | Vì sao, 5 câu/slide
+      const parts = chunk(rows, 5); out.push({ label: `Đáp án + lý do (${parts.length} slide)`, fill: 1, fillW: 30, cover: 1, slides: parts.map((p, i) => { const d = { instruction: spec.title + (parts.length > 1 ? ` (${i + 1}/${parts.length})` : ''), 'instruction.vi': '', 'row_0.c1': 'Câu', 'row_0.c2': 'Đáp án', 'row_0.c3': 'Vì sao' };
+        for (let k = 1; k <= 6; k++) { const r = p[k - 1]; d[`row_${k}.c1`] = r ? String(r[0]) : ''; d[`row_${k}.c2`] = r ? r[1] : ''; d[`row_${k}.c3`] = r ? r[2] || '' : ''; }
+        return { comp: 'Slide/Exercise Table', layout: 'flow', data: head(d, spec.section), notes: 'GIẢNG\n• Gọi HV nêu lý do trước khi chiếu đáp án.\n• Dừng ở câu nhiều HV sai, chỉ lại câu chứa bằng chứng.' }; }) }); }
     const n0 = Math.max(1, Math.ceil(rows.length / 10));   // QC F08: tối đa 10 đáp án / slide (20 đáp án một trang thì cuối lớp không đọc được)
     for (let n = n0; n <= n0 + 2; n++) {
       if (n > n0 && rows.length < n * 4) break;   // ít đáp án thì không chia trang
