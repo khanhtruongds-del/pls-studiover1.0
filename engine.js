@@ -567,7 +567,7 @@
         const kids = items.splice(start); if (!kids.length) return;
         const id = 'fx' + (uid++); const b0 = box(el);
         items.push({ k: 'group', id, name: el.dataset.n + ' (hiệu ứng)', ...b0, kids });
-        anims.push({ id, fx: el.dataset.fx, when: el.dataset.fxWhen, order: +el.dataset.fxOrder });
+        anims.push({ id, fx: el.dataset.fx, when: el.dataset.fxWhen, order: +el.dataset.fxOrder, dir: el.dataset.fxDir || '', dur: +el.dataset.fxDur || 0 });
       };
       const inner = async el => {
         const cs = getComputedStyle(el);
