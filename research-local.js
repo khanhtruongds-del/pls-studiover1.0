@@ -1371,6 +1371,123 @@
     const go = [...document.querySelectorAll('button,a')].find(x => /Mở không gian nghiên cứu/.test(x.textContent) && x.offsetParent);
     if (go) go.click(); setTimeout(() => { const r = R(); if (r && r.load) { try { r.load(); } catch (er) {} } if (root.PLS_RESEARCH && root.PLS_RESEARCH.show) root.PLS_RESEARCH.show(); }, 150); }, true);
 
+  // ---------- LẤY NGUỒN TRIỆT ĐỂ (máy làm, 0 token): lấy cả website · tìm rộng · nhặt link từ bài tổng hợp · nút "Gửi về PLS" ----------
+  const PLS_URL = location.origin + location.pathname.replace(/[^/]*$/, '');
+  const DEEPK = 'pls.deep', deepOn = () => { try { return localStorage.getItem(DEEPK) !== '0'; } catch (e) { return true; } };
+  const todayS = () => new Date().toISOString().slice(0, 10);
+  // hàng chờ đọc trang qua r.jina.ai (giới hạn ~20 trang/phút) → giãn 3,2 giây/lần
+  let jLast = 0, jChain = Promise.resolve();
+  const jina = (url, links) => { const run = jChain.then(async () => { const w = 3200 - (Date.now() - jLast); if (w > 0) await new Promise(r => setTimeout(r, w)); jLast = Date.now();
+    const h = { 'X-Return-Format': 'markdown' }; if (links) h['X-With-Links-Summary'] = 'true';
+    const r = await fetch('https://r.jina.ai/' + url, { headers: h }); if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }); jChain = run.catch(() => {}); return run; };
+  const SOCIAL = /(^|\.)(facebook|fb|youtube|youtu|google|goo|zalo|tiktok|instagram|twitter|x|linkedin|wikipedia|shopee|lazada|tiki|pinterest|messenger|bit|apple|microsoft|duckduckgo|bing|coccoc|gstatic|cloudflare|jina)\./i;
+  // cùng một website: so tên miền đăng ký (bỏ www, tên miền con) · khóa so trùng: bỏ http(s), www, tham số quảng cáo, dấu / cuối
+  const siteOf = u => { try { const L = new URL(u).hostname.toLowerCase().replace(/^www\./, '').split('.'); return L.slice(/^(com|edu|net|org|gov|ac|info)$/.test(L[L.length - 2]) && L.length > 2 ? -3 : -2).join('.'); } catch (e) { return ''; } };
+  const rootOf = siteOf;
+  const cleanU = u => { try { const x = new URL(u); [...x.searchParams.keys()].forEach(k => { if (/^(utm_|gclid|gbraid|gad_|fbclid|ref$)/i.test(k)) x.searchParams.delete(k); }); x.hash = ''; return x.toString(); } catch (e) { return u; } };
+  const normU = u => cleanU(u).replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '').toLowerCase();
+  const urlOk = u => /^https?:\/\//.test(u) && !/\.(jpg|jpeg|png|gif|webp|svg|css|js|zip|rar|mp4|mp3)(\?|$)/i.test(u) && !/(login|dang-nhap|register|dang-ky-tai-khoan|cart|gio-hang|checkout|wp-admin|tag\/|author\/|\/feed)/i.test(u);
+  function parseLinks(md) { const i = md.indexOf('Links/Buttons:'); const seg = i >= 0 ? md.slice(i) : md, out = [], seen = new Set();
+    for (const m of seg.matchAll(/\[([^\]]{0,160})\]\((https?:\/\/[^)\s]+)\)/g)) { const u = cleanU(m[2]), k = normU(u); if (seen.has(k)) continue; seen.add(k); out.push({ text: m[1].replace(/\s+/g, ' ').trim(), url: u }); }
+    return out; }
+  // chấm điểm trang con: ưu tiên học phí, khóa học, lộ trình, khai giảng, cam kết, giáo trình, PDF
+  function scoreSub(l, topic) { const t = fold((l.text + ' ' + decodeURIComponent(l.url)).toLowerCase()); let s = 0;
+    if (/hoc[ -]?phi|bang gia|gia khoa|price|tuition|fee/.test(t)) s += 6; if (/khoa[ -]?hoc|course|chuong trinh|lop /.test(t)) s += 4; if (/lo[ -]?trinh|roadmap/.test(t)) s += 4;
+    if (/khai[ -]?giang|lich hoc|schedule/.test(t)) s += 4; if (/cam[ -]?ket|dau ra|bao dau ra/.test(t)) s += 3; if (/giao[ -]?trinh|tai lieu/.test(t)) s += 2; if (/uu[ -]?dai|khuyen mai|hoc bong/.test(t)) s += 2;
+    if (/\.pdf(\?|$)/i.test(l.url)) s += 3; if (topic && t.includes(topic)) s += 2;
+    if (/tin[ -]?tuc|blog|news|tu[ -]?hoc|meo|bai[ -]?viet|kinh nghiem|tuyen dung|lien he|contact|gioi thieu|about/.test(t)) s -= 3; return s; }
+  const topicOf = () => { const b = (P() || {}).brief || {}; return fold(String(b.lang || b.level || '').toLowerCase()).split(/\s+/).find(w => /toeic|ielts|hsk|jlpt|topik|vstep|sat|cambridge|anh|trung|nhat|han|duc|phap/.test(w)) || ''; };
+  let capMsg = '', capBusy = 0;
+  async function crawl(s) { const p = P(); if (!p) return; const r = R(); if (!r || !r.addSource) return; const root0 = rootOf(s.url);
+    capBusy++; capMsg = `Đang lấy trang con của ${s.center || root0}…`; paintCap();
+    try { const md = await jina(s.url, true), L = parseLinks(md), topic = topicOf(), have = new Set(p.sources.map(x => normU(x.url || '')));
+      const subs = L.filter(l => urlOk(l.url) && rootOf(l.url) === root0 && normU(l.url) !== normU(s.url) && !have.has(normU(l.url)))
+        .map(l => Object.assign(l, { sc: scoreSub(l, topic) })).filter(l => l.sc >= 3).sort((a, b) => b.sc - a.sc).slice(0, 8);
+      subs.forEach(l => r.addSource({ kind: 'link', name: (l.text || l.url.replace(/^https?:\/\/(www\.)?/, '')).slice(0, 80), url: l.url, center: s.center || '', date: todayS(), note: 'Trang con của ' + s.id, parent: s.id, autoName: !l.text }));
+      // bài tổng hợp: nhiều website khác được nhắc tới → gợi ý thêm
+      const ext = {}; L.forEach(l => { const rt = rootOf(l.url); if (!rt || rt === root0 || SOCIAL.test(new URL(l.url).hostname + '.') || !urlOk(l.url) || l.text.length < 3) return; (ext[rt] = ext[rt] || []).push(l); });
+      const men = Object.entries(ext).map(([rt, ls]) => ({ name: (ls.find(x => x.text.length <= 50) || ls[0]).text.slice(0, 50), url: (ls.find(x => { try { return new URL(x.url).pathname.length <= 1; } catch (e) { return false; } }) || ls[0]).url, root: rt }))
+        .filter(m => !have.has(normU(m.url)) && !p.sources.some(x => rootOf(x.url || '') === m.root));
+      s.deep = 'done'; s.deepN = subs.length; if (men.length >= 3) s.mentions = men.slice(0, 15);
+      await persist(); root.PLS_RESEARCH.show(); if (subs.length) toast(`Đã thêm ${subs.length} trang con của ${s.center || root0}`);
+    } catch (e) { s.deep = 'fail'; await persist(); } finally { capBusy--; capMsg = capBusy ? capMsg : ''; paintCap(); } }
+  // tìm web (DuckDuckGo qua r.jina.ai) – dùng cho "Tìm rộng hơn"
+  async function dsearch(q) { const t = await jina('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q) + '&kl=vn-vi'), out = [], seen = new Set();
+    const real = u => { const m = u.match(/[?&]uddg=([^&)]+)/); try { return m ? decodeURIComponent(m[1]) : u; } catch (e) { return u; } };
+    for (const blk of t.split(/\n## /).slice(1)) { const h = blk.match(/^\[([^\]]+)\]\(([^)\s]+)/); if (!h || /duckduckgo\.com\/y\.js|ad_domain|ad_provider/.test(h[2])) continue;
+      const url = real(h[2]); if (!/^https?:\/\//.test(url) || seen.has(url)) continue; seen.add(url); out.push({ title: h[1].replace(/\*\*/g, ''), url }); } return out; }
+  // hộp chọn chung
+  function pickDlg(title, sub, items, okText, onOk) { let d = document.getElementById('capPick'); if (d) d.remove(); d = document.createElement('div'); d.id = 'capPick'; d.className = 'rs-dlg'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', title);
+    d.innerHTML = `<div class="rs-dlg-card rs-add-card"><div class="rs-row"><h3 style="flex:1">${esc(title)}</h3><button type="button" class="rs-x" data-cp="x" aria-label="Đóng">×</button></div><p class="muted" style="margin:0">${esc(sub)}</p>` +
+      `<ul class="rs-found" style="max-height:52vh;overflow:auto">${items.map((x, i) => `<li><label><input type="checkbox" data-ci="${i}"${x.on !== false ? ' checked' : ''}><span><b>${esc(x.title || x.url)}</b><small>${esc(x.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 80))}</small></span></label></li>`).join('')}</ul>` +
+      `<div class="rs-row"><span class="muted">${items.length} link</span><span style="flex:1"></span><button type="button" class="btn" data-cp="x">Hủy</button><button type="button" class="btn primary" data-cp="ok">${esc(okText)}</button></div></div>`;
+    document.body.appendChild(d);
+    d.onclick = e => { const b = e.target.closest('[data-cp]'); if (!b) return; if (b.dataset.cp === 'ok') { const sel = [...d.querySelectorAll('[data-ci]')].filter(c => c.checked).map(c => items[+c.dataset.ci]); d.remove(); onOk(sel); } else d.remove(); }; }
+  const addLinks = sel => { const r = R(); if (!r || !r.addSource || !sel.length) return; const have = new Set(((P() || {}).sources || []).map(x => normU(x.url || '')));
+    let n = 0; sel.forEach(x => { const u = cleanU(x.url); if (have.has(normU(u))) return; have.add(normU(u)); n++; r.addSource({ kind: 'link', name: (x.title || x.url).slice(0, 80), url: u, center: '', date: todayS(), autoName: !x.title }); });
+    root.PLS_RESEARCH.show(); toast(`Đã thêm ${n} nguồn${deepOn() ? ' · máy đang lấy thêm trang con của từng website' : ''}`); };
+  // nút "Gửi về PLS" (bookmarklet): mở PLS, gửi đúng nội dung trang đang xem
+  const BM = "(()=>{const P='" + PLS_URL + "#pls-capture';const d={type:'pls-capture',v:1,id:Date.now()+'-'+Math.random().toString(36).slice(2,7),url:location.href,title:document.title,text:(document.body.innerText||'').slice(0,200000),links:[...document.querySelectorAll('a[href]')].slice(0,800).map(a=>[a.href,(a.innerText||a.title||'').trim().replace(/\\s+/g,' ').slice(0,140)])};const w=window.open(P,'plsCapture');if(!w){alert('Trình duyệt chặn cửa sổ mới – cho phép bật lên rồi bấm lại');return;}let n=0,ok=false;const f=e=>{if(e.data==='pls-got:'+d.id){ok=true;window.removeEventListener('message',f);}};window.addEventListener('message',f);const t=setInterval(()=>{if(ok||++n>60){clearInterval(t);return;}try{w.postMessage(d,'*');}catch(e){}},500);})()";
+  const BM_HREF = 'javascript:' + encodeURIComponent(BM);
+  const SEARCH_HOST = /(^|\.)(google\.[a-z.]+|bing\.com|duckduckgo\.com|coccoc\.com|search\.yahoo\.com)$/i;
+  function onCapture(d) { const url = String(d.url || ''); let host = ''; try { host = new URL(url).hostname; } catch (e) {}
+    if (SEARCH_HOST.test(host)) { const seen = new Set(), items = [];
+      (d.links || []).forEach(([u, t]) => { try { const h = new URL(u).hostname; if (SEARCH_HOST.test(h) || SOCIAL.test(h + '.') || /webcache|translate\.|accounts\.|support\./.test(h) || !urlOk(u) || !t || t.length < 8) return; const k = normU(u); if (seen.has(k)) return; seen.add(k); items.push({ title: t.slice(0, 110), url: cleanU(u) }); } catch (e) {} });
+      pickDlg('Kết quả tìm kiếm vừa gửi về', `${items.length} link từ trang tìm kiếm – bỏ chọn link không cần, máy sẽ đọc hết phần còn lại${deepOn() ? ' và lấy thêm trang con của từng website' : ''}.`, items.slice(0, 40), 'Thêm nguồn đã chọn', addLinks); return; }
+    const r = R(); if (!r || !r.addSource) return; const tx = String(d.text || '').trim(); if (tx.length < 40) { toast('Trang gửi về gần như trống – thử cuộn hết trang rồi bấm lại', true); return; }
+    r.addSource({ kind: 'text', name: String(d.title || url).slice(0, 80), url, text: tx, center: '', date: todayS(), note: 'Gửi từ trình duyệt (đúng nội dung bạn đang xem)', autoName: !d.title });
+    root.PLS_RESEARCH.show(); toast('Đã nhận trang “' + String(d.title || url).slice(0, 50) + '” – máy đang đọc'); }
+  // nhận trang gửi về (luôn lắng nghe; mỗi lần gửi có mã riêng, chỉ nhận 1 lần)
+  const capDone = new Set(); let capQ = Promise.resolve();
+  window.addEventListener('message', e => { const d = e.data; if (!d || d.type !== 'pls-capture' || !d.id) return; try { e.source && e.source.postMessage('pls-got:' + d.id, '*'); } catch (er) {}
+    if (capDone.has(d.id)) return; capDone.add(d.id);
+    capQ = capQ.then(async () => { for (let i = 0; i < 60 && !(R() && R().addSource); i++) await new Promise(r => setTimeout(r, 250));
+      if (!document.querySelector('#researchView .rs-left')) { const seg = [...document.querySelectorAll('.seg button')].find(b => b.dataset.v === 'research'); if (seg) seg.click(); await new Promise(r => setTimeout(r, 600));
+        const go = [...document.querySelectorAll('button,a')].find(x => /Mở không gian nghiên cứu/.test(x.textContent) && x.offsetParent); if (go) go.click(); }
+      for (let i = 0; i < 40 && !P(); i++) await new Promise(r => setTimeout(r, 250));
+      if (location.hash === '#pls-capture') { try { history.replaceState(null, '', location.pathname + location.search); } catch (er) {} }
+      try { window.focus(); } catch (er) {} onCapture(d); }); });
+  // thanh trạng thái ở cột nguồn: đang lấy trang con · website chưa lấy sâu · bài tổng hợp nhắc tới trung tâm khác
+  function paintCap() { const col = document.querySelector('#researchView .rs-left'), p = P(); let bar = document.getElementById('capBar');
+    if (!col || !p) { if (bar) bar.remove(); return; }
+    const todo = p.sources.filter(s => s.kind === 'link' && !s.parent && !s.deep && s.on !== false), men = p.sources.filter(s => (s.mentions || []).length);
+    const h = (capMsg ? `<p class="cap-run">⏳ ${esc(capMsg)}</p>` : '') +
+      (todo.length && !capBusy ? `<p>${todo.length} website chưa lấy trang con (học phí, lộ trình, khai giảng…) <button type="button" class="rs-mini" data-cap="deepall">Lấy hết</button></p>` : '') +
+      men.map(s => `<p>Nguồn ${esc(s.id)} nhắc tới ${s.mentions.length} trung tâm khác <button type="button" class="rs-mini" data-cap="men" data-sid="${esc(s.id)}">Xem và thêm</button></p>`).join('');
+    if (!h) { if (bar) bar.remove(); return; }
+    if (!bar) { bar = document.createElement('div'); bar.id = 'capBar'; bar.className = 'cap-bar'; }
+    const head = col.querySelector('.rs-src-head'); if (head && bar.previousElementSibling !== head) head.after(bar); else if (!head && bar.parentElement !== col) col.prepend(bar);
+    if (bar._h !== h) { bar._h = h; bar.innerHTML = h; } }
+  let capWired = false;
+  function capEnhance() { const p = P();
+    if (!capWired) { capWired = true;
+      const st = document.createElement('style'); st.textContent = '.cap-bar{font-size:12px;border:1px solid var(--ui-line);background:var(--ui-beige);border-radius:6px;padding:6px 10px;margin:6px 0 10px}.cap-bar p{margin:3px 0}.cap-bar .rs-mini{margin-left:6px}.cap-run{color:#b85c3e}.cap-box{border-top:1px solid var(--ui-line);margin-top:10px;padding-top:10px;font-size:12px;display:flex;flex-direction:column;gap:8px}.cap-box label{display:flex;gap:6px;align-items:flex-start}.cap-bm{display:inline-block;padding:4px 10px;border:1.5px dashed #d97757;border-radius:6px;color:#b85c3e;font-weight:600;text-decoration:none;cursor:grab;margin-right:6px}#capMore li small{display:block}'; document.head.appendChild(st);
+      document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-cap],#aOk,.cap-bm'); if (!t) return;
+        if (t.classList.contains('cap-bm')) { e.preventDefault(); toast('Kéo nút này lên thanh dấu trang (không bấm ở đây). Sau đó mở trang cần lấy rồi bấm nút trên thanh dấu trang.'); return; }
+        if (t.id === 'aOk') { const more = [...document.querySelectorAll('#capMore [data-mi]:checked')].map(c => ({ title: c.dataset.t, url: c.dataset.u })); if (more.length) setTimeout(() => addLinks(more), 400); return; }
+        const p = P(); if (!p) return; const a = t.dataset.cap;
+        if (a === 'deepall') { p.sources.filter(s => s.kind === 'link' && !s.parent && !s.deep && s.on !== false).forEach(s => { s.deep = 'queued'; crawl(s); }); persist(); paintCap(); }
+        if (a === 'men') { const s = p.sources.find(x => x.id === t.dataset.sid); if (!s) return; const list = s.mentions.map(m => ({ title: m.name, url: m.url }));
+          pickDlg(`Trung tâm được nhắc tới trong nguồn ${s.id}`, 'Chọn trung tâm muốn lấy website – máy đọc trang chủ và các trang học phí, lộ trình của họ.', list, 'Thêm nguồn', sel => { s.mentions = []; persist(); addLinks(sel); }); }
+        if (a === 'more') { const q = (document.getElementById('aQ') || {}).value || ''; if (!q.trim() || /^https?:/.test(q.trim())) { toast('Gõ từ khóa vào ô tìm trước', true); return; }
+          const ul = document.getElementById('capMore'); t.disabled = true; t.textContent = 'Đang tìm rộng…'; ul.innerHTML = '<li class="muted">Đang tìm thêm 3 hướng: học phí, lộ trình, đánh giá…</li>';
+          const shown = new Set([...document.querySelectorAll('#aFound small')].map(x => x.textContent.split(' · ')[0])), have = new Set((p.sources || []).map(x => normU(x.url || '')));
+          Promise.all([' học phí', ' lộ trình khóa học', ' review đánh giá'].map(v => dsearch(q.trim() + v).catch(() => []))).then(rs => { const seen = new Set(), all = [];
+            rs.flat().forEach(x => { const k = normU(x.url); if (seen.has(k) || have.has(k) || shown.has(x.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))) return; seen.add(k); all.push(x); });
+            ul.innerHTML = all.length ? all.map((x, i) => `<li><label><input type="checkbox" data-mi="${i}" data-t="${esc(x.title)}" data-u="${esc(x.url)}" checked><span><b>${esc(x.title)}</b><small>${esc(x.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))}</small></span></label></li>`).join('') : '<li class="muted">Không thấy thêm kết quả mới.</li>';
+            t.disabled = false; t.textContent = 'Tìm rộng hơn'; }); } }, true);
+      document.addEventListener('change', e => { if (e.target && e.target.id === 'capDeep') { try { localStorage.setItem(DEEPK, e.target.checked ? '1' : '0'); } catch (er) {} } }); }
+    // hộp Thêm nguồn: lấy sâu · tìm rộng · nút Gửi về PLS
+    const dlg = document.getElementById('rsAddDlg'), find = dlg && dlg.querySelector('.rs-find');
+    if (find && !dlg.querySelector('.cap-box')) { const b = document.createElement('div'); b.className = 'cap-box';
+      b.innerHTML = `<div><button type="button" class="btn" data-cap="more">Tìm rộng hơn</button> <span class="muted">thêm 3 lượt tìm: học phí, lộ trình, đánh giá</span></div><ul class="rs-found" id="capMore"></ul>` +
+        `<label><input type="checkbox" id="capDeep"${deepOn() ? ' checked' : ''}><span>Lấy thêm trang con liên quan của mỗi website (học phí, khóa học, lộ trình, khai giảng, PDF…) – tối đa 8 trang/website</span></label>` +
+        `<div><a class="cap-bm" href="${BM_HREF}" title="Kéo lên thanh dấu trang">⇪ Gửi về PLS</a><span class="muted">Kéo nút này lên thanh dấu trang một lần. Gặp trang máy không đọc được (Facebook, trang cần đăng nhập) hoặc trang kết quả Google: mở trang đó rồi bấm nút – PLS nhận đúng nội dung bạn đang xem.</span></div>`;
+      find.after(b); }
+    // tự lấy sâu các link vừa thêm
+    if (p && deepOn()) p.sources.filter(s => s.kind === 'link' && !s.parent && !s.deep && s.added && Date.now() - s.added < 10 * 60000).forEach(s => { s.deep = 'queued'; crawl(s); });
+    paintCap(); }
+
   function aiInfo() { const b = document.querySelector('#rsBridge'); if (!b) return; b.scrollIntoView({ behavior: 'smooth', block: 'start' }); b.style.transition = 'box-shadow .3s'; b.style.boxShadow = '0 0 0 3px #d97757'; setTimeout(() => { b.style.boxShadow = ''; }, 1600); }
   const toast = (t, bad) => { const el = document.createElement('div'); el.setAttribute('role', 'status'); el.textContent = t; el.style.cssText = `position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1002;background:${bad ? '#8a2a1b' : '#1f1f1f'};color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;max-width:90vw`; document.body.appendChild(el); setTimeout(() => el.remove(), 4200); };
   function enhance() {
@@ -1396,7 +1513,7 @@
     if (cmp && !document.querySelector('#rsAutoFill')) { const b = document.createElement('button'); b.type = 'button'; b.id = 'rsAutoFill'; b.className = 'btn'; b.textContent = 'Tự điền số liệu'; b.title = 'Máy dò số buổi, phút, sĩ số, học phí, cấp độ… trong nguồn – không cần Claude';
       cmp.parentNode.insertBefore(b, cmp);
       b.onclick = async () => { b.disabled = true; b.textContent = 'Đang dò…'; try { const r = await autoFill(); toast(`Đã điền ${r.filled} ô từ nguồn${r.missing ? ` · ${r.missing} ô chưa thấy, nhờ Claude điền tiếp` : ''}${r.noCenter ? ` · ${r.noCenter} nguồn chưa ghi trung tâm nên bỏ qua` : ''}`); } catch (e) { toast(e.message, true); } finally { b.disabled = false; b.textContent = 'Tự điền số liệu'; } }; }
-    briefEnhance(); objEnhance(); plsEnhance(); cfgEnhance(); evoEnhance(); ovEnhance(); mapEnhance(); betaEnhance(); notesEnhance(); hookXlsx(); presEnhance(); rrEnhance(); migrate();
+    briefEnhance(); objEnhance(); plsEnhance(); cfgEnhance(); evoEnhance(); ovEnhance(); mapEnhance(); betaEnhance(); notesEnhance(); hookXlsx(); presEnhance(); rrEnhance(); capEnhance(); migrate();
     const chip = document.querySelector('#rsAI'); if (chip) { const t = '● Claude · ' + usage(); if (chip.textContent !== t) chip.textContent = t; chip.classList.toggle('ok', true); chip.title = 'Việc cần viết được gửi Claude – nhắn Claude “xử lý hàng chờ PLS” để xử lý'; }
   }
   let tm = 0; new MutationObserver(() => { clearTimeout(tm); tm = setTimeout(enhance, 50); }).observe(document.documentElement, { childList: true, subtree: true });
