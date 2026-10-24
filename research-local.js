@@ -525,7 +525,7 @@
     const rows = O.map(o => `<tr><td title="${esc(o.text)}"><b>${esc(o.id)}</b> <span class="muted">${esc(String(o.text || '').slice(0, 42))}${String(o.text || '').length > 42 ? '…' : ''}</span></td>` +
       L.map(l => `<td class="c"><input type="checkbox" data-mx="${l.buoi}|${esc(o.id)}" aria-label="Buổi ${l.buoi} dạy ${esc(o.id)}"${(l.obj || []).includes(o.id) ? ' checked' : ''}></td>`).join('') +
       `<td>${esc(A.filter(a => (a.obj || []).includes(o.id)).map(a => a.id + (aBuoi(a) == null ? '' : aBuoi(a) === 999 ? ' · cuối khóa' : ' · buổi ' + aBuoi(a))).join('; ') || '—')}</td></tr>`).join('');
-    return `<div class="rs-bf-h"><b>Ma trận liên kết</b><span class="muted">${f.length ? `${f.length} điểm cần xem${nb ? ` · ${nb} chặn phát hành` : ''}` : '✓ Mục tiêu, buổi học và cách đo khớp nhau'}</span></div>` +
+    return `<div class="rs-bf-h"><b>Ma trận liên kết</b><span class="muted">${f.length ? `${f.length} điểm cần xem${nb ? ` · ${nb} chặn phát hành` : ''}` : '✓ Mục tiêu, buổi học và đề kiểm tra khớp nhau'}</span></div>` +
       (f.length ? `<ul class="rs-mx-f">${f.map(x => `<li class="${x.lv}">${esc(x.t)}</li>`).join('')}</ul>` : '') +
       `<div class="rs-tablewrap"><table class="rs-table rs-mx">${head}${rows}</table></div>` +
       `<div class="rs-bf-foot"><span class="muted">Tích ô để gắn mục tiêu vào buổi.</span><span style="flex:1"></span>${unmapped ? '<button type="button" class="btn" id="rsMxDraft">Nhờ Claude gắn mục tiêu vào các buổi</button>' : ''}</div>`;
@@ -546,9 +546,9 @@
       if (a) { fill(a, 'buoi', +t.buoi || null); fill(a, 'minutes', +t.minutes || null); fill(a, 'type', TEST_TYPES.includes(t.type) ? t.type : ''); if (!(a.obj || []).length) a.obj = idList(t.obj, 'O'); }
       else A.push({ id: id || testId(t.type, A), type: TEST_TYPES.includes(t.type) ? t.type : '', buoi: +t.buoi || null, minutes: +t.minutes || null, obj: idList(t.obj, 'O'), how: String(t.desc || '').slice(0, 300), by: 'claude', ok: false }); }); }
   function baseExtra(B) { const A = asses().filter(a => aBuoi(a) != null); if (!A.length) return; const p = P(), last = ((p.outline && p.outline.lessons) || []).length;
-    const n = {}; B.s6['S6-Đề kiểm tra'] = A.map(a => { const b = aBuoi(a) === 999 ? last : aBuoi(a), ty = a.type || 'Kiểm tra'; n[ty] = (n[ty] || 0) + 1;
+    const n = {}; B.s6['S6-Đề kiểm tra'] = A.slice().sort((x, y) => (aBuoi(x) || 0) - (aBuoi(y) || 0)).map(a => { const b = aBuoi(a) === 999 ? last : aBuoi(a), ty = a.type || ''; n[ty] = (n[ty] || 0) + 1;
       const l = ((p.outline && p.outline.lessons) || []).find(x => x.buoi === b);
-      return { 'Mã đề': a.id, 'Tên đề': `Buổi ${b} - Kiểm tra ${ty} (${n[ty]})${a.minutes ? ' - ' + a.minutes + ' phút' : ''}`, 'Loại kiểm tra': a.type || '', 'Kỳ': (l && l.ky) || 1, 'Buổi': b, 'Thời gian làm bài (phút)': a.minutes || '', 'Mô tả': [a.how, (a.obj || []).length ? 'Đo: ' + a.obj.join(', ') : ''].filter(Boolean).join(' – '), 'Lên App': 'Có', 'Lên PPT': 'Có', 'Lên PDF': 'Có' }; }); }
+      return { 'Mã đề': a.id, 'Tên đề': `Buổi ${b} - Kiểm tra${ty ? ' ' + ty : ''} (${n[ty]})${a.minutes ? ' - ' + a.minutes + ' phút' : ''}`, 'Loại kiểm tra': a.type || '', 'Kỳ': (l && l.ky) || 1, 'Buổi': b, 'Thời gian làm bài (phút)': a.minutes || '', 'Mô tả': [a.how, (a.obj || []).length ? 'Đo: ' + a.obj.join(', ') : ''].filter(Boolean).join(' – '), 'Lên App': 'Có', 'Lên PPT': 'Có', 'Lên PDF': 'Có' }; }); }
   function objText(buoi) { const p = P(), L = p && p.outline && p.outline.lessons.find(l => l.buoi === buoi); if (!L || !(L.obj || []).length) return '';
     return '\nMục tiêu khóa mà buổi này phục vụ: ' + objs().filter(o => L.obj.includes(o.id)).map(o => `${o.id} – ${o.text}${o.crit ? ' (đạt khi: ' + o.crit + ')' : ''}`).join('; ') + '.'; }
   const mxBlockers = () => objs().length ? matrix().f.filter(x => x.lv === 'block').map(x => 'Ma trận: ' + x.t) : [];
