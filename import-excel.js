@@ -81,7 +81,7 @@
 
     const vocab = tab(s6, /Từ vựng$/).filter(r => isB(r, buoi) && onPPT(r) && S(r['Từ']));
     const grammar = tab(s6, /Ngữ pháp$/).filter(r => isB(r, buoi) && onPPT(r));
-    const pron = tab(s6, /Phát âm/).filter(r => isB(r, buoi) && onPPT(r));
+    const pron = tab(s6, /Phát âm/).filter(r => isB(r, buoi) && onPPT(r)).map(r => { const c = s => /\s/.test(s) ? s.replace(/^[a-zà-ỹđ]/, x => x.toUpperCase()) : s; return Object.assign({}, r, { 'Chữ / âm': c(S(r['Chữ / âm'])), 'Bảng chữ / nhóm âm': c(S(r['Bảng chữ / nhóm âm'])) }); });
     const speak = tab(s6, /Mẫu câu/).filter(r => isB(r, buoi) && onPPT(r) && S(r['Câu']));
     const extra = tab(s6, /Ngoài kiến thức/).filter(r => isB(r, buoi) && onPPT(r));
     const divider = (title, sub, nt) => slides.push({ comp: 'Slide/Section', data: { 'section.title': title, 'section.sub': sub || '' }, notes: NOTE(Object.assign({ g: [`Chuyển sang phần: ${title}.`] }, nt || {})) });
