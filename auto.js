@@ -40,7 +40,8 @@
     const add = (label, slides, c) => out.push({ label, slides, cover: cov(c), fill: slides.reduce((a, s) => a + s.fill, 0) / slides.length, fillW: 15 });
     // QUY TẮC 35/65 (mẫu bổ sung): quy tắc ngắn (≤ 3 dòng, ≤ 200 ký tự) + 2–4 ví dụ → ô quy tắc bên trái, ví dụ đánh số bên phải.
     // Đặt trước "Quy tắc + ví dụ" để bằng điểm thì chọn mẫu mới; quy tắc dài / ít ví dụ thì không sinh phương án này.
-    const splitTxt = g.formula.slice(0, 3).map(ftxt).join('\n');
+    // mỗi công thức một dòng (tách cả "; "); công thức ngắn giữ liền một dòng (khoảng trắng không ngắt) → không gãy giữa "+ N"
+    const splitTxt = g.formula.slice(0, 3).map(ftxt).flatMap(t => String(t).split(/;\s*/)).filter(Boolean).slice(0, 5).map(t => t.length <= 28 ? t.replace(/ /g, '\u00a0') : t).join('\n');
     const split = () => { const d = { title: g.title, rule: splitTxt }; g.ex.slice(0, 4).forEach((e, i) => { d[`ex_${i + 1}.no`] = String(i + 1); d[`ex_${i + 1}.de`] = e.de; d[`ex_${i + 1}.vi`] = e.vi; }); return { comp: 'Slide/Grammar Rule Split', data: head(d, sec), fill: Math.min(1, (Math.min(4, E) + 1) / 4) }; };
     const canSplit = E >= 2 && F >= 1 && F <= 3 && splitTxt.length <= 200 && root.PLS_TPL && root.PLS_TPL.slides && root.PLS_TPL.slides['Slide/Grammar Rule Split'];
     const base = canSplit ? [['Quy tắc 35/65', split, { f: 3, e: 4 }]] : [];
