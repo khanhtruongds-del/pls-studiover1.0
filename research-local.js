@@ -387,8 +387,8 @@
     const as = ['lang', 'level', 'audience'].filter(k => m[k]).map(k => LABEL[k].toLowerCase());
     return (extra.length ? 'Thêm: ' + extra.join('; ') + '.\n' : '') + (as.length ? 'Lưu ý: ' + as.join(', ') + ' là giả định chưa xác nhận.\n' : '') +
       'Mục tiêu các buổi phải dẫn từ trình độ đầu vào tới đầu ra; nếu đầu vào – đầu ra – số buổi không khả thi thì nói rõ trong desc.\n' +
-      (objs().length ? 'MỤC TIÊU KHÓA (giữ nguyên mã):\n' + objs().map(objLine).join('\n') + '\nCÁCH ĐO:\n' + asses().map(asLine).join('\n') +
-        '\nMỗi buổi trong JSON thêm trường "obj": ["O1", …] = mã mục tiêu buổi đó dạy/luyện; mọi mục tiêu có ít nhất 1 buổi; mục tiêu cần trước dạy trước; buổi Kiểm tra gắn mục tiêu được đo và đặt đúng thời điểm của cách đo.\n' : ''); }
+      (objs().length ? 'MỤC TIÊU KHÓA (giữ nguyên mã):\n' + objs().map(objLine).join('\n') + '\nKẾ HOẠCH KIỂM TRA (S6-Đề kiểm tra):\n' + asses().map(asLine).join('\n') +
+        '\nMỗi buổi trong JSON thêm trường "obj": ["O1", …] = mã mục tiêu buổi đó dạy/luyện; mọi mục tiêu có ít nhất 1 buổi; mục tiêu cần trước dạy trước. "tests" dùng đúng các mã đề trên, giữ buổi đã định nếu hợp lý; buổi có đề thì ghi mã vào "test" và có thành phần Kiểm tra trong timeline.\n' : ''); }
   async function briefDraft() {
     const p = P(); if (!p) return; const b = p.brief, todo = BFF.map(f => f[0]).filter(k => !filled(b, k));
     if (!todo.length) { toast('Các ô đã có đủ – sửa trực tiếp nếu cần'); return; }
@@ -425,7 +425,7 @@
     if (st.missing.length) why.push('điền đủ ô bắt buộc trong “Yêu cầu khóa học”: ' + st.missing.map(k => LABEL[k]).join(', '));
     if (!objs().length) why.push('có ít nhất một mục tiêu học tập');
     else if (os.empty) why.push('viết nội dung cho mục tiêu đang trống');
-    if (os.noAssess.length) why.push('thêm cách đo cho ' + os.noAssess.join(', '));
+    if (os.noAssess.length) why.push('thêm đề kiểm tra đo ' + os.noAssess.join(', '));
     if (why.length) { out.disabled = true; out.dataset.bfGate = '1';
       if (!note) { note = document.createElement('p'); note.id = 'rsBfGate'; out.closest('.rs-bar').after(note); }
       const t = 'Để đề xuất khung khóa, cần ' + why.join('; ') + '.'; if (note.textContent !== t) note.textContent = t; }
@@ -438,31 +438,36 @@
   const nextId = (arr, pre) => pre + (arr.reduce((m, x) => Math.max(m, +String(x.id).slice(1) || 0), 0) + 1);
   const whenNo = w => { const m = /\d+/.exec(String(w || '')); return m ? +m[0] : (/cuối/i.test(String(w || '')) ? 999 : null); };
   const pending = x => x.by === 'claude' && !x.ok;
+  const TEST_TYPES = ['Đầu vào', 'Nhanh đầu/cuối giờ', '15 phút', 'Kiểm tra kỹ năng', 'Giữa kỳ', 'Cuối kỳ', 'Cuối khoá'];
+  const TEST_CODE = { 'Đầu vào': 'DV', 'Nhanh đầu/cuối giờ': 'NH', '15 phút': '15P', 'Kiểm tra kỹ năng': 'KN', 'Giữa kỳ': 'GK', 'Cuối kỳ': 'CK', 'Cuối khoá': 'CKH' };
+  const aBuoi = a => a.buoi != null && a.buoi !== '' ? +a.buoi : whenNo(a.when || (/cuối khoá|cuối khóa/i.test(a.type || '') ? 'cuối' : ''));
+  const testId = (type, list) => { const c = TEST_CODE[type] || 'KT'; let n = 1; while (list.some(a => a.id === `KT-${c}-${String(n).padStart(2, '0')}`)) n++; return `KT-${c}-${String(n).padStart(2, '0')}`; };
   function objState() { const O = objs(), A = asses(), measured = new Set(A.flatMap(a => a.obj || []));
     return { noAssess: O.filter(o => !measured.has(o.id)).map(o => o.id), draft: O.filter(pending).length + A.filter(pending).length, empty: O.filter(o => !String(o.text || '').trim()).length }; }
   let obOpen = null;
   function objPanel() {
     const p = P(); if (!p) return ''; const O = objs(), A = asses(), st = objState();
     const open = obOpen != null ? obOpen : !(O.length && !st.noAssess.length && !st.draft);
-    const status = !O.length ? 'Chưa có mục tiêu' : `${O.length} mục tiêu · ${A.length} cách đo` + (st.noAssess.length ? ` · ${st.noAssess.length} mục tiêu chưa có cách đo` : '') + (st.draft ? ` · ${st.draft} mục Claude đề xuất chờ duyệt` : '');
+    const status = !O.length ? 'Chưa có mục tiêu' : `${O.length} mục tiêu · ${A.length} đề kiểm tra` + (st.noAssess.length ? ` · ${st.noAssess.length} mục tiêu chưa được đo` : '') + (st.draft ? ` · ${st.draft} mục Claude đề xuất chờ duyệt` : '');
     const ta = (attr, i, k, v, ph) => `<textarea ${attr}="${i}" data-k="${k}" rows="2" placeholder="${esc(ph || '')}">${esc(v || '')}</textarea>`;
     const oRow = (o, i) => `<tr class="${pending(o) ? 'as' : ''}"><td><b>${esc(o.id)}</b></td><td>${ta('data-ob', i, 'text', o.text, 'Học viên sẽ…')}</td><td>${ta('data-ob', i, 'cond', o.cond, 'Trong tình huống…')}</td><td>${ta('data-ob', i, 'crit', o.crit, 'Đúng ≥ 8/10…')}</td>` +
       `<td><input data-ob="${i}" data-k="pre" value="${esc((o.pre || []).join(', '))}" placeholder="O1"></td><td class="rs-ob-why">${esc([o.src, o.why].filter(Boolean).join(' · '))}${pending(o) ? `<br><button type="button" class="rs-mini" data-obok="${i}">Duyệt</button>` : ''}</td><td><button type="button" class="rs-mini" data-obdel="${i}" aria-label="Xóa ${esc(o.id)}">Xóa</button></td></tr>`;
-    const aRow = (a, i) => `<tr class="${pending(a) ? 'as' : ''}"><td><b>${esc(a.id)}</b></td><td><input data-as="${i}" data-k="obj" value="${esc((a.obj || []).join(', '))}" placeholder="O1, O2"></td><td>${ta('data-as', i, 'how', a.how, 'Bài nói 3 phút chấm theo rubric…')}</td>` +
-      `<td><input data-as="${i}" data-k="when" value="${esc(a.when || '')}" placeholder="Buổi 6 / cuối khóa"></td><td>${pending(a) ? `<button type="button" class="rs-mini" data-asok="${i}">Duyệt</button> ` : ''}<button type="button" class="rs-mini" data-asdel="${i}" aria-label="Xóa ${esc(a.id)}">Xóa</button></td></tr>`;
-    return `<div class="rs-bf rs-ob" id="rsOb"><div class="rs-bf-h"><b>Mục tiêu học tập và cách đo</b><span class="muted">${esc(status)}</span><button type="button" class="rs-mini" id="rsObToggle">${open ? 'Thu gọn' : 'Sửa'}</button></div>` +
+    const aRow = (a, i) => `<tr class="${pending(a) ? 'as' : ''}"><td><input data-as="${i}" data-k="id" value="${esc(a.id)}" aria-label="Mã đề"></td><td><select data-as="${i}" data-k="type" aria-label="Loại kiểm tra">${['', ...TEST_TYPES].map(t => `<option${t === (a.type || '') ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></td>` +
+      `<td><input data-as="${i}" data-k="buoi" type="number" min="1" value="${esc(aBuoi(a) == null || aBuoi(a) === 999 ? '' : aBuoi(a))}" placeholder="${/cuối/i.test(a.when || a.type || '') ? 'cuối' : ''}" aria-label="Buổi"></td><td><input data-as="${i}" data-k="minutes" type="number" min="1" value="${esc(a.minutes || '')}" aria-label="Phút"></td>` +
+      `<td><input data-as="${i}" data-k="obj" value="${esc((a.obj || []).join(', '))}" placeholder="O1, O2" aria-label="Đo mục tiêu"></td><td>${ta('data-as', i, 'how', a.how, 'Đo gì, hình thức, chấm thế nào…')}</td><td>${pending(a) ? `<button type="button" class="rs-mini" data-asok="${i}">Duyệt</button> ` : ''}<button type="button" class="rs-mini" data-asdel="${i}" aria-label="Xóa ${esc(a.id)}">Xóa</button></td></tr>`;
+    return `<div class="rs-bf rs-ob" id="rsOb"><div class="rs-bf-h"><b>Mục tiêu học tập và kế hoạch kiểm tra</b><span class="muted">${esc(status)}</span><button type="button" class="rs-mini" id="rsObToggle">${open ? 'Thu gọn' : 'Sửa'}</button></div>` +
       (open ? `<p class="muted rs-ob-hint">Viết mỗi mục tiêu thành việc học viên làm được và quan sát được. Mã (O1, O2…) giữ nguyên khi sửa để các buổi và cách đo luôn trỏ đúng.</p>` +
         `<div class="rs-tablewrap"><table class="rs-table rs-obt"><thead><tr><th>Mã</th><th>Học viên sẽ…</th><th>Điều kiện</th><th>Tiêu chí đạt</th><th>Cần trước</th><th>Căn cứ</th><th></th></tr></thead><tbody>${O.map(oRow).join('') || '<tr><td colspan="7" class="muted">Chưa có mục tiêu</td></tr>'}</tbody></table></div>` +
         `<div class="rs-bf-foot"><button type="button" class="rs-mini" id="rsObAdd">+ Thêm mục tiêu</button></div>` +
-        `<div class="rs-tablewrap"><table class="rs-table rs-obt"><thead><tr><th>Mã</th><th>Đo mục tiêu</th><th>Cách đo</th><th>Khi nào</th><th></th></tr></thead><tbody>${A.map(aRow).join('') || '<tr><td colspan="5" class="muted">Chưa có cách đo</td></tr>'}</tbody></table></div>` +
-        `<div class="rs-bf-foot"><button type="button" class="rs-mini" id="rsAsAdd">+ Thêm cách đo</button><span style="flex:1"></span>${st.draft ? '<button type="button" class="btn" id="rsObOkAll">Duyệt tất cả đề xuất</button>' : ''}<button type="button" class="btn" id="rsObDraft">${O.length ? 'Nhờ Claude rà và bổ sung' : 'Nhờ Claude đề xuất mục tiêu và cách đo'}</button></div>` +
+        `<div class="rs-tablewrap"><table class="rs-table rs-obt"><thead><tr><th>Mã đề</th><th>Loại kiểm tra</th><th>Buổi</th><th>Phút</th><th>Đo mục tiêu</th><th>Mô tả</th><th></th></tr></thead><tbody>${A.map(aRow).join('') || '<tr><td colspan="7" class="muted">Chưa có đề kiểm tra</td></tr>'}</tbody></table></div>` +
+        `<div class="rs-bf-foot"><button type="button" class="rs-mini" id="rsAsAdd">+ Thêm đề kiểm tra</button><span style="flex:1"></span>${st.draft ? '<button type="button" class="btn" id="rsObOkAll">Duyệt tất cả đề xuất</button>' : ''}<button type="button" class="btn" id="rsObDraft">${O.length ? 'Nhờ Claude rà và bổ sung' : 'Nhờ Claude đề xuất mục tiêu và cách đo'}</button></div>` +
         (p.objNote ? `<p class="muted rs-ob-hint">Claude lưu ý: ${esc(p.objNote)}</p>` : '')
         : `<p class="rs-bf-sum">${O.slice(0, 4).map(o => `<b>${esc(o.id)}</b> ${esc(o.text)}`).join('<br>')}${O.length > 4 ? `<br><span class="muted">… và ${O.length - 4} mục tiêu khác</span>` : ''}</p>`) + '</div>';
   }
   const briefLine = b => BFF.map(f => f[0]).filter(k => filled(b, k)).map(k => `${LABEL[k]}: ${b[k]}${(b._m || {})[k] ? ' (giả định)' : ''}`).join('; ');
   const cmpLine = p => Object.entries(p.cells || {}).filter(([, c]) => c && c.v && c.kind !== 'unknown').slice(0, 90).map(([k, c]) => `${k.replace('||', ' – ')}: ${c.v}${c.src ? ' [' + c.src + ']' : ''}`).join('\n');
   const objLine = o => `${o.id}: ${o.text}${o.cond ? ' | điều kiện: ' + o.cond : ''}${o.crit ? ' | đạt khi: ' + o.crit : ''}${(o.pre || []).length ? ' | cần trước: ' + o.pre.join(',') : ''}${o.ok ? ' [đã duyệt]' : ''}`;
-  const asLine = a => `${a.id} đo ${(a.obj || []).join(',') || '?'}: ${a.how || ''}${a.when ? ' (' + a.when + ')' : ''}${a.ok ? ' [đã duyệt]' : ''}`;
+  const asLine = a => `${a.id}${a.type ? ' · ' + a.type : ''} · ${aBuoi(a) == null ? 'chưa xếp buổi' : aBuoi(a) === 999 ? 'cuối khóa' : 'buổi ' + aBuoi(a)}${a.minutes ? ' · ' + a.minutes + ' phút' : ''} – đo ${(a.obj || []).join(',') || '?'}: ${a.how || ''}${a.ok ? ' [đã duyệt]' : ''}`;
   async function queueLocal(kind, title, text, sys, maxTokens) {
     const p = P(); if (!p) return; const key = p.id + '|' + kind + '|[]';
     if ((await Q.all()).some(j => j.key === key && j.status === 'wait')) { toast('Việc này đã có trong hàng chờ Claude'); return; }
@@ -478,17 +483,17 @@
       (objs().length ? `MỤC TIÊU HIỆN CÓ:\n${objs().map(objLine).join('\n')}\n` : '') + (asses().length ? `CÁCH ĐO HIỆN CÓ:\n${asses().map(asLine).join('\n')}\n` : '') +
       `\nNGUỒN:\n${srcs || '(chưa có)'}\n\nBẢNG SO SÁNH CÁC TRUNG TÂM:\n${cmpLine(p) || '(chưa có)'}\n\n` +
       'Yêu cầu:\n- 4–8 mục tiêu cấp khóa, đủ để đi từ trình độ đầu vào tới đầu ra trong số buổi đã cho.\n- Mỗi mục tiêu: text = hành vi quan sát được, bắt đầu bằng động từ (nói được, nghe và chọn đúng, viết được…); cond = điều kiện/tình huống; crit = tiêu chí đạt đo được (số câu đúng, thời gian, mức rubric); pre = mã mục tiêu cần trước; src = [S..] nếu có căn cứ; why = 1 câu căn cứ hoặc "(suy luận) …".\n' +
-      '- Mỗi mục tiêu có ít nhất một cách đo; cách đo nêu hình thức và thời điểm ("Buổi 6", "cuối khóa"), khả thi trong số buổi và số phút đã cho.\n- Giữ nguyên các mục [đã duyệt] và mã của chúng; chỉ sửa hoặc bổ sung phần chưa duyệt; mã mới không trùng mã cũ.\n' +
-      'Trả đúng 1 JSON: {"objectives":[{"id":"O1","text":"","cond":"","crit":"","pre":[],"src":"","why":""}],"assess":[{"id":"A1","obj":["O1"],"how":"","when":""}],"note":"<1–2 câu nếu đầu vào–đầu ra–số buổi có vấn đề, không thì để trống>"}';
-    await queueLocal('objectives', 'Đề xuất mục tiêu và cách đo', text, 'Bạn là chuyên gia thiết kế chương trình ngoại ngữ theo thiết kế ngược (backward design). Mục tiêu phải quan sát và đo được. Đề xuất là bản nháp để người dùng duyệt; luôn ghi căn cứ.', 4096);
+      '- Kế hoạch kiểm tra theo chuẩn S6-Đề kiểm tra của PLS: mỗi đề có mã KT-<loại>-<số> (DV đầu vào, NH nhanh đầu/cuối giờ, 15P, KN kiểm tra kỹ năng, GK giữa kỳ, CK cuối kỳ, CKH cuối khoá), loại kiểm tra, buổi, số phút, mục tiêu được đo, mô tả. Mỗi mục tiêu được ít nhất một đề đo; đề đặt sau buổi dạy mục tiêu đó; tổng phút kiểm tra hợp lý với ' + (b.minutes || '?') + ' phút/buổi.\n- Giữ nguyên các mục [đã duyệt] và mã của chúng; chỉ sửa hoặc bổ sung phần chưa duyệt; mã mới không trùng mã cũ.\n' +
+      'Trả đúng 1 JSON: {"objectives":[{"id":"O1","text":"","cond":"","crit":"","pre":[],"src":"","why":""}],"assess":[{"id":"KT-DV-01","type":"Đầu vào","buoi":1,"minutes":20,"obj":["O1"],"how":""}],"note":"<1–2 câu nếu đầu vào–đầu ra–số buổi có vấn đề, không thì để trống>"}';
+    await queueLocal('objectives', 'Đề xuất mục tiêu và kế hoạch kiểm tra', text, 'Bạn là chuyên gia thiết kế chương trình ngoại ngữ theo thiết kế ngược (backward design). Mục tiêu phải quan sát và đo được. Đề xuất là bản nháp để người dùng duyệt; luôn ghi căn cứ.', 4096);
   }
   LOCALK.objectives = async j => {
     const p = P(), d = parseAns(j), keepO = objs().filter(o => !pending(o)), keepA = asses().filter(a => !pending(a));
     const usedO = new Set(keepO.map(o => o.id)), usedA = new Set(keepA.map(a => a.id));
     const newO = (d.objectives || []).filter(o => o && o.text && !usedO.has(String(o.id).toUpperCase())).map(o => ({ id: /^O\d+$/i.test(o.id) ? String(o.id).toUpperCase() : '', text: String(o.text).slice(0, 300), cond: String(o.cond || '').slice(0, 200), crit: String(o.crit || '').slice(0, 200), pre: idList(o.pre, 'O'), src: String(o.src || '').slice(0, 40), why: String(o.why || '').slice(0, 300), by: 'claude', ok: false, ver: 1 }));
     newO.forEach(o => { if (!o.id || usedO.has(o.id)) o.id = nextId(keepO.concat(newO.filter(x => x.id)), 'O'); usedO.add(o.id); });
-    const newA = (d.assess || []).filter(a => a && a.how && !usedA.has(String(a.id).toUpperCase())).map(a => ({ id: /^A\d+$/i.test(a.id) ? String(a.id).toUpperCase() : '', obj: idList(a.obj, 'O'), how: String(a.how).slice(0, 300), when: String(a.when || '').slice(0, 40), by: 'claude', ok: false }));
-    newA.forEach(a => { if (!a.id || usedA.has(a.id)) a.id = nextId(keepA.concat(newA.filter(x => x.id)), 'A'); usedA.add(a.id); });
+    const newA = (d.assess || []).filter(a => a && (a.how || a.type) && !usedA.has(String(a.id).toUpperCase())).map(a => ({ id: /^[A-Z][A-Z0-9-]{1,20}$/i.test(a.id || '') ? String(a.id).toUpperCase() : '', type: TEST_TYPES.includes(a.type) ? a.type : '', buoi: +a.buoi || null, minutes: +a.minutes || null, obj: idList(a.obj, 'O'), how: String(a.how || '').slice(0, 300), when: String(a.when || '').slice(0, 40), by: 'claude', ok: false }));
+    newA.forEach(a => { if (!a.id || usedA.has(a.id)) a.id = testId(a.type, keepA.concat(newA.filter(x => x.id && x !== a))); usedA.add(a.id); });
     p.objectives = keepO.concat(newO); p.assess = keepA.concat(newA); p.objNote = String(d.note || '').slice(0, 400); obOpen = true;
   };
 
@@ -499,13 +504,16 @@
     const has = id => O.some(o => o.id === id);
     O.forEach(o => {
       if (L.length && first[o.id] == null) f.push({ lv: 'block', t: `${o.id} chưa có buổi nào dạy` });
-      if (!A.some(a => (a.obj || []).includes(o.id))) f.push({ lv: 'block', t: `${o.id} chưa có cách đo` });
+      if (!A.some(a => (a.obj || []).includes(o.id))) f.push({ lv: 'block', t: `${o.id} chưa có đề kiểm tra nào đo` });
       (o.pre || []).forEach(q => { if (!has(q)) f.push({ lv: 'warn', t: `${o.id} cần trước ${q} nhưng không có mục tiêu ${q}` });
         else if (first[q] != null && first[o.id] != null && first[q] > first[o.id]) f.push({ lv: 'warn', t: `${o.id} dạy ở buổi ${first[o.id]}, trước mục tiêu cần trước ${q} (buổi ${first[q]})` }); }); });
     A.forEach(a => { if (!(a.obj || []).length) f.push({ lv: 'warn', t: `${a.id} chưa gắn mục tiêu nào` });
-      const w = whenNo(a.when); (a.obj || []).forEach(id => { if (!has(id)) f.push({ lv: 'warn', t: `${a.id} đo ${id} nhưng không có mục tiêu ${id}` });
+      const w = aBuoi(a); (a.obj || []).forEach(id => { if (!has(id)) f.push({ lv: 'warn', t: `${a.id} đo ${id} nhưng không có mục tiêu ${id}` });
         else if (w != null && w !== 999 && first[id] != null && w < first[id]) f.push({ lv: 'warn', t: `${a.id} đo ${id} ở buổi ${w}, nhưng ${id} tới buổi ${first[id]} mới dạy` }); });
       if (w != null && w !== 999 && L.length && w > L.length) f.push({ lv: 'warn', t: `${a.id} đặt ở buổi ${w}, khóa chỉ có ${L.length} buổi` }); });
+    const mins = +((p && p.brief && p.brief.minutes) || 0);
+    L.forEach(l => { const t = String(l.timeline || ''); if (!t || !mins) return; const sum = (t.match(/(\d+)\s*(?:p\b|ph\b|phút)/gi) || []).reduce((x, m) => x + parseInt(m, 10), 0);
+      if (sum && Math.abs(sum - mins) > 5) f.push({ lv: 'warn', t: `Buổi ${l.buoi}: timeline cộng ${sum} phút, buổi ${mins} phút` }); });
     const idle = O.length ? L.filter(l => !(l.obj || []).length && !/ôn|kiểm/i.test(l.type || '')).map(l => l.buoi) : [];
     if (idle.length) f.push({ lv: 'warn', t: idle.length === 1 ? `Buổi ${idle[0]} chưa phục vụ mục tiêu nào` : `${idle.length} buổi chưa phục vụ mục tiêu nào: ${idle.join(', ')}` });
     return { O, A, L, first, f };
@@ -513,10 +521,10 @@
   function matrixHtml() {
     const { O, A, L, f } = matrix(); if (!O.length || !L.length) return '';
     const nb = f.filter(x => x.lv === 'block').length, unmapped = L.some(l => !(l.obj || []).length);
-    const head = `<tr><th>Mục tiêu</th>${L.map(l => `<th title="${esc(l.name)}">${l.buoi}</th>`).join('')}<th>Đo bằng</th></tr>`;
+    const head = `<tr><th>Mục tiêu</th>${L.map(l => `<th title="${esc(l.name)}">${l.buoi}</th>`).join('')}<th>Đề kiểm tra</th></tr>`;
     const rows = O.map(o => `<tr><td title="${esc(o.text)}"><b>${esc(o.id)}</b> <span class="muted">${esc(String(o.text || '').slice(0, 42))}${String(o.text || '').length > 42 ? '…' : ''}</span></td>` +
       L.map(l => `<td class="c"><input type="checkbox" data-mx="${l.buoi}|${esc(o.id)}" aria-label="Buổi ${l.buoi} dạy ${esc(o.id)}"${(l.obj || []).includes(o.id) ? ' checked' : ''}></td>`).join('') +
-      `<td>${esc(A.filter(a => (a.obj || []).includes(o.id)).map(a => a.id + (a.when ? ' · ' + a.when : '')).join('; ') || '—')}</td></tr>`).join('');
+      `<td>${esc(A.filter(a => (a.obj || []).includes(o.id)).map(a => a.id + (aBuoi(a) == null ? '' : aBuoi(a) === 999 ? ' · cuối khóa' : ' · buổi ' + aBuoi(a))).join('; ') || '—')}</td></tr>`).join('');
     return `<div class="rs-bf-h"><b>Ma trận liên kết</b><span class="muted">${f.length ? `${f.length} điểm cần xem${nb ? ` · ${nb} chặn phát hành` : ''}` : '✓ Mục tiêu, buổi học và cách đo khớp nhau'}</span></div>` +
       (f.length ? `<ul class="rs-mx-f">${f.map(x => `<li class="${x.lv}">${esc(x.t)}</li>`).join('')}</ul>` : '') +
       `<div class="rs-tablewrap"><table class="rs-table rs-mx">${head}${rows}</table></div>` +
@@ -532,6 +540,15 @@
   LOCALK.objmap = async j => { const p = P(), d = parseAns(j), ok = new Set(objs().map(o => o.id));
     (p.outline ? p.outline.lessons : []).forEach(l => { const v = d.map && d.map[String(l.buoi)]; if (Array.isArray(v)) l.obj = idList(v, 'O').filter(id => ok.has(id)); });
     if (d.note) p.objNote = String(d.note).slice(0, 400); };
+  function takeTests(tests) { if (!Array.isArray(tests)) return; const A = asses();
+    tests.forEach(t => { if (!t) return; const id = String(t.code || t.id || '').toUpperCase().replace(/\s+/g, ''); const a = id && A.find(x => x.id === id);
+      const fill = (x, k, v) => { if ((x[k] == null || x[k] === '') && v != null && v !== '') x[k] = v; };
+      if (a) { fill(a, 'buoi', +t.buoi || null); fill(a, 'minutes', +t.minutes || null); fill(a, 'type', TEST_TYPES.includes(t.type) ? t.type : ''); if (!(a.obj || []).length) a.obj = idList(t.obj, 'O'); }
+      else A.push({ id: id || testId(t.type, A), type: TEST_TYPES.includes(t.type) ? t.type : '', buoi: +t.buoi || null, minutes: +t.minutes || null, obj: idList(t.obj, 'O'), how: String(t.desc || '').slice(0, 300), by: 'claude', ok: false }); }); }
+  function baseExtra(B) { const A = asses().filter(a => aBuoi(a) != null); if (!A.length) return; const p = P(), last = ((p.outline && p.outline.lessons) || []).length;
+    const n = {}; B.s6['S6-Đề kiểm tra'] = A.map(a => { const b = aBuoi(a) === 999 ? last : aBuoi(a), ty = a.type || 'Kiểm tra'; n[ty] = (n[ty] || 0) + 1;
+      const l = ((p.outline && p.outline.lessons) || []).find(x => x.buoi === b);
+      return { 'Mã đề': a.id, 'Tên đề': `Buổi ${b} - Kiểm tra ${ty} (${n[ty]})${a.minutes ? ' - ' + a.minutes + ' phút' : ''}`, 'Loại kiểm tra': a.type || '', 'Kỳ': (l && l.ky) || 1, 'Buổi': b, 'Thời gian làm bài (phút)': a.minutes || '', 'Mô tả': [a.how, (a.obj || []).length ? 'Đo: ' + a.obj.join(', ') : ''].filter(Boolean).join(' – '), 'Lên App': 'Có', 'Lên PPT': 'Có', 'Lên PDF': 'Có' }; }); }
   function objText(buoi) { const p = P(), L = p && p.outline && p.outline.lessons.find(l => l.buoi === buoi); if (!L || !(L.obj || []).length) return '';
     return '\nMục tiêu khóa mà buổi này phục vụ: ' + objs().filter(o => L.obj.includes(o.id)).map(o => `${o.id} – ${o.text}${o.crit ? ' (đạt khi: ' + o.crit + ')' : ''}`).join('; ') + '.'; }
   const mxBlockers = () => objs().length ? matrix().f.filter(x => x.lv === 'block').map(x => 'Ma trận: ' + x.t) : [];
@@ -542,7 +559,10 @@
       document.addEventListener('change', async e => { const el = e.target; if (!el.closest) return; const p = P(); if (!p) return;
         if (el.dataset.ob != null) { const o = objs()[+el.dataset.ob]; if (!o) return; const k = el.dataset.k;
           if (k === 'pre') o.pre = idList(el.value, 'O').filter(x => x !== o.id); else { o[k] = el.value.trim(); o.ver = (o.ver || 1) + 1; } o.ok = true; }
-        else if (el.dataset.as != null) { const a = asses()[+el.dataset.as]; if (!a) return; const k = el.dataset.k; if (k === 'obj') a.obj = idList(el.value, 'O'); else a[k] = el.value.trim(); a.ok = true; }
+        else if (el.dataset.as != null) { const a = asses()[+el.dataset.as]; if (!a) return; const k = el.dataset.k, v = el.value.trim();
+          if (k === 'obj') a.obj = idList(v, 'O'); else if (k === 'buoi' || k === 'minutes') { a[k] = +v || null; if (k === 'buoi') a.when = ''; }
+          else if (k === 'id') { const nv = v.toUpperCase().replace(/\s+/g, ''); if (!nv || asses().some(x => x !== a && x.id === nv)) { toast('Mã đề trống hoặc trùng', true); root.PLS_RESEARCH.show(); return; } a.id = nv; }
+          else if (k === 'type') { a.type = v; if (/^KT-KT-|^A\d+$/.test(a.id) && v) a.id = testId(v, asses().filter(x => x !== a)); } else a[k] = v; a.ok = true; }
         else if (el.dataset.mx) { const [b, id] = el.dataset.mx.split('|'), l = p.outline && p.outline.lessons.find(x => String(x.buoi) === b); if (!l) return;
           l.obj = (l.obj || []).filter(x => x !== id).concat(el.checked ? [id] : []); }
         else return;
@@ -551,7 +571,7 @@
         const O = objs(), A = asses();
         if (t.id === 'rsObToggle') { const st = objState(); obOpen = !(obOpen != null ? obOpen : !(O.length && !st.noAssess.length && !st.draft)); }
         else if (t.id === 'rsObAdd') { O.push({ id: nextId(O, 'O'), text: '', cond: '', crit: '', pre: [], by: 'user', ok: true, ver: 1 }); obOpen = true; }
-        else if (t.id === 'rsAsAdd') { A.push({ id: nextId(A, 'A'), obj: [], how: '', when: '', by: 'user', ok: true }); obOpen = true; }
+        else if (t.id === 'rsAsAdd') { A.push({ id: testId('', A), type: '', buoi: null, minutes: null, obj: [], how: '', by: 'user', ok: true }); obOpen = true; }
         else if (t.id === 'rsObOkAll') { O.concat(A).forEach(x => { x.ok = true; }); }
         else if (t.id === 'rsObDraft') { t.disabled = true; try { await objDraft(); } finally { t.disabled = false; } return; }
         else if (t.id === 'rsMxDraft') { t.disabled = true; try { await mapDraft(); } finally { t.disabled = false; } return; }
@@ -583,7 +603,7 @@
     if (/phương pháp/i.test(k)) return { v: b.method || '', from: 'Yêu cầu khóa' };
     if (/kỹ năng|tỉ lệ|tỷ lệ/i.test(k)) { if (!L.length) return { v: '', from: '' }; const n = SKILLS.map(([s, re]) => [s, L.filter(l => re.test([l.skills, l.name, l.goals].join(' '))).length]), t = n.reduce((a, x) => a + x[1], 0);
       return { v: t ? n.filter(x => x[1]).map(([s, c]) => `${s} ${Math.round(c * 100 / t)}%`).join(' · ') : '', from: 'đếm kỹ năng trong khung khóa' }; }
-    if (/kiểm tra|đánh giá|thi/i.test(k)) return { v: A.length ? A.map(a => `${a.when || '?'}: ${String(a.how || '').slice(0, 40)}`).join('; ') : '', from: 'Cách đo' };
+    if (/kiểm tra|đánh giá|thi/i.test(k)) return { v: A.length ? `${A.length} đề: ` + A.map(a => `${a.type || a.id}${aBuoi(a) && aBuoi(a) !== 999 ? ' (buổi ' + aBuoi(a) + ')' : ''}`).join('; ') : '', from: 'Kế hoạch kiểm tra' };
     return { v: '', from: '' };
   }
   const plsVal = k => { const p = P(), o = ((p && p.plsCol) || {})[k] || {}; if (o.v) return { v: o.v, from: 'bạn nhập', why: o.why }; const a = plsAuto(k); return { v: a.v, from: a.from, why: o.why }; };
@@ -635,7 +655,7 @@
   const toast = (t, bad) => { const el = document.createElement('div'); el.setAttribute('role', 'status'); el.textContent = t; el.style.cssText = `position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1002;background:${bad ? '#8a2a1b' : '#1f1f1f'};color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;max-width:90vw`; document.body.appendChild(el); setTimeout(() => el.remove(), 4200); };
   function enhance() {
     if (!document.getElementById('plsLocalCss') && document.head) { const st = document.createElement('style'); st.id = 'plsLocalCss';
-      st.textContent = '.rs-bf{border:1px solid var(--ui-line);border-radius:6px;padding:12px;margin:0 0 12px;background:var(--ui-panel)}.rs-bf-h{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}.rs-bf-h .rs-mini{margin:0 0 0 auto}.rs-bf fieldset{border:0;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 10px}.rs-bf legend{font-size:11px;color:var(--ui-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}.rs-bf label{display:flex;flex-direction:column;gap:3px;font-size:12px}.rs-bf input,.rs-bf select{padding:6px 8px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:13px;background:var(--ui-bg);color:var(--ui-ink);min-height:32px}.rs-bf .req{color:#c0392b}.rs-bf label.as input,.rs-bf label.as select{border-color:var(--ui-yellow);background:var(--ui-beige)}.rs-bf .as-n{font-size:11px;color:var(--ui-muted)}.rs-bf .as-n .rs-mini{margin:0 0 0 6px;padding:0}.rs-bf-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}.rs-bf-foot .btn{min-height:32px;padding:5px 12px;font-size:13px}.rs-bf-sum{font-size:13px;margin:6px 0 0}#rsBfGate{font-size:12px;color:#c0392b;margin:6px 0 0}.rs-ob-hint{font-size:12px;margin:8px 0 0}.rs-obt{font-size:12px}.rs-obt td{vertical-align:top}.rs-obt textarea,.rs-obt input{width:100%;box-sizing:border-box;min-width:90px;padding:4px 6px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:12px;background:var(--ui-bg);color:var(--ui-ink);resize:vertical}.rs-obt tr.as textarea,.rs-obt tr.as input{border-color:var(--ui-yellow);background:var(--ui-beige)}.rs-ob-why{font-size:11px;color:var(--ui-muted);max-width:180px}#rsMx{margin-top:12px}.rs-mx{font-size:12px}.rs-mx td.c{text-align:center}.rs-mx th{font-weight:600;text-align:center}.rs-mx td:first-child{min-width:160px}.rs-mx-f{margin:8px 0;padding-left:18px;font-size:12px}.rs-mx-f li.block{color:#c0392b}.rs-mx-f li.warn{color:var(--ui-ink)}.rs-table .rs-pls{background:var(--ui-beige);min-width:150px;vertical-align:top}.rs-pls small{font-weight:400}.rs-pls-lb{display:inline-block;font-size:11px;padding:1px 6px;border-radius:999px;margin:4px 4px 0 0;border:1px solid var(--ui-line);background:var(--ui-panel)}.rs-pls-lb.same{border-color:var(--ui-line)}.rs-pls-lb.ok{border-color:var(--ui-ink);font-weight:600}.rs-pls-lb.diff{border-color:#c0392b;color:#c0392b}.rs-pls-lb.gap{border-color:var(--ui-yellow);background:var(--ui-beige)}.rs-pls-lb.miss{border-style:dashed;color:var(--ui-muted)}.rs-pls-act .rs-mini{margin-right:8px}.rs-pls-chips{margin-top:8px}.rs-pls-mini{font-size:12px;margin:0 0 12px}.rs-pls-mini .rs-mini{margin-left:8px}' + '.rs-msg.me{background:var(--ui-beige);color:var(--ui-ink);border:1px solid var(--ui-line)}#rsAsk .btn.primary::after{content:none}' +
+      st.textContent = '.rs-bf{border:1px solid var(--ui-line);border-radius:6px;padding:12px;margin:0 0 12px;background:var(--ui-panel)}.rs-bf-h{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}.rs-bf-h .rs-mini{margin:0 0 0 auto}.rs-bf fieldset{border:0;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 10px}.rs-bf legend{font-size:11px;color:var(--ui-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}.rs-bf label{display:flex;flex-direction:column;gap:3px;font-size:12px}.rs-bf input,.rs-bf select{padding:6px 8px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:13px;background:var(--ui-bg);color:var(--ui-ink);min-height:32px}.rs-bf .req{color:#c0392b}.rs-bf label.as input,.rs-bf label.as select{border-color:var(--ui-yellow);background:var(--ui-beige)}.rs-bf .as-n{font-size:11px;color:var(--ui-muted)}.rs-bf .as-n .rs-mini{margin:0 0 0 6px;padding:0}.rs-bf-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}.rs-bf-foot .btn{min-height:32px;padding:5px 12px;font-size:13px}.rs-bf-sum{font-size:13px;margin:6px 0 0}#rsBfGate{font-size:12px;color:#c0392b;margin:6px 0 0}.rs-ob-hint{font-size:12px;margin:8px 0 0}.rs-obt{font-size:12px}.rs-obt td{vertical-align:top}.rs-obt textarea,.rs-obt input{width:100%;box-sizing:border-box;min-width:90px;padding:4px 6px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:12px;background:var(--ui-bg);color:var(--ui-ink);resize:vertical}.rs-obt tr.as textarea,.rs-obt tr.as input{border-color:var(--ui-yellow);background:var(--ui-beige)}.rs-ob-why{font-size:11px;color:var(--ui-muted);max-width:180px}#rsMx{margin-top:12px}.rs-mx{font-size:12px}.rs-mx td.c{text-align:center}.rs-mx th{font-weight:600;text-align:center}.rs-mx td:first-child{min-width:160px}.rs-mx-f{margin:8px 0;padding-left:18px;font-size:12px}.rs-mx-f li.block{color:#c0392b}.rs-mx-f li.warn{color:var(--ui-ink)}.rs-table .rs-pls{background:var(--ui-beige);min-width:150px;vertical-align:top}.rs-pls small{font-weight:400}.rs-pls-lb{display:inline-block;font-size:11px;padding:1px 6px;border-radius:999px;margin:4px 4px 0 0;border:1px solid var(--ui-line);background:var(--ui-panel)}.rs-pls-lb.same{border-color:var(--ui-line)}.rs-pls-lb.ok{border-color:var(--ui-ink);font-weight:600}.rs-pls-lb.diff{border-color:#c0392b;color:#c0392b}.rs-pls-lb.gap{border-color:var(--ui-yellow);background:var(--ui-beige)}.rs-pls-lb.miss{border-style:dashed;color:var(--ui-muted)}.rs-pls-act .rs-mini{margin-right:8px}.rs-pls-chips{margin-top:8px}.rs-pls-mini{font-size:12px;margin:0 0 12px}.rs-pls-mini .rs-mini{margin-left:8px}.rs-ol td[data-k="timeline"],.rs-ol td[data-k="desc"]{white-space:pre-line;min-width:180px}.rs-ol td[data-k="parts"]{min-width:140px}.rs-obt select{width:100%;padding:4px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:12px;background:var(--ui-bg)}' + '.rs-msg.me{background:var(--ui-beige);color:var(--ui-ink);border:1px solid var(--ui-line)}#rsAsk .btn.primary::after{content:none}' +
         '#rsNoteNew{display:flex;flex-direction:column;gap:6px;margin:0 0 10px}#rsNoteNew textarea{width:100%;box-sizing:border-box;min-height:60px;resize:vertical;padding:8px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:13px;background:var(--ui-panel);color:var(--ui-ink)}#rsNoteNew .btn{align-self:flex-end;min-height:30px;padding:4px 12px;font-size:12px}';
       document.head.appendChild(st); }
     const notes = document.querySelector('.rs-notes');
@@ -661,7 +681,7 @@
   let tm = 0; new MutationObserver(() => { clearTimeout(tm); tm = setTimeout(enhance, 50); }).observe(document.documentElement, { childList: true, subtree: true });
   setInterval(refresh, 5000); refresh();
 
-  root.PLS_LOCAL = { aiCall, summarize, usage, aiInfo, search, extract, autoFill, localAsk, briefForm, briefText, briefDraft, cleanWeb, objText, matrix, plsHead, plsCell, plsOverview };
+  root.PLS_LOCAL = { aiCall, summarize, usage, aiInfo, search, extract, autoFill, localAsk, briefForm, briefText, briefDraft, cleanWeb, objText, matrix, plsHead, plsCell, plsOverview, takeTests, baseExtra };
   const attach = () => { if (!root.PLS) return false; root.PLS.ai = ai; return true; };
   if (!attach()) document.addEventListener('DOMContentLoaded', attach);
 })(window);
