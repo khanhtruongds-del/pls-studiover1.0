@@ -426,6 +426,12 @@
           <div class="item"><b>Luôn kiểm lại</b><span class="muted">Bấm trích dẫn để xem trang gốc; bài soạn phải được người dạy duyệt trước khi dùng.</span></div></section></div>`;
     box.querySelector('#rsOpen').onclick = () => { mode = 'work'; if (!AI.key()) keyDlg(); render(); };
   }
+  // hộp nhập 1 dòng của PLS (thay window.prompt)
+  function askText(title, label, ph, val) { return new Promise(res => { const d = document.createElement('div'); d.className = 'rs-dlg'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', title);
+    d.innerHTML = `<div class="rs-dlg-card"><h3>${esc(title)}</h3><label class="rs-f">${esc(label)}<input id="askIn" value="${esc(val || '')}" placeholder="${esc(ph || '')}" autocomplete="off"></label><div class="rs-row"><span style="flex:1"></span><button type="button" class="btn" data-a="x">Hủy</button><button type="button" class="btn primary" data-a="ok">Lưu</button></div></div>`;
+    document.body.appendChild(d); const i = d.querySelector('#askIn'), end = v => { d.remove(); res(v); }, ok = () => { const v = i.value.trim(); if (v) end(v); else i.focus(); };
+    d.onclick = e => { const b = e.target.closest('[data-a]'); if (b) b.dataset.a === 'ok' ? ok() : end(null); else if (e.target === d) end(null); };
+    i.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); ok(); } else if (e.key === 'Escape') end(null); }; i.focus(); i.select(); }); }
   function keyDlg(pv) {
     let d = $('#rsKey'); if (d) d.remove(); pv = pv || AI.prov();
     const G = pv === 'gemini', cur = AI.prov() === pv && AI.key();
@@ -457,7 +463,7 @@
     for (const blk of t.split(/\n## /).slice(1)) {
       const h = blk.match(/^\[([^\]]+)\]\(([^)\s]+)/); if (!h || /duckduckgo\.com\/y\.js|ad_domain|ad_provider/.test(h[2])) continue;   // bỏ quảng cáo
       const url = real(h[2]); if (!/^https?:\/\//.test(url) || seen.has(url)) continue; seen.add(url);
-      const sn = (blk.split('\n').map(x => x.trim()).filter(x => /^\[[^!]/.test(x) && x.length > 80).pop() || '').replace(/^\[/, '').replace(/\]\([^)]*\)\s*$/, '').replace(/\*\*/g, '');
+      const sn = (blk.split('\n').map(x => x.trim()).filter(x => /^\[[^!]/.test(x) && x.length > 80).pop() || '').replace(/^\[/, '').replace(/\]\([^)]*\)\s*$/, '').replace(/\*{4}/g, ' ').replace(/\*\*/g, '');
       const title = h[1].replace(/\*\*/g, '');   // trung tâm: để máy đoán theo tên miền (đuôi tiêu đề hay dính chữ, VD "900+ Tại MrH TOEIC")
       out.push({ title, url, center: '', snippet: sn === title ? '' : sn.slice(0, 160) });
       if (out.length >= 10) break;
@@ -548,7 +554,8 @@
   }
   const stat = () => { const O = P.outline, nL = Object.keys(P.lessons).length;
     return [['Trò chuyện', P.sources.length ? P.sources.length + ' nguồn' : 'Chưa có nguồn', P.sources.length ? 'ok' : ''],
-      ['So sánh', P.cmpAt ? Object.keys(P.cells).length + ' ô' : 'Chưa làm', P.cmpAt ? 'ok' : ''],
+      (() => { const all = Object.values(P.cells || {}), un = all.filter(c => c && c.auto && !c.ok).length, ok = all.length - un;   // ô máy đọc chưa kiểm không tính là xong
+        return ['So sánh', !P.cmpAt ? 'Chưa làm' : un ? (ok ? ok + ' ô · ' : '') + un + ' ô chưa kiểm' : ok + ' ô', !P.cmpAt ? '' : un ? 'warn' : 'ok']; })(),
       ['Định hướng', O ? (O.locked ? 'Đã chốt v' + O.locked : 'Bản nháp v' + O.ver) : 'Chưa làm', O ? (O.locked === O.ver ? 'ok' : 'warn') : ''],
       ['Soạn bài', O ? nL + '/' + O.lessons.length + ' buổi' : '–', O && nL ? (nL === O.lessons.length ? 'ok' : 'warn') : '']]; };
   // vẽ lại gom: nhiều lần gọi liên tiếp (máy đọc nguồn nền…) → tối đa 1 lần / 0,4 giây, tránh giật
@@ -683,8 +690,8 @@
     qa('[data-go]').forEach(li => li.onclick = () => { cur = Math.min(3, +li.dataset.go); render(); });
     q('#rsAI').onclick = () => root.PLS_LOCAL ? root.PLS_LOCAL.aiInfo() : keyDlg();
     q('#rsProj').onchange = async e => { P = projects.find(p => p.id === e.target.value); LS.set('pls.rs.cur', P.id); render(); };
-    q('#rsNew').onclick = () => { const n = prompt('Tên khóa nghiên cứu mới:', 'Khóa mới'); if (!n) return; P = newProj(n.trim()); projects.unshift(P); LS.set('pls.rs.cur', P.id); save(); render(); };
-    q('#rsRen').onclick = () => { const n = prompt('Đổi tên:', P.name); if (!n) return; P.name = n.trim(); save(); render(); };
+    q('#rsNew').onclick = async () => { const n = await askText('Khóa nghiên cứu mới', 'Tên khóa', 'VD: TOEIC 450 online', ''); if (!n) return; P = newProj(n); projects.unshift(P); LS.set('pls.rs.cur', P.id); save(); render(); };
+    q('#rsRen').onclick = async () => { const n = await askText('Đổi tên khóa', 'Tên khóa', '', P.name); if (!n) return; P.name = n; save(); render(); };
     qa('[data-on]').forEach(c => c.onchange = () => { const s = P.sources.find(x => x.id === c.dataset.on); s.on = c.checked; save(); render(); });
     qa('[data-view]').forEach(b => b.onclick = () => viewer(b.dataset.view));
     qa('.rs-cite').forEach(b => b.onclick = () => viewer(b.dataset.src));
