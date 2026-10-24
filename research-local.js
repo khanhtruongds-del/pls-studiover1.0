@@ -506,7 +506,8 @@
       const w = whenNo(a.when); (a.obj || []).forEach(id => { if (!has(id)) f.push({ lv: 'warn', t: `${a.id} đo ${id} nhưng không có mục tiêu ${id}` });
         else if (w != null && w !== 999 && first[id] != null && w < first[id]) f.push({ lv: 'warn', t: `${a.id} đo ${id} ở buổi ${w}, nhưng ${id} tới buổi ${first[id]} mới dạy` }); });
       if (w != null && w !== 999 && L.length && w > L.length) f.push({ lv: 'warn', t: `${a.id} đặt ở buổi ${w}, khóa chỉ có ${L.length} buổi` }); });
-    if (O.length) L.forEach(l => { if (!(l.obj || []).length && !/ôn|kiểm/i.test(l.type || '')) f.push({ lv: 'warn', t: `Buổi ${l.buoi} chưa phục vụ mục tiêu nào` }); });
+    const idle = O.length ? L.filter(l => !(l.obj || []).length && !/ôn|kiểm/i.test(l.type || '')).map(l => l.buoi) : [];
+    if (idle.length) f.push({ lv: 'warn', t: idle.length === 1 ? `Buổi ${idle[0]} chưa phục vụ mục tiêu nào` : `${idle.length} buổi chưa phục vụ mục tiêu nào: ${idle.join(', ')}` });
     return { O, A, L, first, f };
   }
   function matrixHtml() {
