@@ -273,6 +273,9 @@
     }
     slides.push({ comp: 'Slide/End', data: { 'thanks.de': L.thanks, 'thanks.vi': 'Cảm ơn các bạn!' }, notes: NOTE({ g: ['Cảm ơn lớp, nhắc lại bài tập về nhà và hạn nộp.', S(s5row['Dặn dò'])], l: [S(s5row['Lưu ý'])] }) });
     const meta = { level: course['Cấp độ'] || '', no: Number(buoi), sessionType: S(info['Loại buổi']), title: name, course: course['Tên khoá'] || '' };
+    // QC 24/10: nội dung S6 của buổi mà timeline S5 không có bước tương ứng → không lên slide; báo rõ thay vì bỏ im lặng
+    [['vocab', vocab.length, 'Từ vựng', 'từ'], ['grammar', grammar.length, 'Ngữ pháp', 'điểm'], ['listen', tab(s6, /^S6-Nghe$/).filter(r => isB(r, buoi) && onPPT(r)).length, 'Nghe', 'dòng'], ['read', tab(s6, /^S6-Đọc$/).filter(r => isB(r, buoi) && onPPT(r)).length, 'Đọc', 'dòng']]
+      .forEach(([k, n, nm, u]) => { if (n && !used.has(k)) warns.push(`S6 có ${n} ${u} ${nm} cho buổi ${buoi} nhưng timeline S5 không có bước “${nm}” – phần này chưa lên slide (thêm bước vào timeline hoặc đặt Lên PPT = Không).`); });
     return { spec: { brand, meta, lesson: `${course['Mã khoá'] || course['Tên khoá'] || 'Khoá'} · ${S(info['Tên buổi']) || 'Buổi ' + buoi}`, common, slides }, warns, counts: { vocab: vocab.length, grammar: grammar.length, pron: pron.length, speak: speak.length, steps: steps.length } };
   }
   function sessions(s6) { return tab(s6, /Khoá & bài|Khóa & bài/).filter(r => r['Buổi'] != null).map(r => ({ buoi: Number(r['Buổi']), name: S(r['Tên buổi']), type: S(r['Loại buổi']) })); }
