@@ -67,6 +67,9 @@
     // nhãn khung ảnh = nghĩa tiếng Việt cùng thẻ
     host.querySelectorAll('.pls-imgslot').forEach(e => { const vi = e.parentElement && [...e.parentElement.querySelectorAll('[data-filled]')].find(x => /(^|\.)vi$/.test(x.dataset.filled) && x.closest('[data-n]') && e.parentElement.contains(x)); const same = vi && vi.dataset.filled.split('.')[0] === (e.parentElement.dataset.n || '').split('.')[0]; e.dataset.imgLabel = same ? 'Ảnh: ' + vi.textContent : 'Ảnh minh hoạ'; });
     hideUnused(rootEl, data);
+    // nhóm lặp (part_4.*, chip_3.*…) mà mọi ô đều rỗng có chủ ý → ẩn cả khung nhóm (không để thanh màu trống – lỗi Test Intro)
+    { const g = {}; for (const [k, v] of Object.entries(data)) { const m = k.match(/^([a-z]+_\d+)\./i); if (m) g[m[1]] = (g[m[1]] !== false) && String(v).trim() === ''; }
+      for (const [k, empty] of Object.entries(g)) if (empty) { const el = find(rootEl, k); if (el && el !== rootEl) hide(el); } }
     clearUnfilled(rootEl, data);
     // nút loa (ex_n.audio_box): PPTX không kèm âm thanh → không có file tiếng thì ẩn hẳn, khỏi để chấm tròn trống
     rootEl.querySelectorAll('[data-n$="audio_box"]').forEach(b => { const k = b.dataset.n.replace(/_box$/, ''); if (!data[k]) hide(b); });
@@ -85,6 +88,8 @@
     if (/^Slide\/Exercise Match/.test(spec.comp)) rootEl.querySelectorAll('[data-n="no"]').forEach(t => { if (!/^[lr]_\d+$/.test((t.parentElement || {}).dataset ? t.parentElement.dataset.n : '')) return;
       const fs = parseFloat(t.dataset.fs) || 36, d = Math.round(fs * 1.5);
       Object.assign(t.style, { flex: '0 0 auto', width: d + 'px', height: d + 'px', lineHeight: d + 'px', textAlign: 'center', borderRadius: '50%', backgroundColor: 'var(--color-primary)', color: 'var(--color-text-inverse, #fff)', fontSize: Math.round(fs * 0.8) + 'px', padding: '0' }); });
+    // Key Point: lời giải thích là đoạn văn đọc được – chữ thường (không đậm), tối thiểu 36px; fitText co lại nếu tràn
+    if (spec.comp === 'Slide/Key Point') rootEl.querySelectorAll('[data-n="note"], [data-n="note"] [data-text]').forEach(t => { t.style.fontWeight = '400'; if ((parseFloat(t.dataset.fs) || 0) < 36) { t.style.fontSize = '36px'; t.dataset.fs = '36'; } });
     // Lưới từ vựng: ô ảnh rộng hết thẻ (ảnh to, cùng khung giữa các thẻ), từ vựng nhỏ lại một bậc (48 → 40,5)
     if (/^Slide\/Vocab Grid/.test(spec.comp)) {
       rootEl.querySelectorAll('[data-n="img"]').forEach(im => { if (/^vocab_\d+$/.test((im.parentElement || {}).dataset ? im.parentElement.dataset.n : '')) Object.assign(im.style, { alignSelf: 'stretch', width: 'auto' }); });
@@ -303,6 +308,7 @@
       let t = LADDER.find(v => v <= p / HIER.ratio + 0.01 && v >= HIER.minSec) || HIER.minSec;
       // dịch nghĩa nằm CẠNH dòng chính (cột riêng, vd Pattern List) chứ không nằm dưới → chỉ nhỏ hơn 1 bậc (≥ 36), đọc được từ xa
       const pe = peers.find(b => fontPx(b) >= p - 0.01); if (pe) { const a = R(e), bb = R(pe); if (a.left >= bb.right - 2 || a.right <= bb.left + 2) t = Math.max(t, 36); }
+      if (host.dataset.comp === 'Slide/Key Point' && leaf(e) === 'note') t = Math.max(t, 36);   // đoạn giải thích của Key Point: đọc được từ xa
       if (t < fs - 0.01) set(e, Math.max(t, HIER.minSec));
     }
     // 2) tiêu đề trong khung: CỐ ĐỊNH 52px đậm ở mọi slide nội dung (người dùng chốt 23/10 – không to nhỏ theo từng slide);
@@ -417,6 +423,51 @@
     card.style.rowGap = (g0 + add) + 'px';
     if (r.filled.some(el => overflowPx(el, r.host) > 0.5)) { card.style.rowGap = keep; return null; }
     return `giãn phân mục +${add}px`;
+  }
+
+  // ---------- CỠ CHUẨN CẢ BÀI (người dùng chốt 24/10) ----------
+  // Mỗi loại chữ (câu hỏi, đáp án, nội dung, dịch nghĩa…) đo cỡ LỚN NHẤT còn vừa khung ở từng slide → lấy TRUNG VỊ cả bài làm cỡ chuẩn.
+  // Slide thưa phóng lên đúng cỡ chuẩn (không vượt), slide dày giữ cỡ lớn nhất vừa được; slide to hơn chuẩn thì hạ về chuẩn → cả bài đồng bộ.
+  // Tiêu đề (52 cố định), hướng dẫn, số thứ tự, chữ trưng bày (> 56px), Cover / Section / End giữ luật riêng.
+  const DECK_SKIP = /^(title|instruction|header|no|key|label|tag|section|topic|unit|total_q|total_min|mark|who|deadline|count|time|hint|pair|sound|point|track|situation|logo|text_box)$/;
+  const DECK_CAP = { main: 40.5, sec: 36 };   // nội dung ≤ 40,5 (chuẩn v2.0 "nội dung chính 40px") – luôn nhỏ hơn hướng dẫn 48 và tiêu đề 52
+  function deckRoles(r) {
+    if (/^Slide\/(Cover|End|Section|Section Character)$/.test(r.host.dataset.comp)) return {};
+    const out = {};
+    for (const el of r.filled || []) { if (!el.offsetParent || !el.textContent.trim() || el.closest('[data-circle]') || el.closest('[data-n="header"]')) continue;
+      const k = String(el.dataset.filled || ''), lf = k.split('.').pop().replace(/_(\d+|[A-H])$/, '');
+      if (DECK_SKIP.test(lf) || /^title$/.test(k.split('.')[0]) || fontPx(el) > 56.5) continue;
+      (out[lf] = out[lf] || []).push(el); }
+    return out;
+  }
+  function deckBad(r, els) { return r.filled.some(el => el.offsetParent && overflowPx(el, r.host) > 0.5) || els.some(el => overlapsOther(el, r.filled)); }
+  function deckNormalize(rs) {
+    const meas = rs.map(r => { const roles = deckRoles(r), m = {};
+      for (const [lf, els] of Object.entries(roles)) {
+        const fs0 = els.map(fontPx), cur = Math.min(...fs0), cap = SECONDARY.test(lf) ? DECK_CAP.sec : DECK_CAP.main; let best = cur;
+        for (const v of LADDER.filter(v => v > cur + 0.01 && v <= cap).reverse()) { els.forEach(e => { e.style.fontSize = v + 'px'; }); if (deckBad(r, els)) break; best = v; }
+        els.forEach((e, i) => { e.style.fontSize = fs0[i] + 'px'; });
+        m[lf] = { els, best }; }
+      return m; });
+    const tgt = {};
+    meas.forEach(m => Object.entries(m).forEach(([lf, x]) => (tgt[lf] = tgt[lf] || []).push(x.best)));
+    for (const lf in tgt) { const a = tgt[lf].sort((x, y) => x - y); tgt[lf] = a[Math.floor((a.length - 1) / 2)]; }   // trung vị (nghiêng về cỡ nhỏ khi số chẵn)
+    const log = [];
+    rs.forEach((r, i) => { const m = meas[i]; if (!Object.keys(m).length) return;
+      const keep = []; Object.values(m).forEach(x => x.els.forEach(e => keep.push([e, e.style.fontSize])));
+      const want = {}; for (const [lf, x] of Object.entries(m)) want[lf] = Math.min(tgt[lf], x.best);
+      // dịch nghĩa / phiên âm luôn nhỏ hơn dòng chính cùng slide ít nhất một bậc
+      const mainMax = Math.max(0, ...Object.entries(want).filter(([lf]) => !SECONDARY.test(lf)).map(([, v]) => v));
+      if (mainMax) for (const lf in want) if (SECONDARY.test(lf)) { const lim = LADDER.find(v => v <= mainMax / 1.2 + 0.01) || 20; want[lf] = Math.max(Math.min(want[lf], Math.max(lim, Math.min(...m[lf].els.map(fontPx)))), STD.minFont); }   // chỉ chặn không cho LỚN thêm, không thu nhỏ dòng dịch đang có
+      const set = () => { for (const [lf, x] of Object.entries(m)) x.els.forEach(e => { e.style.fontSize = want[lf] + 'px'; }); };
+      set(); const all = Object.values(m).flatMap(x => x.els);
+      for (let g = 0; g < 12 && deckBad(r, all); g++) {   // dựng chung các loại chữ mà tràn → hạ loại đang tăng nhiều nhất một bậc
+        let pick = null, d = -1; for (const [lf, x] of Object.entries(m)) { const inc = want[lf] - Math.min(...x.els.map(e => parseFloat(keep.find(k => k[0] === e)[1]) || want[lf])); if (inc > d) { d = inc; pick = lf; } }
+        const nx = LADDER.find(v => v < want[pick] - 0.01); if (!nx) break; want[pick] = nx; set(); }
+      if (deckBad(r, all)) keep.forEach(([e, v]) => { e.style.fontSize = v; });   // vẫn tràn → trả lại như cũ
+      else log.push(i + 1);
+      r.issues = audit(r); r.score = score(r.issues, r.fitLog); });
+    return { target: tgt, slides: log.length };
   }
 
   // ---------- soát lỗi (chuẩn v2.0) ----------
@@ -632,5 +683,5 @@
   }
   const fxSteps = fx => fx.filter(a => a.when === 'click').length;
 
-  root.PLS_ENGINE = { render, fitText, audit, score, expand, toModel, find, LADDER, STD, devicesOf, applyExportFonts, PPTX_CFG, planFx, fxSteps, roleOfName, hierarchy, typoLayout, typoSpread };
+  root.PLS_ENGINE = { deckNormalize, render, fitText, audit, score, expand, toModel, find, LADDER, STD, devicesOf, applyExportFonts, PPTX_CFG, planFx, fxSteps, roleOfName, hierarchy, typoLayout, typoSpread };
 })(window);
