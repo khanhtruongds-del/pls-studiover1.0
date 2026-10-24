@@ -31,10 +31,10 @@
 
     const pron = tab(s6, /Phát âm/).filter(r => isB(r, buoi) && onPDF(r));
     if (pron.length) { SEC('Phát âm');
-      for (const p of pron) { const a1 = S(p['Chữ / âm']), a2 = S(p['Bảng chữ / nhóm âm']); B('Block/Sub Heading', { text: a2 && !a1.toLowerCase().includes(a2.toLowerCase()) ? `${a1} · ${a2}` : a1 || a2 });   // không lặp "Nối âm … · Nối âm"
+      for (const p of pron) { const capH = s => /\s/.test(s) ? s.replace(/^[a-zà-ỹđ]/, c => c.toUpperCase()) : s, a1 = capH(S(p['Chữ / âm'])), a2 = capH(S(p['Bảng chữ / nhóm âm'])); B('Block/Sub Heading', { text: a2 && !a1.toLowerCase().includes(a2.toLowerCase()) ? `${a1} · ${a2}` : a1 || a2 });   // không lặp "Nối âm … · Nối âm"
         if (S(p['Hướng dẫn phát âm'])) B('Block/Paragraph', { text: S(p['Hướng dẫn phát âm']) });
-        const exs = S(p['Ví dụ']).split(/;\s*/).filter(Boolean).slice(0, 6);
-        if (exs.length) { const d = { no: 'Bài ' + ex(), instruction: 'Đọc to các từ sau.', 'head.track': '', 'head.ab': '' }; exs.forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.word`] = m ? m[1] : x; d[`ex_${i + 1}.vi`] = m ? '/' + m[2] + '/' : ''; }); B('Block/Pronunciation', d); } } }
+        const exR = S(p['Ví dụ']), exs = exR.split(exR.includes(';') ? /;\s*/ : /,\s*/).filter(Boolean).slice(0, 6);
+        if (exs.length) { const d = { no: 'Bài ' + ex(), instruction: 'Đọc to các từ sau.', 'head.track': '', 'head.ab': '' }; exs.forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.word`] = m ? m[1] : x; d[`ex_${i + 1}.vi`] = m ? '/' + m[2] + '/' : ''; }); for (let i = exs.length; i < 12; i++) { d[`ex_${i + 1}.word`] = ''; d[`ex_${i + 1}.vi`] = ''; } B('Block/Pronunciation', d); } } }
 
     const vocab = tab(s6, /Từ vựng$/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Từ']));
     if (vocab.length) { SEC('Từ vựng');
