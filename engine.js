@@ -604,7 +604,7 @@
     [/^(instruction(\.vi)?|task(\.vi)?|situation|track_box|track)$/, 'instruction'], [/^(question|q|q\.\w+|q_\d+)$/, 'question'], [/^opt_[A-Z]$/, 'option'],
     [/^(item_\d+|l_\d+|r_\d+|row_\d+|line_\d+|ex_\d+|vocab_\d+|letter_\d+|card_\d+|col_\d+|img_\d+_box|stroke_\d+)$/, 'item'], [/^(title|h|head|.+\.title)$/, 'title'],
     [/^(img|img_\d+|images|char\.img|img_box|cap|cap_\d+)$/, 'media'], [/^(rule|rule_box|model_box|text_box|example_box|sound_box|char_box|info|qa|list|grid|table|options|items|columns|left|right|examples|lines)$/, 'block']];
-  const FX = { title: null, instruction: null, media: null, block: null, item: { fx: 'appear', when: 'click', each: true }, option: { fx: 'appear', when: 'click', each: true }, question: { fx: 'appear', when: 'click' }, answer: { fx: 'appear', when: 'click', each: true } };
+  const FX = { title: null, instruction: null, media: null, block: null, item: { fx: 'fade', when: 'click', each: true }, option: { fx: 'fly', when: 'click', each: true }, question: { fx: 'fade', when: 'click' }, answer: { fx: 'zoom', when: 'click', each: true } };   // QC 24/10: chuyển động nhẹ thay vì chỉ Appear
   const FX_ORD = ['question', 'option', 'item', 'answer'];
   const roleOfName = nm => { nm = String(nm || '').replace(/\s+[@#].*$/, ''); for (const [re, r] of ROLE_RULES) if (re.test(nm)) return r; return null; };
   function planFx(r, opt) {
@@ -626,7 +626,7 @@
       if (role === 'answer' && opt.hideAnswer === false) continue;
       const us = units.filter(u => u.role === role); if (!us.length) continue;
       const each = FX[role].each && us.length <= maxSteps;
-      us.forEach((u, i) => { const when = i === 0 || each ? 'click' : 'with'; order++; u.el.dataset.fx = 'appear'; u.el.dataset.fxWhen = when; u.el.dataset.fxOrder = order; out.push({ n: u.el.dataset.n, role, fx: 'appear', when, order }); });
+      us.forEach((u, i) => { const when = i === 0 || each ? 'click' : 'with'; order++; u.el.dataset.fx = (FX[u.role] && FX[u.role].fx) || 'fade'; u.el.dataset.fxWhen = when; u.el.dataset.fxOrder = order; out.push({ n: u.el.dataset.n, role, fx: u.el.dataset.fx, when, order }); });
     }
     return (r.fx = out);
   }
