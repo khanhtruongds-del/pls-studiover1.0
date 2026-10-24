@@ -740,18 +740,17 @@
       if (long.size) f.push({ lv: 'warn', t: `${c.stage}: ${long.size} buổi có hoạt động dài hơn ${c.maxAct + 5} phút (buổi ${[...long].slice(0, 8).join(', ')}) – nên chia nhỏ` }); }
     return f; }
   let cfgWired = false, chgAt = 0, bfMore = false;
-  function chgStrip() { const p = P(); if (!p || !p.outline || !(p.outline.lessons || []).length) return ''; const V = vers(); if (!V.length) return '';
-    const base = V[V.length - 1], cur = snapLite(), ch = diffSnap(base.snap, cur); if (!ch.length) return '';
-    const im = impactOf(ch, base.snap, cur), nr = Object.keys(im.redo).length, nv = Object.keys(im.review).length + Object.keys(im.tests).length;
-    return `<div class="rs-chg${Date.now() - chgAt < 2500 ? ' flash' : ''}" role="status"><span><b>Đã đổi so với bản ${base.no}:</b> ${esc(ch.slice(0, 3).map(c => c.txt).join('; '))}${ch.length > 3 ? ` (+${ch.length - 3})` : ''}</span>` +
-      `<span>→ ${nr ? `<b>${nr} buổi cần làm lại</b>` : ''}${nr && nv ? ', ' : ''}${nv ? nv + ' mục cần xem lại' : ''}${!nr && !nv ? 'chưa buổi nào bị ảnh hưởng' : ''}</span>` +
-      '<span class="rs-chg-act"><button type="button" class="rs-mini" data-chg="view">Xem chi tiết</button><button type="button" class="rs-mini" data-chg="save">Chốt thành phiên bản</button><button type="button" class="rs-mini" data-chg="undo">Hoàn tác</button></span></div>'; }
+  function chgStrip() { const d = revDiff(); if (!d || !d.ch.length) return '';
+    const cas = [d.nr ? `<b>${d.nr} buổi soạn lại</b>` : '', d.nv ? `${d.nv} buổi xem lại` : '', d.nt ? `${d.nt} đề xem lại` : '', d.moved.length ? `biểu đồ đổi ${d.moved.length} chỉ số` : ''].filter(Boolean).join(', ');
+    return `<div class="rs-chg${Date.now() - chgAt < 2500 ? ' flash' : ''}" role="status"><span><b>${d.ch.length} thay đổi chưa chốt</b> so với ${esc(d.b.label)}: ${esc(d.ch.slice(0, 2).map(c => c.txt).join('; '))}${d.ch.length > 2 ? ` (+${d.ch.length - 2})` : ''}</span>` +
+      `<span>${cas ? '→ ' + cas : 'không lan sang bước khác'}</span>` +
+      '<span class="rs-chg-act"><button type="button" class="rs-mini" data-chg="view">Xem và quyết định</button></span></div>'; }
   function cfgEnhance() { if (cfgWired) return; cfgWired = true;
     document.addEventListener('change', () => { chgAt = Date.now(); }, true);
     document.addEventListener('focusout', e => { if (e.target.closest && e.target.closest('.rs-ol')) chgAt = Date.now(); }, true);
     document.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('rs-bf-more')) bfMore = e.target.open; }, true);
     document.addEventListener('click', async e => { const t = e.target.closest && e.target.closest('[data-chg]'); if (!t) return; const p = P(); if (!p) return; const V = vers(), b = V[V.length - 1]; if (!b) return;
-      if (t.dataset.chg === 'view') { evoTab = 'ver'; evoBase = b.no; ovSec = 'evo'; root.PLS_RESEARCH.show(); setTimeout(() => { const x = document.getElementById('rsEvo'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 150); return; }
+      if (t.dataset.chg === 'view') { revShow(true); return; } if (t.dataset.chg === 'view-old') { evoTab = 'ver'; evoBase = b.no; ovSec = 'evo'; root.PLS_RESEARCH.show(); setTimeout(() => { const x = document.getElementById('rsEvo'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 150); return; }
       if (t.dataset.chg === 'save') { evoBase = saveVer('Bản ' + (V.reduce((m, v) => Math.max(m, v.no), 0) + 1)); toast('Đã chốt phiên bản'); }
       else { const s = clone(b.snap); ['brief', 'objectives', 'assess', 'outline'].forEach(k => { if (s[k] !== undefined) p[k] = s[k]; }); toast('Đã hoàn tác về bản ' + b.no); }
       await persist(); root.PLS_RESEARCH.show(); });
@@ -1019,7 +1018,7 @@
     if (box._h !== html && !box.contains(document.activeElement)) { box._h = html; box.innerHTML = html; }
     const cur = (box.querySelector('.rs-ov-s.on') || {}).dataset; const sec = cur ? cur.ov : 'req';
     [...pane.children].forEach(el => { if (el === box || el.classList.contains('rs-brief')) return;
-      const hide = el.classList.contains('rs-chg') || el.classList.contains('rs-pls-mini') || SEC(el) !== sec; el.classList.toggle('rs-ovhide', hide); });
+      const hide = el.classList.contains('rs-pls-mini') || (!el.classList.contains('rs-chg') && SEC(el) !== sec); el.classList.toggle('rs-ovhide', hide); });
   }
 
   // ---------- BẢN ĐỒ ĐỊNH VỊ: PLS và các trung tâm trên 2 trục, kéo thả để chỉnh ----------
@@ -1739,6 +1738,87 @@
       document.head.appendChild(st);
       document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-keep]'); if (!b) return; const s = (P() || {}).sources.find(x => x.id === b.dataset.keep); if (!s) return; s.keep = true; persist(); offEnhance(); toast(`Giữ ${s.id} – sẽ gửi Claude như nguồn bình thường`); }); }
     offEnhance(); paintBg(); }
+  // ---------- PHẢN BIỆN THAY ĐỔI: mọi sửa đổi là "bản nháp" cho tới khi bạn chốt · máy tính phần kéo theo + trước/sau trên biểu đồ + ưu/nhược ----------
+  // Mốc so sánh = phiên bản chốt gần nhất. Đổi gì (tay, máy điền hay Claude) → khác mốc → khi thay đổi lan sang bước khác thì hiện hộp "Thay đổi chưa chốt".
+  const REV_SIG_K = 'pls.rev.seen', REV_WAIT = 90e3;
+  let revT = 0, revOpen = false, revSeen = { sig: '', at: 0 };
+  try { revSeen = JSON.parse(localStorage.getItem(REV_SIG_K) || '{}') || revSeen; } catch (e) {}
+  const revBase = () => { const V = vers(); return V.length ? V[V.length - 1] : null; };
+  function revEnsureBase() { const p = P(); if (!p || vers().length) return false; if (!p.outline && !Object.keys(p.cells || {}).length && !(p.brief && (p.brief.lang || p.brief.level))) return false;
+    saveVer('Mốc ban đầu', true); persist(); return true; }
+  // tính chỉ số PLS theo một bản chụp (brief + cột PLS của bản đó)
+  function withSnap(s, fn) { const p = P(), kb = p.brief, kc = p.plsCol; p.brief = s.brief || {}; p.plsCol = s.plsCol || {}; try { return fn(); } finally { p.brief = kb; p.plsCol = kc; } }
+  const REVM = () => [[FPH, 'Học phí / giờ', 'low'], [HRS, 'Tổng giờ học', 'high'], [outKey(), 'Đầu ra', 'high'], [critOf(/sĩ số/i), 'Sĩ số', 'low']].filter(x => x[0]);
+  function revSegment() { const p = P(), C = centersOf(p); const seg = C.filter(c => mapFilter() === 'all' || ctypeOf(c) === mapFilter()).filter(c => inBand(c)); return seg.length >= 2 ? { C: seg, lb: 'cùng phân khúc đầu ra ±100' } : { C, lb: 'tất cả trung tâm' }; }
+  function revDiff() { const p = P(), b = revBase(); if (!p || !b) return null; const cur = snapLite(), ch = diffSnap(b.snap, cur);
+    const pa = b.snap.plsCol || {}, pb = p.plsCol || {}; [...new Set(Object.keys(pa).concat(Object.keys(pb)))].forEach(k => { const x = norm((pa[k] || {}).v), y = norm((pb[k] || {}).v); if (x !== y) ch.push({ t: 'pls', k, txt: `PLS – ${k}: “${x || '—'}” → “${y || '—'}”` }); });
+    const seg = revSegment(), rows = REVM().map(([k, lb, dir]) => { const a = withSnap(b.snap, () => metric('PLS', k)), c = metric('PLS', k), vs = seg.C.map(x => metric(x, k)).filter(Boolean).map(x => x.v).sort((u, v) => u - v);
+      const med = vs.length ? vs[Math.floor(vs.length / 2)] : null, pos = v => v == null || !vs.length ? null : vs.filter(x => dir === 'low' ? x < v : x > v).length + 1;
+      return { k, lb, dir, a: a ? a.v : null, c: c ? c.v : null, min: vs[0], med, max: vs[vs.length - 1], n: vs.length, pa: pos(a && a.v), pc: pos(c && c.v), est: !!((a && a.est) || (c && c.est)) }; }).filter(r => r.a != null || r.c != null);
+    const moved = rows.filter(r => r.a !== r.c), im = impactOf(ch, b.snap, cur);
+    const nr = Object.keys(im.redo).length, nv = Object.keys(im.review).length, nt = Object.keys(im.tests).length;
+    return { b, ch, rows, moved, im, nr, nv, nt, spread: nr + nv + nt > 0 || moved.length > 0, sig: ch.map(c => c.txt).join('|') + '#' + moved.map(r => r.k + r.c).join('|') }; }
+  // ưu / nhược / phải chấp nhận – theo quy tắc máy (0 token). Claude phản biện phần sâu hơn sẽ gắn vào đây ở bước 3.
+  function revVerdict(d) { const pro = [], con = [], loss = [], pct = (a, c) => a ? Math.round((c - a) / a * 100) : null;
+    d.moved.forEach(r => { const dp = pct(r.a, r.c), f = v => fmtV(r.k, v), rel = v => r.med == null ? '' : v < r.med ? `thấp hơn trung vị (${f(r.med)})` : v > r.med ? `cao hơn trung vị (${f(r.med)})` : 'bằng trung vị';
+      if (r.a == null || r.c == null) { if (r.c == null) { con.push(`${r.lb}: mất số liệu (trước là ${f(r.a)}) – biểu đồ không xếp được PLS.`); return; }
+        const good = r.med == null ? true : r.dir === 'low' ? r.c <= r.med : r.c >= r.med; (good ? pro : con).push(`${r.lb} mới có số: ${f(r.c)}${r.med != null ? ' – ' + rel(r.c) : ''}${r.pc ? ` (đứng ${r.pc}/${r.n + 1})` : ''}.`); return; }
+      if (r.k === FPH) { if (r.c < r.a) { pro.push(`Học phí mỗi giờ rẻ hơn ${Math.abs(dp)}% (${f(r.a)} → ${f(r.c)}), ${rel(r.c)} – dễ cạnh tranh giá.`); con.push(`Doanh thu trên mỗi giờ dạy giảm ${Math.abs(dp)}%.`); }
+        else if (r.c > r.a) { pro.push(`Doanh thu mỗi giờ dạy tăng ${dp}%.`); con.push(`Học phí mỗi giờ ${f(r.c)} – ${rel(r.c)}${r.max != null && r.c > r.max ? ', đắt nhất phân khúc' : ''}; cần lý do học viên chấp nhận.`); } }
+      if (r.k === HRS) { if (r.c > r.a) { pro.push(`Tổng giờ học tăng lên ${f(r.c)} (${rel(r.c)}) – thời lượng chắc hơn để đạt đầu ra.`); con.push(`Khóa dài hơn ${dp}%: học viên mất nhiều thời gian hơn, học phí tổng hoặc học phí/giờ phải điều chỉnh theo.`); }
+        else if (r.c < r.a) { pro.push(`Khóa gọn hơn (${f(r.a)} → ${f(r.c)}) – dễ bán, dễ xếp lịch.`); con.push(`Ít giờ hơn ${Math.abs(dp)}%, ${rel(r.c)} – rủi ro không đạt đầu ra cam kết, nhất là với học viên mất gốc.`); } }
+      if (r.k === outKey()) { if (r.c > r.a) { pro.push(`Đầu ra cam kết cao hơn (${r.a} → ${r.c}) – hấp dẫn hơn khi quảng bá.`); con.push(`Cam kết cao hơn cần nhiều giờ hơn: các trung tâm cùng mức thường dạy ${d.rows.find(x => x.k === HRS) && d.rows.find(x => x.k === HRS).med != null ? fmtV(HRS, d.rows.find(x => x.k === HRS).med) : 'nhiều giờ hơn'}; không đạt thì mất uy tín.`); }
+        else if (r.c < r.a) { pro.push(`Đầu ra thực tế hơn (${r.a} → ${r.c}) – dễ đạt, dễ chứng minh.`); con.push(`Kém hấp dẫn hơn các trung tâm cam kết cao trong cùng phân khúc.`); } }
+      if (/sĩ số/i.test(r.k)) { if (r.c < r.a) { pro.push(`Lớp nhỏ hơn (${r.a} → ${r.c}) – chữa bài sát hơn, điểm bán hàng tốt.`); con.push(`Doanh thu mỗi lớp giảm; cần nhiều giáo viên hơn cho cùng số học viên.`); }
+        else if (r.c > r.a) { pro.push(`Mỗi lớp thu nhiều hơn.`); con.push(`Lớp đông hơn ${dp}% – khó giữ phần luyện nói, học viên yếu dễ bị bỏ lại.`); } } });
+    if (d.nr) loss.push(`Soạn lại ${d.nr} buổi: ${Object.keys(d.im.redo).slice(0, 8).join(', ')}${d.nr > 8 ? '…' : ''}.`);
+    if (d.nv) loss.push(`Xem lại ${d.nv} buổi (chưa chắc phải soạn lại): ${Object.keys(d.im.review).slice(0, 8).join(', ')}${d.nv > 8 ? '…' : ''}.`);
+    if (d.nt) loss.push(`Xem lại ${d.nt} đề kiểm tra: ${Object.keys(d.im.tests).join(', ')}.`);
+    const p = P(); if ((p.releases || []).length && (d.nr || d.ch.some(c => c.t !== 'pls'))) loss.push(`Bản phát hành ${p.releases.length} không còn khớp – cần phát hành lại sau khi soạn xong.`);
+    if (d.ch.some(c => c.t === 'brief' && ['level', 'entry', 'audience'].includes(c.k))) con.push('Đổi đối tượng / cấp độ: bảng so sánh có thể đang so với các khóa không còn cùng phân khúc – nên bật lọc ±100 và kiểm lại.');
+    if (!pro.length && !con.length && !loss.length) pro.push('Thay đổi nhỏ, không kéo theo bước nào khác.');
+    return { pro, con, loss }; }
+  function revTrack(r) { if (r.min == null || r.max == null) return ''; const lo = Math.min(r.min, r.a != null ? r.a : r.min, r.c != null ? r.c : r.min), hi = Math.max(r.max, r.a != null ? r.a : r.max, r.c != null ? r.c : r.max), x = v => hi === lo ? 50 : 6 + (v - lo) / (hi - lo) * 88;
+    return `<span class="rev-track"><s style="left:${x(r.min)}%" title="Thấp nhất: ${esc(fmtV(r.k, r.min))}"></s><s style="left:${x(r.med)}%" title="Trung vị: ${esc(fmtV(r.k, r.med))}"></s><s style="left:${x(r.max)}%" title="Cao nhất: ${esc(fmtV(r.k, r.max))}"></s>${r.a != null ? `<i style="left:${x(r.a)}%" title="PLS trước: ${esc(fmtV(r.k, r.a))}"></i>` : ''}${r.c != null ? `<b style="left:${x(r.c)}%" title="PLS sau: ${esc(fmtV(r.k, r.c))}"></b>` : ''}</span>`; }
+  function revHtml(d) { const v = revVerdict(d), seg = revSegment(), li = a => a.map(t => `<li>${esc(t)}</li>`).join('');
+    const rows = d.rows.map(r => `<tr class="${r.a !== r.c ? 'mv' : ''}"><th>${esc(r.lb)}</th><td>${esc(fmtV(r.k, r.a)) || '—'}</td><td>${r.a !== r.c ? '→ <b>' + (esc(fmtV(r.k, r.c)) || '—') + '</b>' : '<span class="muted">không đổi</span>'}</td><td>${revTrack(r)}</td><td class="muted">${r.n ? `${r.n} nơi · ${esc(fmtV(r.k, r.min))} – ${esc(fmtV(r.k, r.max))}${r.pc ? ` · PLS đứng ${r.pc}/${r.n + 1}` : ''}` : 'chưa có số'}</td></tr>`).join('');
+    const cas = [d.nr ? `<b>${d.nr} buổi soạn lại</b>` : '', d.nv ? `${d.nv} buổi xem lại` : '', d.nt ? `${d.nt} đề xem lại` : ''].filter(Boolean).join(' · ') || 'không lan sang bước khác';
+    return `<div class="rs-dlg-card rev-card"><div class="rs-row"><h3 style="flex:1">Thay đổi chưa chốt <small class="muted">so với ${esc(d.b.label)} (${fmt(d.b.at)})</small></h3><button type="button" class="rs-x" data-rev="later" aria-label="Đóng">×</button></div>` +
+      `<p class="muted rev-sub">Mọi sửa đổi (bạn gõ, máy điền hay Claude đề xuất) đều là bản nháp cho tới khi bạn chốt. Dưới đây là phần máy tính được; Claude sẽ phản biện thêm khi bạn bấm “Nhờ Claude phản biện”.</p>` +
+      `<div class="rev-grid"><section><h4>Đã đổi (${d.ch.length})</h4><ul class="rev-ch">${li(d.ch.slice(0, 12).map(c => c.txt))}${d.ch.length > 12 ? `<li class="muted">+${d.ch.length - 12} thay đổi khác</li>` : ''}</ul></section>` +
+      `<section><h4>Kéo theo</h4><p>${cas}</p>${d.nr ? `<p class="muted">${Object.entries(d.im.redo).slice(0, 6).map(([b, w]) => `Buổi ${b}: ${esc([...w].join('; '))}`).join('<br>')}</p>` : ''}</section></div>` +
+      (d.rows.length ? `<h4>Trên biểu đồ <small class="muted">· ${esc(seg.lb)} · <i class="rev-dot a"></i> trước · <i class="rev-dot c"></i> sau · vạch = thấp nhất / trung vị / cao nhất</small></h4><table class="rev-t"><tbody>${rows}</tbody></table>` : '') +
+      `<div class="rev-grid"><section class="pro"><h4>Ưu điểm</h4><ul>${li(v.pro) || '<li class="muted">—</li>'}</ul></section><section class="con"><h4>Nhược điểm</h4><ul>${li(v.con) || '<li class="muted">—</li>'}</ul></section><section class="loss"><h4>Phải chấp nhận</h4><ul>${li(v.loss) || '<li class="muted">—</li>'}</ul></section></div>` +
+      `<div class="rs-row rev-act"><button type="button" class="btn" data-rev="undo">Hoàn tác về ${esc(d.b.label)}</button><button type="button" class="btn" data-rev="hist">Xem lịch sử</button><span style="flex:1"></span><button type="button" class="btn" data-rev="later">Để sau</button><button type="button" class="btn primary" data-rev="ok">Đồng ý và chốt</button></div></div>`; }
+  function revShow(force) { const d = revDiff(); if (!d || !d.ch.length) { revClose(); return false; } if (!force && !d.spread) return false;
+    let el = document.getElementById('revDlg'); if (!el) { el = document.createElement('div'); el.id = 'revDlg'; el.className = 'rs-dlg'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Thay đổi chưa chốt'); document.body.appendChild(el); }
+    const h = revHtml(d); if (el._h !== h) { el._h = h; el.innerHTML = h; } revOpen = true; el._sig = d.sig; return true; }
+  function revClose() { const el = document.getElementById('revDlg'); if (el) el.remove(); revOpen = false; }
+  function revTick() { chgAt = Date.now(); clearTimeout(revT); revT = setTimeout(() => revMaybe(false), REV_WAIT); }
+  function revMaybe(now) { if (revOpen || typing() && !now) { if (!now) revTick(); return; } const d = revDiff(); if (!d || !d.spread) return;
+    if (revSeen.sig === d.sig && Date.now() - revSeen.at < 10 * 60e3) return;   // đã bấm "Để sau" cho đúng bộ thay đổi này
+    revShow(false); }
+  async function revAct(a) { const p = P(), d = revDiff(); if (!p) return;
+    if (a === 'later') { if (d) { revSeen = { sig: d.sig, at: Date.now() }; try { localStorage.setItem(REV_SIG_K, JSON.stringify(revSeen)); } catch (e) {} } revClose(); return; }
+    if (a === 'hist') { revClose(); evoTab = 'ver'; evoBase = d && d.b.no; ovSec = 'evo'; root.PLS_RESEARCH.show(); setTimeout(() => { const x = document.getElementById('rsEvo'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 150); return; }
+    if (!d) { revClose(); return; }
+    if (a === 'undo') { const s = clone(d.b.snap); ['brief', 'objectives', 'assess', 'outline', 'plsCol'].forEach(k => { if (s[k] !== undefined) p[k] = s[k]; }); revClose(); await persist(); root.PLS_RESEARCH.show(); toast('Đã hoàn tác về ' + d.b.label); return; }
+    if (a === 'ok') { p.dirty = p.dirty || {}; Object.keys(d.im.redo).forEach(b => { if ((p.lessons || {})[b]) p.dirty[b] = { at: Date.now(), why: [...d.im.redo[b]].join('; ').slice(0, 160) }; });
+      const no = saveVer('Chốt: ' + (d.ch[0] ? d.ch[0].txt.slice(0, 50) : 'thay đổi') + (d.ch.length > 1 ? ` (+${d.ch.length - 1})` : '')); evoBase = no; revClose(); await persist(); root.PLS_RESEARCH.show();
+      toast(`Đã chốt thành bản ${no}${d.nr ? ` · ${d.nr} buổi được đánh dấu cần soạn lại` : ''}`); } }
+  let revWired = false;
+  function revEnhance() { const p = P(); if (!p) { revClose(); return; } revEnsureBase();
+    if (!revWired) { revWired = true;
+      const st = document.createElement('style'); st.textContent = '.rev-card{max-width:860px;width:min(96vw,860px);max-height:90vh;overflow:auto}.rev-sub{margin:0 0 10px;font-size:12px}.rev-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:8px 0}.rev-grid section{border:1px solid var(--ui-line);border-radius:6px;padding:8px 10px;font-size:12px;min-width:0}.rev-grid section h4,.rev-card h4{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--ui-muted)}.rev-card h4{margin-top:10px}.rev-grid section ul{margin:0;padding-left:16px}.rev-grid section li{margin:2px 0}.rev-grid .pro{border-color:#2e7d32}.rev-grid .pro h4{color:#2e7d32}.rev-grid .con{border-color:#c0392b}.rev-grid .con h4{color:#c0392b}.rev-grid .loss{border-color:#a06d00;background:#fff7d6}.rev-grid .loss h4{color:#a06d00}.rev-grid > section:first-child:nth-last-child(2),.rev-grid > section:first-child:nth-last-child(2) ~ section{grid-column:span 1}.rev-grid:has(> section:nth-child(2):last-child){grid-template-columns:3fr 2fr}.rev-t{width:100%;border-collapse:collapse;font-size:12px}.rev-t th,.rev-t td{text-align:left;padding:5px 6px;border-top:1px solid var(--ui-line);vertical-align:middle;white-space:nowrap}.rev-t th{font-weight:600}.rev-t tr.mv th{color:#b85c3e}.rev-t td:nth-child(4){width:34%;min-width:140px}.rev-t td:last-child{white-space:normal}.rev-track{position:relative;display:block;height:14px;border-bottom:1px solid var(--ui-line)}.rev-track s,.rev-track i,.rev-track b{position:absolute;top:50%;transform:translate(-50%,-50%);display:block}.rev-track s{width:1px;height:14px;background:var(--ui-ink);opacity:.4}.rev-track i{width:9px;height:9px;border-radius:50%;border:2px solid #d97757;background:var(--ui-bg)}.rev-track b{width:12px;height:12px;border-radius:50%;background:#d97757;border:2px solid var(--ui-bg);z-index:1}.rev-dot{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle;border:2px solid #d97757;background:var(--ui-bg)}.rev-dot.c{background:#d97757}.rev-act{margin-top:12px}.rev-act .btn{min-height:32px;padding:5px 12px;font-size:13px}.rev-ch{font-size:12px}@media(max-width:760px){.rev-grid{grid-template-columns:1fr!important}.rev-t td:nth-child(4){display:none}}';
+      document.head.appendChild(st);
+      document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-rev]'); if (t) { revAct(t.dataset.rev); return; }
+        if (e.target.closest && e.target.closest('[data-chg="view"]')) { e.stopPropagation(); e.preventDefault(); revShow(true); return; }
+        // chuyển bước / tab khi còn thay đổi lan sang bước khác → hỏi ngay, không đợi
+        if (e.target.closest && e.target.closest('[data-ov],[data-gstep],#rsPlsGo,[data-ev="go3"],.rs-ov-s')) setTimeout(() => revMaybe(true), 300); }, true);
+      document.addEventListener('change', e => { if (e.target.closest && e.target.closest('#researchView') && !e.target.closest('#revDlg')) revTick(); }, true);
+      document.addEventListener('focusout', e => { if (e.target.closest && e.target.closest('#researchView .rs-ol,#researchView .rs-bf,#researchView .rs-obt')) revTick(); }, true);
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && revOpen) revAct('later'); }); }
+    if (revOpen) revShow(true); }
   function aiInfo() { const b = document.querySelector('#rsBridge'); if (!b) return; b.scrollIntoView({ behavior: 'smooth', block: 'start' }); b.style.transition = 'box-shadow .3s'; b.style.boxShadow = '0 0 0 3px #d97757'; setTimeout(() => { b.style.boxShadow = ''; }, 1600); }
   const toast = (t, bad) => { const el = document.createElement('div'); el.setAttribute('role', 'status'); el.textContent = t; el.style.cssText = `position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1002;background:${bad ? '#8a2a1b' : '#1f1f1f'};color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;max-width:90vw`; document.body.appendChild(el); setTimeout(() => el.remove(), 4200); };
   function enhance() {
@@ -1764,10 +1844,10 @@
     if (cmp && !document.querySelector('#rsAutoFill')) { const b = document.createElement('button'); b.type = 'button'; b.id = 'rsAutoFill'; b.className = 'btn'; b.textContent = 'Tự điền số liệu'; b.title = 'Máy dò số buổi, phút, sĩ số, học phí, cấp độ… trong nguồn – không cần Claude';
       cmp.parentNode.insertBefore(b, cmp);
       b.onclick = async () => { b.disabled = true; b.textContent = 'Đang dò…'; try { const r = await autoFill(); toast(`Đã điền ${r.filled} ô từ nguồn${r.missing ? ` · ${r.missing} ô chưa thấy, nhờ Claude điền tiếp` : ''}${r.noCenter ? ` · ${r.noCenter} nguồn chưa ghi trung tâm nên bỏ qua` : ''}`); } catch (e) { toast(e.message, true); } finally { b.disabled = false; b.textContent = 'Tự điền số liệu'; } }; }
-    liteEnhance(); briefEnhance(); objEnhance(); plsEnhance(); cfgEnhance(); evoEnhance(); ovEnhance(); mapEnhance(); betaEnhance(); notesEnhance(); hookXlsx(); presEnhance(); rrEnhance(); capEnhance(); gapEnhance(); migrate();
+    liteEnhance(); briefEnhance(); objEnhance(); plsEnhance(); cfgEnhance(); evoEnhance(); ovEnhance(); revEnhance(); mapEnhance(); betaEnhance(); notesEnhance(); hookXlsx(); presEnhance(); rrEnhance(); capEnhance(); gapEnhance(); migrate();
     const chip = document.querySelector('#rsAI'); if (chip) { const t = '● Claude · ' + usage(); if (chip.textContent !== t) chip.textContent = t; chip.classList.toggle('ok', true); chip.title = 'Việc cần viết được gửi Claude – nhắn Claude “xử lý hàng chờ PLS” để xử lý'; }
   }
-  const OURS = '#bgPill,#bgPop,#gapBox,#capBar,.rs-offtag,.rs-chk';
+  const OURS = '#bgPill,#bgPop,#gapBox,#capBar,.rs-offtag,.rs-chk,#revDlg';
   const ours = n => { const e = n && (n.nodeType === 1 ? n : n.parentElement); return !!(e && e.closest && e.closest(OURS)); };
   let tm = 0; new MutationObserver(recs => { if (recs.every(r => ours(r.target) || ([...r.addedNodes, ...r.removedNodes].length && [...r.addedNodes, ...r.removedNodes].every(x => x.nodeType === 1 && x.matches && x.matches(OURS))))) return; clearTimeout(tm); tm = setTimeout(enhance, 120); }).observe(document.documentElement, { childList: true, subtree: true });
   setInterval(refresh, 5000); refresh();
