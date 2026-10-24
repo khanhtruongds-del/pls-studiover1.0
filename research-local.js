@@ -1494,16 +1494,12 @@
             rs.flat().forEach(x => { const k = normU(x.url); if (seen.has(k) || have.has(k) || shown.has(x.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))) return; seen.add(k); all.push(x); });
             ul.innerHTML = all.length ? all.map((x, i) => `<li><label><input type="checkbox" data-mi="${i}" data-t="${esc(x.title)}" data-u="${esc(x.url)}" checked><span><b>${esc(x.title)}</b><small>${esc(x.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))}</small></span></label></li>`).join('') : '<li class="muted">Không thấy thêm kết quả mới.</li>';
             t.disabled = false; t.textContent = 'Tìm rộng hơn'; }); } }, true);
-      document.addEventListener('paste', e => { const dl = document.getElementById('rsAddDlg'); if (!dl || !e.clipboardData) return; const cd = e.clipboardData;
-        if ([...cd.items].some(i => i.kind === 'file')) return; if (e.target && e.target.id === 'aQ') return;   // dán link vào ô tìm: để nguyên
-        const html = cd.getData('text/html'), plain = cd.getData('text/plain'); if (!html && (plain || '').length < 200) return; e.preventDefault(); e.stopPropagation(); onPasteHtml(html, plain); }, true);
       document.addEventListener('change', e => { if (e.target && e.target.id === 'capDeep') { try { localStorage.setItem(DEEPK, e.target.checked ? '1' : '0'); } catch (er) {} } }); }
     // hộp Thêm nguồn: lấy sâu · tìm rộng · nút Gửi về PLS
     const dlg = document.getElementById('rsAddDlg'), find = dlg && dlg.querySelector('.rs-find');
     if (find && !dlg.querySelector('.cap-box')) { const b = document.createElement('div'); b.className = 'cap-box';
       b.innerHTML = `<div><button type="button" class="btn" data-cap="more">Tìm rộng hơn</button> <span class="muted">thêm 3 lượt tìm: học phí, lộ trình, đánh giá</span></div><ul class="rs-found" id="capMore"></ul>` +
-        `<label><input type="checkbox" id="capDeep"${deepOn() ? ' checked' : ''}><span>Lấy thêm trang con liên quan của mỗi website (học phí, khóa học, lộ trình, khai giảng, PDF…) – tối đa 8 trang/website</span></label>` +
-        `<div><button type="button" class="btn" data-cap="paste">📋 Dán trang đã chép</button> <span class="muted">Trang máy không đọc được (Facebook, trang cần đăng nhập) hoặc trang kết quả Google: mở trang đó, bấm <b>Ctrl/⌘ + A</b> rồi <b>Ctrl/⌘ + C</b>, quay lại đây bấm nút này (hoặc <b>Ctrl/⌘ + V</b>).</span></div>`;
+        `<label><input type="checkbox" id="capDeep"${deepOn() ? ' checked' : ''}><span>Lấy thêm trang con liên quan của mỗi website (học phí, khóa học, lộ trình, khai giảng, PDF…) – tối đa 8 trang/website</span></label>`;
       find.after(b); }
     // tự lấy sâu các link vừa thêm
     if (p && deepOn()) p.sources.filter(s => s.kind === 'link' && !s.parent && !s.deep && s.added && Date.now() - s.added < 10 * 60000).forEach(s => { s.deep = 'queued'; crawl(s); });
