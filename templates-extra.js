@@ -156,9 +156,31 @@
         div('dots', 'flex:0 0 auto;display:flex;flex-direction:row;gap:14px;align-items:center',
           ['3', '2', '1'].map(v => div('dot_' + v, `flex:0 0 auto;width:60px;height:60px;display:flex;flex-direction:row;justify-content:center;align-items:center;border-radius:50%;background-color:${C.white};box-shadow:inset 0 0 0 2px ${C.primary}`, txt('v', 'bold', 28, C.ink, v, false, 'text-align:center;line-height:1'))).join('')))).join('')), 'gap:28px');
 
+  // thanh phát audio: [▶] ──●──────── 0:00 / 1:25  [↻ Nghe lại]  (kích thước 1920 gốc; chữ là data-text để xuất PPTX, icon Lucide → PNG)
+  function audioBar(rootEl, host, data, where) {
+    if (!host || rootEl.querySelector('[data-n="audio"]')) return;
+    const I = root.PLS_ICONS || {}, url = String(data['_audio'] || ''), dur = String(data['_audio_len'] || '');
+    const el = document.createElement('div'); el.dataset.n = 'audio'; if (url) el.dataset.audio = url;
+    el.setAttribute('style', `${BOX}flex:0 0 auto;align-self:stretch;display:flex;flex-direction:row;gap:24px;align-items:center;padding:16px 24px 16px 16px;border-radius:999px;background-color:${C.soft};${where === 'bottom' ? 'margin-top:20px' : ''}`);
+    const ic = (n, name, sz, color, bg) => `<div data-n="${n}" style="${BOX}flex:0 0 auto;width:${sz}px;height:${sz}px;display:flex;justify-content:center;align-items:center;border-radius:50%;background-color:${bg || 'transparent'}"><div data-n="${n}.icon" data-icon="${name}" style="${BOX}width:${Math.round(sz * 0.5)}px;height:${Math.round(sz * 0.5)}px;color:${color}">${(I[name] || '').replace('<svg ', '<svg style="display:block" ')}</div></div>`;
+    el.innerHTML = ic('play', 'play', 72, C.inv, C.fill) +
+      `<div data-n="bar" style="${BOX}flex:1 1 0px;min-width:0;height:10px;border-radius:5px;background-color:${C.border}"><div data-n="bar.fill" style="${BOX}position:absolute;left:0;top:0;width:0%;height:10px;border-radius:5px;background-color:${C.primary}"></div><div data-n="bar.dot" style="${BOX}position:absolute;left:0;top:-7px;width:24px;height:24px;border-radius:50%;background-color:${C.primary}"></div></div>` +
+      txt('time', 'bold', 30, C.text, `0:00 / ${dur || '–:––'}`, false, 'min-width:190px;text-align:right') +
+      `<div data-n="replay" style="${BOX}flex:0 0 auto;display:flex;flex-direction:row;gap:10px;align-items:center;padding:10px 22px;border-radius:999px;background-color:${C.white};box-shadow:inset 0 0 0 2px ${C.primary}">${ic('replay_ic', 'headphones', 36, C.ink)}${txt('replay.text', 'bold', 28, C.ink, 'Nghe lại', false)}</div>`;
+    el.querySelectorAll('[data-text]').forEach(t => { t.dataset.filled = t.dataset.n; });   // chữ cố định của thanh → xuất PPTX như chữ thường
+    if (where === 'afterTrack') { const tb = host.querySelector('[data-n="track_box"]'); if (tb && tb.parentElement === host) { tb.insertAdjacentElement('afterend', el); el.style.marginBottom = '6px'; return; } }
+    if (where === 'beforeLines') { const l1 = host.querySelector('[data-n="line_1"]'); if (l1) { l1.insertAdjacentElement('beforebegin', el); el.style.marginBottom = '12px'; return; } }
+    host.appendChild(el);
+  }
+
   // ---------- xử lý sau khi đổ chữ (engine gọi PLS_TPL_HOOKS[mẫu]) ----------
   const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
   root.PLS_TPL_HOOKS = Object.assign(root.PLS_TPL_HOOKS || {}, {
+    // TRÌNH PHÁT AUDIO (người dùng 25/10): thanh phát trên slide Nghe – nút ▶ tròn, thanh tiến trình, thời gian, nút nghe lại.
+    // Giao diện làm trước; file âm thanh (cột "File audio" của S6-Nghe) nối vào sau qua data-audio → khi có API sẽ phát thật và nhúng vào PPTX.
+    'Slide/Listening'(rootEl, data) { audioBar(rootEl, rootEl.querySelector('[data-n="task_col"]') || rootEl.querySelector('[data-n="card"]'), data, 'afterTrack'); },
+    'Slide/Dialogue'(rootEl, data) { const l1 = rootEl.querySelector('[data-n="line_1"]'); audioBar(rootEl, (l1 && l1.parentElement) || rootEl.querySelector('[data-n="card"]'), data, 'beforeLines'); },
+    'Slide/Dialogue Long'(rootEl, data) { const l1 = rootEl.querySelector('[data-n="line_1"]'); audioBar(rootEl, (l1 && l1.parentElement) || rootEl.querySelector('[data-n="card"]'), data, 'beforeLines'); },
     // dòng thời gian: vẽ dấu mốc theo loại thì (data.kind) – chấm lặp, dải đang diễn ra, dấu X, mũi tên tới bây giờ…
     'Slide/Tense Timeline'(rootEl, data) {
       const tl = rootEl.querySelector('[data-n="tl"]'); if (!tl) return; tl.style.position = 'relative';
