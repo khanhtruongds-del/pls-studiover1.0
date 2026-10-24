@@ -380,7 +380,7 @@
     return `<div class="rs-bf" id="rsBf"><div class="rs-bf-h"><b>Yêu cầu khóa học</b><span class="muted">${esc(status)}</span><button type="button" class="rs-mini" id="rsBfToggle">${open ? 'Thu gọn' : 'Sửa'}</button></div>` +
       (open ? BF.map(([g, fs]) => `<fieldset><legend>${esc(g)}</legend>${fs.map(inp).join('')}</fieldset>`).join('') +
         `<div class="rs-bf-foot"><button type="button" class="btn" id="rsBfDraft">Nhờ Claude điền nháp các ô trống</button><span class="muted">Ô Claude điền được đánh dấu để bạn xác nhận. Ô có * là bắt buộc trước khi đề xuất khung.</span></div>`
-        : `<p class="rs-bf-sum">${sum || '<span class="muted">Chưa có thông tin</span>'}</p>`) + '</div>' + objPanel();
+        : `<p class="rs-bf-sum">${sum || '<span class="muted">Chưa có thông tin</span>'}</p>`) + '</div>' + objPanel() + plsMini();
   }
   function briefText() { const p = P(); if (!p) return ''; const b = p.brief, m = b._m || {};
     const extra = ['courseName', 'classSize', 'mode', 'age', 'entry', 'entryCheck', 'needs', 'method', 'conditions'].filter(k => filled(b, k)).map(k => `${LABEL[k].toLowerCase()}: ${b[k]}${m[k] ? ' (giả định)' : ''}`);
@@ -570,11 +570,72 @@
     if (box.previousElementSibling !== wrap) wrap.after(box);
     if (box._h !== html && !box.contains(document.activeElement)) { box._h = html; box.innerHTML = html; }
   }
+  // ---------- BƯỚC 4: CỘT "PLS (bản đang chỉnh)" trong bảng so sánh + tổng quan đối chiếu ----------
+  const NUMK = /số buổi|phút|sĩ số|học phí|chi phí|giá/i;
+  const SKILLS = [['Nghe', /nghe|listen/i], ['Nói', /nói|speak|hội thoại|phát âm/i], ['Đọc', /đọc|read/i], ['Viết', /viết|write|chính tả/i]];
+  function plsAuto(k) {
+    const p = P(); if (!p) return { v: '', from: '' }; const b = p.brief || {}, L = (p.outline && p.outline.lessons) || [], A = asses();
+    if (/đầu vào/i.test(k)) return { v: [b.entry, b.entryCheck && 'xác định bằng: ' + b.entryCheck].filter(Boolean).join('; '), from: 'Yêu cầu khóa' };
+    if (/đầu ra|cam kết|mục tiêu/i.test(k)) return { v: [b.level, objs().length ? objs().length + ' mục tiêu đo được' : ''].filter(Boolean).join(' · '), from: 'Yêu cầu khóa + mục tiêu' };
+    if (/số buổi/i.test(k)) return L.length ? { v: L.length + ' buổi', from: 'Khung khóa' } : { v: b.sessions ? b.sessions + ' buổi' : '', from: 'Yêu cầu khóa' };
+    if (/phút|thời lượng/i.test(k)) return { v: b.minutes ? b.minutes + ' phút' : '', from: 'Yêu cầu khóa' };
+    if (/sĩ số|quy mô/i.test(k)) return { v: b.classSize || '', from: 'Yêu cầu khóa' };
+    if (/phương pháp/i.test(k)) return { v: b.method || '', from: 'Yêu cầu khóa' };
+    if (/kỹ năng|tỉ lệ|tỷ lệ/i.test(k)) { if (!L.length) return { v: '', from: '' }; const n = SKILLS.map(([s, re]) => [s, L.filter(l => re.test([l.skills, l.name, l.goals].join(' '))).length]), t = n.reduce((a, x) => a + x[1], 0);
+      return { v: t ? n.filter(x => x[1]).map(([s, c]) => `${s} ${Math.round(c * 100 / t)}%`).join(' · ') : '', from: 'đếm kỹ năng trong khung khóa' }; }
+    if (/kiểm tra|đánh giá|thi/i.test(k)) return { v: A.length ? A.map(a => `${a.when || '?'}: ${String(a.how || '').slice(0, 40)}`).join('; ') : '', from: 'Cách đo' };
+    return { v: '', from: '' };
+  }
+  const plsVal = k => { const p = P(), o = ((p && p.plsCol) || {})[k] || {}; if (o.v) return { v: o.v, from: 'bạn nhập', why: o.why }; const a = plsAuto(k); return { v: a.v, from: a.from, why: o.why }; };
+  const num = v => { const m = String(v || '').replace(/(\d)[.,](?=\d{3}\b)/g, '$1').match(/\d+(?:[.,]\d+)?/); if (!m) return null; let x = parseFloat(m[0].replace(',', '.')); if (/triệu|tr\b/i.test(v)) x *= 1e6; else if (/\bk\b|nghìn/i.test(v)) x *= 1e3; return x; };
+  const tokSet = v => new Set((fold(String(v || '').toLowerCase()).match(/[a-z0-9]{3,}/g) || []));
+  function plsLabel(k, C) {
+    const p = P(), me = plsVal(k), others = C.map(c => (p.cells || {})[c + '||' + k]).filter(x => x && x.v && x.kind !== 'unknown' && !/chưa rõ/i.test(x.v)).map(x => x.v);
+    if (me.why) return { cls: 'ok', t: 'Khác biệt có chủ đích', d: me.why };
+    if (!others.length) return { cls: 'gap', t: 'Khoảng trống', d: 'Chưa trung tâm nào công bố – PLS có thể nói rõ để tạo khác biệt' };
+    if (!me.v) return { cls: 'miss', t: 'PLS chưa có', d: `${others.length} trung tâm có công bố` };
+    if (NUMK.test(k)) { const xs = others.map(num).filter(x => x != null).sort((a, b) => a - b), x = num(me.v);
+      if (xs.length && x != null) { const med = xs[Math.floor((xs.length - 1) / 2)], fmt = n => n >= 1e5 ? n.toLocaleString('vi-VN') : String(Math.round(n * 10) / 10);
+        if (Math.abs(x - med) <= med * 0.15) return { cls: 'same', t: 'Giống đa số', d: `trung vị ${fmt(med)} (${xs.length} nơi)` };
+        return { cls: 'diff', t: x > med ? 'Cao hơn đa số' : 'Thấp hơn đa số', d: `trung vị ${fmt(med)} (${xs.length} nơi) – đánh dấu nếu là chủ đích` }; } }
+    const mt = tokSet(me.v), near = others.filter(o => { const ot = tokSet(o); let c = 0; mt.forEach(w => { if (ot.has(w)) c++; }); return mt.size && c / Math.min(mt.size, ot.size || 1) >= 0.4; }).length;
+    return near * 2 >= others.length ? { cls: 'same', t: 'Giống đa số', d: `${near}/${others.length} nơi tương tự` } : { cls: 'diff', t: 'Khác các trung tâm', d: `${near}/${others.length} nơi tương tự – đánh dấu nếu là chủ đích` };
+  }
+  const plsHead = () => '<th class="rs-pls">PLS <small>(bản đang chỉnh)</small></th>';
+  function plsCell(k, C) { const me = plsVal(k), lb = plsLabel(k, C), own = (((P() || {}).plsCol || {})[k] || {});
+    return `<td class="rs-pls"><div>${me.v ? esc(me.v) : '<span class="muted">—</span>'}</div>${me.v && me.from ? `<small class="muted">từ ${esc(me.from)}</small>` : ''}` +
+      `<div class="rs-pls-lb ${lb.cls}" title="${esc(lb.d)}">${esc(lb.t)}</div><div class="rs-pls-act"><button type="button" class="rs-mini" data-plsedit="${esc(k)}">${own.v ? 'Sửa' : 'Nhập'}</button>` +
+      (lb.cls === 'diff' || own.why ? `<button type="button" class="rs-mini" data-plsintent="${esc(k)}">${own.why ? 'Sửa lý do' : 'Chủ đích'}</button>` : '') + (own.v || own.why ? `<button type="button" class="rs-mini" data-plsclear="${esc(k)}">Bỏ</button>` : '') + '</div></td>'; }
+  function plsSummary(C) { const p = P(); if (!p) return null; const crit = p.criteria || [], cnt = { same: [], ok: [], diff: [], gap: [], miss: [] };
+    crit.forEach(k => cnt[plsLabel(k, C).cls].push(k)); return cnt; }
+  const centersOf = p => (p.centers && p.centers.length ? p.centers : [...new Set((p.sources || []).map(s => s.center).filter(Boolean))]);
+  function plsOverview(C) {
+    const p = P(); if (!p) return ''; C = C || centersOf(p); if (!C.length) return ''; const s = plsSummary(C);
+    const chip = (cls, t, ks) => ks.length ? `<span class="rs-pls-lb ${cls}" title="${esc(ks.join(', '))}">${esc(t)}: ${ks.length}</span>` : '';
+    return `<div class="rs-bf rs-pls-ov"><div class="rs-bf-h"><b>PLS so với ${C.length} trung tâm</b><span class="muted">tự cập nhật theo yêu cầu khóa, mục tiêu và khung khóa</span></div>` +
+      `<div class="rs-pls-chips">${chip('same', 'Giống đa số', s.same)}${chip('ok', 'Khác biệt có chủ đích', s.ok)}${chip('diff', 'Khác, chưa giải thích', s.diff)}${chip('gap', 'Khoảng trống', s.gap)}${chip('miss', 'PLS chưa có', s.miss)}</div>` +
+      (s.diff.length ? `<p class="rs-ob-hint">Cần quyết định: ${s.diff.map(esc).join(', ')} – khác các trung tâm nhưng chưa ghi lý do. Bấm “Chủ đích” ở cột PLS nếu đó là lựa chọn của trung tâm.</p>` : '') +
+      (s.gap.length ? `<p class="rs-ob-hint">Khoảng trống có thể khai thác: ${s.gap.map(esc).join(', ')} – chưa trung tâm nào công bố.</p>` : '') + '</div>';
+  }
+  function plsMini() { const p = P(); if (!p) return ''; const C = centersOf(p); if (!C.length) return ''; const s = plsSummary(C);
+    return `<p class="rs-pls-mini">So với ${C.length} trung tâm: ${s.same.length} giống đa số · ${s.ok.length} chủ đích · <b>${s.diff.length} chưa giải thích</b> · ${s.gap.length} khoảng trống · ${s.miss.length} PLS chưa có <button type="button" class="rs-mini" id="rsPlsGo">Xem đối chiếu</button></p>`; }
+  let plsWired = false;
+  function plsEnhance() {
+    if (plsWired) return; plsWired = true;
+    document.addEventListener('click', async e => { const t = e.target.closest && e.target.closest('[data-plsedit],[data-plsintent],[data-plsclear],#rsPlsGo'); if (!t) return; const p = P(); if (!p) return;
+      if (t.id === 'rsPlsGo') { R().step(1); return; }
+      p.plsCol = p.plsCol || {}; const k = t.dataset.plsedit || t.dataset.plsintent || t.dataset.plsclear, o = p.plsCol[k] || (p.plsCol[k] = {});
+      if (t.dataset.plsedit != null) { const v = prompt(`PLS – ${k}:`, plsVal(k).v || ''); if (v == null) return; o.v = v.trim(); }
+      else if (t.dataset.plsintent != null) { const v = prompt(`Vì sao PLS chọn khác các trung tâm ở “${k}”? (lý do này được giữ để người duyệt và Claude đọc lại)`, o.why || ''); if (v == null) return; o.why = v.trim(); }
+      else { delete p.plsCol[k]; }
+      if (!o.v && !o.why) delete p.plsCol[k];
+      await persist(); root.PLS_RESEARCH.show(); });
+  }
   function aiInfo() { const b = document.querySelector('#rsBridge'); if (!b) return; b.scrollIntoView({ behavior: 'smooth', block: 'start' }); b.style.transition = 'box-shadow .3s'; b.style.boxShadow = '0 0 0 3px #d97757'; setTimeout(() => { b.style.boxShadow = ''; }, 1600); }
   const toast = (t, bad) => { const el = document.createElement('div'); el.setAttribute('role', 'status'); el.textContent = t; el.style.cssText = `position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1002;background:${bad ? '#8a2a1b' : '#1f1f1f'};color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;max-width:90vw`; document.body.appendChild(el); setTimeout(() => el.remove(), 4200); };
   function enhance() {
     if (!document.getElementById('plsLocalCss') && document.head) { const st = document.createElement('style'); st.id = 'plsLocalCss';
-      st.textContent = '.rs-bf{border:1px solid var(--ui-line);border-radius:6px;padding:12px;margin:0 0 12px;background:var(--ui-panel)}.rs-bf-h{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}.rs-bf-h .rs-mini{margin:0 0 0 auto}.rs-bf fieldset{border:0;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 10px}.rs-bf legend{font-size:11px;color:var(--ui-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}.rs-bf label{display:flex;flex-direction:column;gap:3px;font-size:12px}.rs-bf input,.rs-bf select{padding:6px 8px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:13px;background:var(--ui-bg);color:var(--ui-ink);min-height:32px}.rs-bf .req{color:#c0392b}.rs-bf label.as input,.rs-bf label.as select{border-color:var(--ui-yellow);background:var(--ui-beige)}.rs-bf .as-n{font-size:11px;color:var(--ui-muted)}.rs-bf .as-n .rs-mini{margin:0 0 0 6px;padding:0}.rs-bf-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}.rs-bf-foot .btn{min-height:32px;padding:5px 12px;font-size:13px}.rs-bf-sum{font-size:13px;margin:6px 0 0}#rsBfGate{font-size:12px;color:#c0392b;margin:6px 0 0}.rs-ob-hint{font-size:12px;margin:8px 0 0}.rs-obt{font-size:12px}.rs-obt td{vertical-align:top}.rs-obt textarea,.rs-obt input{width:100%;box-sizing:border-box;min-width:90px;padding:4px 6px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:12px;background:var(--ui-bg);color:var(--ui-ink);resize:vertical}.rs-obt tr.as textarea,.rs-obt tr.as input{border-color:var(--ui-yellow);background:var(--ui-beige)}.rs-ob-why{font-size:11px;color:var(--ui-muted);max-width:180px}#rsMx{margin-top:12px}.rs-mx{font-size:12px}.rs-mx td.c{text-align:center}.rs-mx th{font-weight:600;text-align:center}.rs-mx td:first-child{min-width:160px}.rs-mx-f{margin:8px 0;padding-left:18px;font-size:12px}.rs-mx-f li.block{color:#c0392b}.rs-mx-f li.warn{color:var(--ui-ink)}' + '.rs-msg.me{background:var(--ui-beige);color:var(--ui-ink);border:1px solid var(--ui-line)}#rsAsk .btn.primary::after{content:none}' +
+      st.textContent = '.rs-bf{border:1px solid var(--ui-line);border-radius:6px;padding:12px;margin:0 0 12px;background:var(--ui-panel)}.rs-bf-h{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}.rs-bf-h .rs-mini{margin:0 0 0 auto}.rs-bf fieldset{border:0;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 10px}.rs-bf legend{font-size:11px;color:var(--ui-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}.rs-bf label{display:flex;flex-direction:column;gap:3px;font-size:12px}.rs-bf input,.rs-bf select{padding:6px 8px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:13px;background:var(--ui-bg);color:var(--ui-ink);min-height:32px}.rs-bf .req{color:#c0392b}.rs-bf label.as input,.rs-bf label.as select{border-color:var(--ui-yellow);background:var(--ui-beige)}.rs-bf .as-n{font-size:11px;color:var(--ui-muted)}.rs-bf .as-n .rs-mini{margin:0 0 0 6px;padding:0}.rs-bf-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}.rs-bf-foot .btn{min-height:32px;padding:5px 12px;font-size:13px}.rs-bf-sum{font-size:13px;margin:6px 0 0}#rsBfGate{font-size:12px;color:#c0392b;margin:6px 0 0}.rs-ob-hint{font-size:12px;margin:8px 0 0}.rs-obt{font-size:12px}.rs-obt td{vertical-align:top}.rs-obt textarea,.rs-obt input{width:100%;box-sizing:border-box;min-width:90px;padding:4px 6px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:12px;background:var(--ui-bg);color:var(--ui-ink);resize:vertical}.rs-obt tr.as textarea,.rs-obt tr.as input{border-color:var(--ui-yellow);background:var(--ui-beige)}.rs-ob-why{font-size:11px;color:var(--ui-muted);max-width:180px}#rsMx{margin-top:12px}.rs-mx{font-size:12px}.rs-mx td.c{text-align:center}.rs-mx th{font-weight:600;text-align:center}.rs-mx td:first-child{min-width:160px}.rs-mx-f{margin:8px 0;padding-left:18px;font-size:12px}.rs-mx-f li.block{color:#c0392b}.rs-mx-f li.warn{color:var(--ui-ink)}.rs-table .rs-pls{background:var(--ui-beige);min-width:150px;vertical-align:top}.rs-pls small{font-weight:400}.rs-pls-lb{display:inline-block;font-size:11px;padding:1px 6px;border-radius:999px;margin:4px 4px 0 0;border:1px solid var(--ui-line);background:var(--ui-panel)}.rs-pls-lb.same{border-color:var(--ui-line)}.rs-pls-lb.ok{border-color:var(--ui-ink);font-weight:600}.rs-pls-lb.diff{border-color:#c0392b;color:#c0392b}.rs-pls-lb.gap{border-color:var(--ui-yellow);background:var(--ui-beige)}.rs-pls-lb.miss{border-style:dashed;color:var(--ui-muted)}.rs-pls-act .rs-mini{margin-right:8px}.rs-pls-chips{margin-top:8px}.rs-pls-mini{font-size:12px;margin:0 0 12px}.rs-pls-mini .rs-mini{margin-left:8px}' + '.rs-msg.me{background:var(--ui-beige);color:var(--ui-ink);border:1px solid var(--ui-line)}#rsAsk .btn.primary::after{content:none}' +
         '#rsNoteNew{display:flex;flex-direction:column;gap:6px;margin:0 0 10px}#rsNoteNew textarea{width:100%;box-sizing:border-box;min-height:60px;resize:vertical;padding:8px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:13px;background:var(--ui-panel);color:var(--ui-ink)}#rsNoteNew .btn{align-self:flex-end;min-height:30px;padding:4px 12px;font-size:12px}';
       document.head.appendChild(st); }
     const notes = document.querySelector('.rs-notes');
@@ -594,13 +655,13 @@
     if (cmp && !document.querySelector('#rsAutoFill')) { const b = document.createElement('button'); b.type = 'button'; b.id = 'rsAutoFill'; b.className = 'btn'; b.textContent = 'Tự điền số liệu'; b.title = 'Máy dò số buổi, phút, sĩ số, học phí, cấp độ… trong nguồn – không cần Claude';
       cmp.parentNode.insertBefore(b, cmp);
       b.onclick = async () => { b.disabled = true; b.textContent = 'Đang dò…'; try { const r = await autoFill(); toast(`Đã điền ${r.filled} ô từ nguồn${r.missing ? ` · ${r.missing} ô chưa thấy, nhờ Claude điền tiếp` : ''}${r.noCenter ? ` · ${r.noCenter} nguồn chưa ghi trung tâm nên bỏ qua` : ''}`); } catch (e) { toast(e.message, true); } finally { b.disabled = false; b.textContent = 'Tự điền số liệu'; } }; }
-    briefEnhance(); objEnhance(); migrate();
+    briefEnhance(); objEnhance(); plsEnhance(); migrate();
     const chip = document.querySelector('#rsAI'); if (chip) { const t = '● Claude · ' + usage(); if (chip.textContent !== t) chip.textContent = t; chip.classList.toggle('ok', true); chip.title = 'Việc cần viết được gửi Claude – nhắn Claude “xử lý hàng chờ PLS” để xử lý'; }
   }
   let tm = 0; new MutationObserver(() => { clearTimeout(tm); tm = setTimeout(enhance, 50); }).observe(document.documentElement, { childList: true, subtree: true });
   setInterval(refresh, 5000); refresh();
 
-  root.PLS_LOCAL = { aiCall, summarize, usage, aiInfo, search, extract, autoFill, localAsk, briefForm, briefText, briefDraft, cleanWeb, objText, matrix };
+  root.PLS_LOCAL = { aiCall, summarize, usage, aiInfo, search, extract, autoFill, localAsk, briefForm, briefText, briefDraft, cleanWeb, objText, matrix, plsHead, plsCell, plsOverview };
   const attach = () => { if (!root.PLS) return false; root.PLS.ai = ai; return true; };
   if (!attach()) document.addEventListener('DOMContentLoaded', attach);
 })(window);
