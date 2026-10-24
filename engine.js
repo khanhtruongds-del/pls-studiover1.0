@@ -70,6 +70,8 @@
     clearUnfilled(rootEl, data);
     // nút loa (ex_n.audio_box): PPTX không kèm âm thanh → không có file tiếng thì ẩn hẳn, khỏi để chấm tròn trống
     rootEl.querySelectorAll('[data-n$="audio_box"]').forEach(b => { const k = b.dataset.n.replace(/_box$/, ''); if (!data[k]) hide(b); });
+    // bài nghe: luôn hiện ô audio (biểu tượng tai nghe + tên bài); file âm thanh tích hợp sau
+    if (spec.comp === 'Slide/Listening') { const ti = rootEl.querySelector('[data-n="track.icon"]'); if (ti) show(ti, rootEl); }
     applyIcons(host);
     { const hk = (root.PLS_TPL_HOOKS || {})[spec.comp]; if (hk) hk(rootEl, data); }   // mẫu bổ sung (templates-extra.js): xử lý riêng sau khi đổ chữ
     // Pronunciation: hàng ví dụ không kéo cao/kéo dài hết cột – hàng ôm chữ, cột ví dụ rộng theo hàng dài nhất, từ và phiên âm gần nhau, cả cụm giữa dọc
@@ -163,8 +165,10 @@
       if (!/(^|\.)icon$/.test(el.dataset.n) || el.dataset.text) return;
       // icon CHỈ đi với yêu cầu làm bài (instruction / task / track: viết, chọn, nghe…); ghi chú, mẹo, can-do, tag… không gắn icon cạnh chữ thân
       if (!/^(instruction|task|track)\.icon$/.test(el.dataset.n)) { hide(el); return; }
-      const row = el.parentElement; const txt = row ? [...row.querySelectorAll('[data-text]')].map(t => t.textContent).join(' ') : '';
+      const row = el.parentElement; const txt = row ? [...row.querySelectorAll('[data-text]')].filter(t => !t.closest('[data-hid]')).map(t => t.textContent).join(' ') : '';
+      if (!txt.trim()) { hide(el); return; }   // chữ đi kèm bị ẩn (trống) → không để icon trơ trọi (chữ mẫu ẩn không được tính)
       let name = null; for (const ic of ICON_ORDER) { const m = MAP.find(x => x[0] === ic); if (m && m[1].test(txt) && ICONS[ic]) { name = ic; break; } }
+      if (!name && el.dataset.n === 'track.icon' && ICONS.headphones) name = 'headphones';   // ô audio bài nghe
       if (!name) { if (!el.dataset.hid) name = 'info'; else return; }   // không khớp: giữ trạng thái mẫu (ẩn → vẫn ẩn)
       show(el, host);
       const color = (el.querySelector('[data-color]') || el).dataset.color || 'currentColor';
