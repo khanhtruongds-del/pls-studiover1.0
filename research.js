@@ -551,7 +551,10 @@
       ['So sánh', P.cmpAt ? Object.keys(P.cells).length + ' ô' : 'Chưa làm', P.cmpAt ? 'ok' : ''],
       ['Định hướng', O ? (O.locked ? 'Đã chốt v' + O.locked : 'Bản nháp v' + O.ver) : 'Chưa làm', O ? (O.locked === O.ver ? 'ok' : 'warn') : ''],
       ['Soạn bài', O ? nL + '/' + O.lessons.length + ' buổi' : '–', O && nL ? (nL === O.lessons.length ? 'ok' : 'warn') : '']]; };
-  function render() {
+  // vẽ lại gom: nhiều lần gọi liên tiếp (máy đọc nguồn nền…) → tối đa 1 lần / 0,4 giây, tránh giật
+  let rdT = 0, rdLast = 0;
+  function render() { const w = 400 - (Date.now() - rdLast); if (w <= 0 && !rdT) { rdLast = Date.now(); return render0(); } if (!rdT) rdT = setTimeout(() => { rdT = 0; rdLast = Date.now(); render0(); }, Math.max(40, w)); }
+  function render0() {
     const box = $('#researchView'); if (!box || !document.body.classList.contains('research')) return;
     if (mode === 'intro') return intro(box);
     if (!loaded) { load().then(render); box.className = 'rs-work'; box.innerHTML = '<p class="muted">Đang mở…</p>'; return; }
@@ -727,7 +730,7 @@
   document.addEventListener('paste', e => { if (!document.body.classList.contains('research') || mode !== 'work' || document.querySelector('.rs-dlg')) return;
     const fs = [...((e.clipboardData && e.clipboardData.files) || [])]; if (!fs.length) return; e.preventDefault(); addDlg(fs.map((f, i) => new File([f], f.name && f.name !== 'image.png' ? f.name : `Ảnh dán ${i + 1}.png`, { type: f.type }))); });
   // cổng lệnh (Claude / kiểm thử): PLS.research.*
-  root.PLS_RESEARCH = { show: render, steps: STEPS, mode: m => { if (m) { mode = m; render(); } return mode; },
+  root.PLS_RESEARCH = { show: render0, steps: STEPS, mode: m => { if (m) { mode = m; render(); } return mode; },
     _: { AI, job, addDlg, discover, summarize, review, release, blockers, restoreLesson, sub: k => { lesSub = k; render(); }, load: async () => { await load(); return P; }, proj: () => P, ask, compare, outline, lesson, mergeLesson, check, booksOut, exportXlsx, openInSlide, addSource, addFiles, step: i => { cur = i; render(); } } };
   if (root.PLS) root.PLS.research = { state: () => P && { name: P.name, sources: P.sources.map(s => s.id + ' ' + s.name), centers: P.centers, outline: P.outline && P.outline.lessons.length, lessons: Object.keys(P.lessons) }, ask: q => job('Đang trả lời', () => ask(q)) };
 })(typeof window !== 'undefined' ? window : globalThis);
