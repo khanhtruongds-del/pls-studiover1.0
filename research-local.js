@@ -50,8 +50,8 @@
     return { pages, method, title: meta.Title || '', date: pdfDate(meta.ModDate || meta.CreationDate), skipped: Math.max(0, scanned.length - OCR_MAX_PAGES) };
   }
   const pdfDate = d => { const m = /D:(\d{4})(\d\d)(\d\d)/.exec(d || ''); return m ? `${m[1]}-${m[2]}-${m[3]}` : ''; };
-  async function readLink(url) {
-    let t; try { t = await jina(url); } catch (e) { throw new Error('Không đọc được trang (' + e.message + ')'); }   // qua hàng chờ: không vượt giới hạn 20 trang/phút
+  async function readLink(url, pri) {
+    let t; try { t = await jina(url, false, pri); } catch (e) { throw new Error('Không đọc được trang (' + e.message + ')'); }   // qua hàng chờ: không vượt giới hạn 20 trang/phút
     const head = k => ((new RegExp('^' + k + ':\\s*(.+)$', 'mi')).exec(t) || [])[1] || '';
     const body = t.split(/^Markdown Content:\s*$/m)[1] || t;
     const pub = head('Published Time'), d = pub && !isNaN(Date.parse(pub)) ? new Date(pub).toISOString().slice(0, 10) : '';
@@ -63,7 +63,7 @@
     if (/^image\//i.test(mime)) { onStep && onStep('đọc chữ trong ảnh'); return { pages: await ocrImages([blob]), method: 'ocr', title: '', date: '' }; }
     return { pages: [clean(await blob.text())], method: 'text', title: '', date: '' };
   }
-  const exIn = new Map();
+  const exIn = new Map(); let gapBusy = false;
   async function extract(s, onStep) {
     if (!(s.ex && s.ex.pages)) await hydrate();
     if (s.ex && s.ex.pages) return s.ex; if (exIn.has(s)) return exIn.get(s);
@@ -192,9 +192,11 @@
   const QUAL = /phương pháp|tỉ lệ|tỷ lệ|kỹ năng|kiểm tra|đánh giá|giáo trình|sách/i;
   // ngữ cảnh sai: thời gian làm bài thi ≠ phút/buổi · quà tặng, trị giá ≠ học phí
   const BADCTX = [[/phút|thời lượng buổi/i, /bài thi|làm bài|thời gian thi|đề thi|bài test|mỗi phần|\d+\s*câu|listening|reading|speaking|writing|part\s*\d|phút\s*\/\s*(ngày|tuần)|mỗi ngày/i], [/học phí|chi phí|^giá/i, /tặng|trị giá|quà|học bổng|lương|thu nhập|giải thưởng|(giảm|ưu đãi|tiết kiệm|khuyến mãi|voucher|hoàn)[^.\n]{0,25}\d/i], [/số buổi/i, /buổi\s*\/\s*tuần|tuần\s*\d\s*buổi|mỗi tuần/i]];
-  async function autoFill() {
-    const p = P(), srcs = p.sources.filter(s => s.on !== false && s.center); let n = 0, missing = 0;
-    for (const s of srcs) { try { await extract(s); } catch (e) { continue; } }
+  async function autoFill(only) {
+    const p = P(), srcs = p.sources.filter(s => s.on !== false && s.center && (!only || only.has(s.center))); let n = 0, missing = 0;
+    // đọc song song (hàng chờ tự giãn nhịp) · nguồn vừa lỗi trong 1 giờ thì bỏ qua, không thử lại mỗi lần
+    for (const s of srcs.filter(s => s.kind !== 'link')) { try { await extract(s); } catch (e) {} }
+    await Promise.all(srcs.filter(s => s.kind === 'link' && !(s.exErr && Date.now() - s.exErr < 36e5)).map(s => extract(s).catch(() => { s.exErr = Date.now(); })));
     const T = briefToks(), site = c => { try { return officialOf(p, c); } catch (e) { return ''; } };
     const byC = {}; srcs.forEach(s => { if (!p.centers.includes(s.center)) p.centers.push(s.center); (byC[s.center] = byC[s.center] || []).push(s); });
     Object.entries(byC).forEach(([c, ss]) => { const off = site(c);
@@ -996,7 +998,7 @@
       const tg = out ? null : plan[k] || null, conf = !st ? ['thiếu', 'chưa có nơi nào'] : st.n >= 3 ? ['đủ', st.n + ' nơi'] : ['yếu', st.n + ' nơi – nên ≥ 3'];
       const mk = out ? (cur != null ? `<b>${esc(fmtV(k, cur))}</b> <small class="muted">bạn đặt (Yêu cầu khóa)</small>` : '<span class="muted">chưa đặt</span>')
         : tg ? `<b>${esc(fmtV(k, tg[0]))}</b> <small class="muted">${esc(tg[1])}</small>${cur != null && rnd(k, cur) === tg[0] ? ' <span class="moc-ok">✓ khớp</span>' : cur != null ? ` <span class="moc-dev">${tg[0] > cur ? '▲' : '▼'} ${esc(fmtV(k, Math.abs(tg[0] - cur)))}</span>` : ''}` : st ? '<span class="muted">chọn định vị</span>' : '<span class="muted">—</span>';
-      return `<tr class="c-${conf[0]}"><th>${esc(lb)}</th><td>${st ? `${esc(fmtV(k, st.min))} · <b>${esc(fmtV(k, st.med))}</b> · ${esc(fmtV(k, st.max))}<small>thấp · trung vị · cao</small>` : '<span class="muted">chưa có số</span>'}</td><td><span class="moc-conf" title="${esc(conf[1])}">${conf[0]}</span>${conf[0] !== 'đủ' ? ` <button type="button" class="rs-mini" data-gap="run">Tìm thêm</button>` : ''}</td><td>${cur != null ? `<b>${esc(fmtV(k, cur))}</b>${me.est ? ' <small class="muted">(ước tính)</small>' : ''}` : '<span class="muted">chưa có</span>'}<small>${mocSrc(k)}</small></td><td>${mk}</td></tr>`; }).join('');
+      return `<tr class="c-${conf[0]}"><th>${esc(lb)}</th><td>${st ? `${esc(fmtV(k, st.min))} · <b>${esc(fmtV(k, st.med))}</b> · ${esc(fmtV(k, st.max))}<small>thấp · trung vị · cao</small>` : '<span class="muted">chưa có số</span>'}</td><td><span class="moc-conf" title="${esc(conf[1])}">${conf[0]}</span>${conf[0] !== 'đủ' ? ` <button type="button" class="rs-mini" data-gap="run" data-gk="${esc(k)}"${gapBusy ? ' disabled' : ''}>${gapBusy ? 'Đang tìm…' : 'Tìm thêm'}</button>` : ''}</td><td>${cur != null ? `<b>${esc(fmtV(k, cur))}</b>${me.est ? ' <small class="muted">(ước tính)</small>' : ''}` : '<span class="muted">chưa có</span>'}<small>${mocSrc(k)}</small></td><td>${mk}</td></tr>`; }).join('');
     const anyT = Object.keys(plan).length > 0;
     return `<div class="moc-pos"><span>Định vị PLS:</span>${Object.entries(POS).map(([v, [t, d]]) => `<button type="button" class="rs-map-fb${pos === v ? ' on' : ''}" data-pos="${v}" title="${esc(d)}">${t}</button>`).join('')}${pos ? `<small class="muted">${esc(POS[pos][1])}</small>` : '<small class="muted">chọn để máy đề xuất mốc</small>'}</div>` +
       `<table class="moc-t"><thead><tr><th>Thước đo</th><th>Thị trường (${esc(scopeLabel())})</th><th>Cơ sở</th><th>PLS hiện tại</th><th>Mốc PLS</th></tr></thead><tbody>${rows}</tbody></table>` +
@@ -1463,10 +1465,16 @@
   const DEEPK = 'pls.deep', deepOn = () => { try { return localStorage.getItem(DEEPK) !== '0'; } catch (e) { return true; } };
   const todayS = () => new Date().toISOString().slice(0, 10);
   // hàng chờ đọc trang qua r.jina.ai (giới hạn ~20 trang/phút) → giãn 3,2 giây/lần
-  let jLast = 0, jChain = Promise.resolve();
-  const jina = (url, links) => { const run = jChain.then(async () => { const w = 3200 - (Date.now() - jLast); if (w > 0) await new Promise(r => setTimeout(r, w)); jLast = Date.now();
-    const h = { 'X-Return-Format': 'markdown' }; if (links) h['X-With-Links-Summary'] = 'true';
-    const r = await fetch('https://r.jina.ai/' + url, { headers: h }); if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }); jChain = run.catch(() => {}); return run; };
+  // không chờ trang trước xong mới gọi trang sau: chỉ giãn nhịp bắt đầu (≤ 19 trang/phút), tối đa 6 trang chạy cùng lúc, việc người dùng bấm được ưu tiên
+  const JQ = []; let jNext = 0, jT = 0, jAct = 0;
+  function jPump() { jT = 0; if (!JQ.length) return; const now = Date.now();
+    if (now < jNext || jAct >= 6) { jT = setTimeout(jPump, Math.max(80, jNext - now)); return; }
+    let i = 0; JQ.forEach((x, k) => { if (x.pri > JQ[i].pri) i = k; }); const x = JQ.splice(i, 1)[0]; jNext = now + 3100; jAct++;
+    const h = { 'X-Return-Format': 'markdown' }; if (x.links) h['X-With-Links-Summary'] = 'true';
+    fetch('https://r.jina.ai/' + x.url, { headers: h }).then(r => { if (r.status === 429 && !x.re) { x.re = 1; jNext = Date.now() + 8000; JQ.push(x); return null; } if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(v => { if (v !== null) x.ok(v); }, x.no).finally(() => { jAct--; if (!jT) jPump(); });
+    if (JQ.length && !jT) jT = setTimeout(jPump, 3100); }
+  const jina = (url, links, pri) => new Promise((ok, no) => { JQ.push({ url, links, pri: pri || 0, ok, no }); if (!jT) jPump(); });
   const SOCIAL = /(^|\.)(facebook|fb|youtube|youtu|google|goo|zalo|tiktok|instagram|twitter|x|linkedin|wikipedia|shopee|lazada|tiki|pinterest|messenger|bit|apple|microsoft|duckduckgo|bing|coccoc|gstatic|cloudflare|jina)\./i;
   // cùng một website: so tên miền đăng ký (bỏ www, tên miền con) · khóa so trùng: bỏ http(s), www, tham số quảng cáo, dấu / cuối
   const siteOf = u => { try { const L = new URL(u).hostname.toLowerCase().replace(/^www\./, '').split('.'); return L.slice(/^(com|edu|net|org|gov|ac|info)$/.test(L[L.length - 2]) && L.length > 2 ? -3 : -2).join('.'); } catch (e) { return ''; } };
@@ -1499,7 +1507,9 @@
       await persist(); showSoon(); if (subs.length && !gapBusy) toast(`Đã thêm ${subs.length} trang con của ${s.center || root0}`);
     } catch (e) { s.deep = 'fail'; await persist(); } finally { capBusy--; bgEnd('crawl' + s.id); paintCap(); } }
   // tìm web (DuckDuckGo qua r.jina.ai) – dùng cho "Tìm rộng hơn"
-  async function dsearch(q) { const t = await jina('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q) + '&kl=vn-vi'), out = [], seen = new Set();
+  const DSC = new Map();
+  function dsearch(q, pri) { if (!DSC.has(q)) { const run = dsearch0(q, pri); DSC.set(q, run); run.catch(() => DSC.delete(q)); } return DSC.get(q); }
+  async function dsearch0(q, pri) { const t = await jina('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q) + '&kl=vn-vi', false, pri), out = [], seen = new Set();
     const real = u => { const m = u.match(/[?&]uddg=([^&)]+)/); try { return m ? decodeURIComponent(m[1]) : u; } catch (e) { return u; } };
     for (const blk of t.split(/\n## /).slice(1)) { const h = blk.match(/^\[([^\]]+)\]\(([^)\s]+)/); if (!h || /duckduckgo\.com\/y\.js|ad_domain|ad_provider/.test(h[2])) continue;
       const url = real(h[2]); if (!/^https?:\/\//.test(url) || seen.has(url)) continue; seen.add(url); out.push({ title: h[1].replace(/\*\*/g, ''), url }); } return out; }
@@ -1609,42 +1619,50 @@
       const ss = p.sources.filter(s => s.center === c && s.on !== false).map(s => srcQual(p, s));
       return { c, miss, chk, n: ss.length, off: ss.filter(q => q.who === 'off').length, own: ss.filter(q => q.who === 'own').length, third: ss.filter(q => q.who === 'third').length, old: ss.filter(q => q.old).length, site: officialOf(p, c) }; });
     const tot = rows.length * cr.length, have = rows.reduce((a, r) => a + cr.length - r.miss.length, 0); return { rows, tot, have, cr }; }
-  let gapBusy = false, gapLog = [];
-  const gapSay = t => { gapLog.push(t); if (gapLog.length > 6) gapLog.shift(); bgSet('gap', t); };
+  let gapLog = [];
+  const gapSay = t => { gapLog.push(t); if (gapLog.length > 6) gapLog.shift(); bgSet('gap', t); paintGap(); };
   // đọc trang qua hàng chờ jina (không vượt giới hạn) rồi gắn sẵn nội dung cho nguồn → "Tự điền" không phải tải lại
-  async function preRead(s) { if (s.ex && s.ex.pages) return; try { await extract(s); return; } catch (e) {} try { const t = await jina(s.url), head = k => ((new RegExp('^' + k + ':\\s*(.+)$', 'mi')).exec(t) || [])[1] || '';
-      const body = t.split(/^Markdown Content:\s*$/m)[1] || t, pub = head('Published Time'), d = pub && !isNaN(Date.parse(pub)) ? new Date(pub).toISOString().slice(0, 10) : '';
-      s.ex = { pages: [cleanWeb(body).slice(0, 60000)], method: 'web', title: head('Title'), date: d, v: 2, at: Date.now() }; } catch (e) {} }
-  async function gapRun() { const p = P(), r = R(); if (!p || !r || !r.addSource || gapBusy) return; gapBusy = true; gapLog = []; paintGap();
-    const topic = topicOf() || fold(String((p.brief || {}).lang || '').toLowerCase()), added = [];
+  async function preRead(s, pri) { if (!(s.ex && s.ex.pages)) await hydrate(); if (s.ex && s.ex.pages) return;
+    if (exIn.has(s)) { try { await exIn.get(s); } catch (e) {} return; }
+    const run = (async () => { const ex = await readLink(s.url, pri); ex.at = Date.now(); s.ex = ex; return ex; })().finally(() => exIn.delete(s)); exIn.set(s, run);
+    try { await run; } catch (e) { s.exErr = Date.now(); } }
+  const gqOf = k => k === FPH ? ['học phí', 'lộ trình số buổi'] : k === HRS ? ['lộ trình số buổi'] : [(GQ.find(g => g[0].test(k)) || [])[1]].filter(Boolean);
+  let fillChain = Promise.resolve();
+  // gk: chỉ tìm cho một thước đo (nút "Tìm thêm" ở Bảng mốc) · các trung tâm chạy song song · điền bảng ngay khi xong từng trung tâm
+  async function gapRun(gk) { const p = P(), r = R(); if (!p || !r || !r.addSource || gapBusy) return; gapBusy = true; gapLog = []; paintGap();
+    const topic = topicOf() || fold(String((p.brief || {}).lang || '').toLowerCase()), added = [], scope = gk ? gqOf(gk) : null, t0 = Date.now();
     const add = (o, c, why) => { const have = new Set(p.sources.map(x => normU(x.url || ''))); if (have.has(normU(o.url))) return null;
       const s = r.addSource({ kind: 'link', name: (o.title || o.url).slice(0, 80), url: cleanU(o.url), center: c, date: todayS(), note: 'Máy tự tìm cho ô thiếu: ' + why, autoName: !o.title, gap: 1, deep: why === 'website chính chủ' ? 'gaphome' : 'gap' }); added.push(s); return s; };
-    try { const cov = coverage(), todo = cov.rows.filter(x => x.miss.length);
-      if (!todo.length) { gapSay('Bảng đã đủ ô – không cần tìm thêm.'); return; }
-      for (const row of todo) { const c = row.c; let site = row.site;
-        // 1. chưa biết website chính chủ → tìm
-        if (!site) { gapSay(`${c}: tìm website chính chủ…`);
-          const rs = await dsearch(`${c} ${topic}`.trim()).catch(() => []);
-          const hit = rs.find(x => { const st = siteOf(x.url); let hn = ''; try { hn = new URL(x.url).hostname; } catch (e) {} return st && !junkHost(x.url) && !SOCIAL.test(st + '.') && !AGG.test(st + '.') && !HOSTING.test(st + '.') && hasTok(c, hn); });   // tên trung tâm phải nằm trong tên miền, không chỉ trong tiêu đề bài
-          if (hit) { site = siteOf(hit.url); p.site = p.site || {}; p.site[c] = site; add({ title: hit.title, url: 'https://' + new URL(hit.url).hostname + '/' }, c, 'website chính chủ'); gapSay(`${c}: thấy ${site}`); }
-          else gapSay(`${c}: chưa thấy website chính chủ, tìm bài viết khác`); }
-        // 2. website chính chủ chưa lấy trang con → lấy (học phí, lộ trình, khai giảng…)
-        const home = site && p.sources.find(s => s.center === c && s.kind === 'link' && siteOf(s.url || '') === site && !s.parent);
-        if (home && !/done|fail/.test(home.deep || '')) { gapSay(`${c}: lấy trang con của ${site}…`); home.deep = 'queued'; await crawl(home); }
-        // 3. từng nhóm ô còn thiếu → tìm đúng chủ đề, ưu tiên trang chính chủ, rồi bài viết có nhắc đúng tên
-        const groups = [...new Set(row.miss.map(k => (GQ.find(g => g[0].test(k)) || [])[1]).filter(Boolean))].slice(0, 3);
-        for (const g of groups) { gapSay(`${c}: tìm “${g}”…`);
-          const rs = await dsearch(`${c} ${g} ${topic}`.trim()).catch(() => []);
-          const ok = rs.filter(x => { const st = siteOf(x.url); return st && urlOk(x.url) && !junkHost(x.url) && !SOCIAL.test(st + '.') && (st === site || hasTok(c, x.title + ' ' + x.url)); })
-            .sort((a, b) => (siteOf(b.url) === site) - (siteOf(a.url) === site)).slice(0, 2);
-          ok.forEach(x => add(x, c, g)); }
-      }
-      // 4. đọc hết nguồn mới rồi điền bảng
-      const fresh = p.sources.filter(s => s.kind === 'link' && s.center && !(s.ex && s.ex.pages) && s.on !== false);
-      for (let i = 0; i < fresh.length; i++) { gapSay(`Đọc nguồn mới ${i + 1}/${fresh.length}…`); await preRead(fresh[i]); }
-      gapSay('Điền bảng…'); const res = await autoFill(), after = coverage();
-      gapSay(`Xong: thêm ${added.length} nguồn · điền thêm ${res.filled} ô · bảng có ${after.have}/${after.tot} ô.`);
-      toast(`Máy đã tìm thêm ${added.length} nguồn và điền ${res.filled} ô – các ô vàng cần bạn kiểm`);
+    const grp = k => (GQ.find(g => g[0].test(k)) || [])[1], want = k => !scope || scope.includes(grp(k));
+    try { const cov = coverage(), todo = cov.rows.filter(x => x.miss.some(want));
+      if (!todo.length) { gapSay(scope ? `Các trung tâm đều đã có số “${gk}” – muốn mốc chắc hơn, bấm “Tìm thêm trung tâm”.` : 'Bảng đã đủ ô – không cần tìm thêm.'); if (scope) toast(`Các trung tâm hiện có đều đã có số “${gk}” – cần thêm trung tâm để mốc chắc hơn`); return; }
+      let done = 0, filled = 0;
+      const eta = () => { const s = Math.ceil(JQ.length * 3.1 + 6); return s > 90 ? '~' + Math.ceil(s / 60) + ' phút' : '~' + s + ' giây'; };
+      const tick = () => gapSay(`${scope ? 'Tìm “' + gk + '”' : 'Tìm chỗ thiếu'}: xong ${done}/${todo.length} trung tâm${done < todo.length ? ' · còn ' + eta() : ''}`);
+      tick();
+      await Promise.all(todo.map(async row => { const c = row.c, mine = []; let site = row.site;
+        try {
+          // 1. chưa biết website chính chủ → tìm (tên trung tâm phải nằm trong tên miền)
+          if (!site) { const rs = await dsearch(`${c} ${topic}`.trim(), 2).catch(() => []);
+            const hit = rs.find(x => { const st = siteOf(x.url); let hn = ''; try { hn = new URL(x.url).hostname; } catch (e) {} return st && !junkHost(x.url) && !SOCIAL.test(st + '.') && !AGG.test(st + '.') && !HOSTING.test(st + '.') && hasTok(c, hn); });
+            if (hit) { site = siteOf(hit.url); p.site = p.site || {}; p.site[c] = site; const s = add({ title: hit.title, url: 'https://' + new URL(hit.url).hostname + '/' }, c, 'website chính chủ'); if (s) mine.push(s); } }
+          // 2. tìm cả bảng: lấy trang con của website chính chủ (tìm một thước đo thì bỏ qua – tìm đúng chủ đề nhanh hơn)
+          if (!scope) { const home = site && p.sources.find(s => s.center === c && s.kind === 'link' && siteOf(s.url || '') === site && !s.parent);
+            if (home && !/done|fail|queued/.test(home.deep || '')) { home.deep = 'queued'; await crawl(home); } }
+          // 3. các nhóm ô còn thiếu → tìm cùng lúc
+          const groups = [...new Set(row.miss.filter(want).map(grp).filter(Boolean))].slice(0, 3);
+          const found = await Promise.all(groups.map(g => dsearch(`${c} ${g} ${topic}`.trim(), 2).catch(() => []).then(rs => [g, rs])));
+          found.forEach(([g, rs]) => rs.filter(x => { const st = siteOf(x.url); return st && urlOk(x.url) && !junkHost(x.url) && !SOCIAL.test(st + '.') && (st === site || hasTok(c, x.title + ' ' + x.url)); })
+            .sort((a, b) => (siteOf(b.url) === site) - (siteOf(a.url) === site)).slice(0, 2).forEach(x => { const s = add(x, c, g); if (s) mine.push(s); }));
+          // 4. đọc nguồn chưa đọc của trung tâm này (ưu tiên nguồn vừa tìm, tối đa 6) rồi điền ngay
+          const unread = p.sources.filter(s => s.center === c && s.kind === 'link' && s.on !== false && !(s.ex && s.ex.pages) && !(s.exErr && Date.now() - s.exErr < 36e5))
+            .sort((a, b) => mine.includes(b) - mine.includes(a)).slice(0, 6);
+          await Promise.all(unread.map(s => preRead(s, 2)));
+          const one = () => autoFill(new Set([c])); fillChain = fillChain.then(one, one); const res = await fillChain; filled += (res && res.filled) || 0;
+        } catch (e) {} finally { done++; tick(); } }));
+      const after = coverage(), sec = Math.round((Date.now() - t0) / 1000);
+      gapSay(`Xong sau ${sec} giây: thêm ${added.length} nguồn · điền ${filled} ô · bảng có ${after.have}/${after.tot} ô.`);
+      toast(`Xong sau ${sec} giây: thêm ${added.length} nguồn, điền ${filled} ô – các ô vàng cần bạn kiểm`);
     } catch (e) { gapSay('Lỗi: ' + e.message); } finally { gapBusy = false; bgEnd('gap'); await persist(); paintGap(); root.PLS_RESEARCH.show(); } }
   // tìm thêm trung tâm cạnh tranh theo yêu cầu khóa học
   async function rivals(btn) { const p = P(); if (!p) return; const b = p.brief || {}, lang = b.lang || '', lv = b.level || '', topic = topicOf();
@@ -1665,13 +1683,13 @@
       `<td class="gap-q">${x.n} nguồn${x.off ? ` · ${x.off} chính chủ` : ''}${x.own ? ` · ${x.own} tài liệu` : ''}${x.third ? ` · ${x.third} bên thứ ba` : ''}${x.old ? ` · <span class="gap-old">${x.old} cũ</span>` : ''}</td></tr>`).join('');
     const h = `<div class="gap-h"><b>Độ phủ nguồn</b><span class="gap-meter big"><i style="width:${pct}%"></i></span><span>${cv.have}/${cv.tot} ô có số liệu (${pct}%)</span><span style="flex:1"></span>` +
       `<button type="button" class="btn" data-gap="rivals">Tìm thêm trung tâm</button><button type="button" class="btn primary" data-gap="run"${gapBusy ? ' disabled' : ''}>${gapBusy ? 'Máy đang tìm…' : 'Tự tìm chỗ thiếu'}</button></div>` +
-      `<p class="muted gap-sub">Máy tự tìm website chính chủ, lấy trang học phí / lộ trình, tìm đúng chủ đề còn thiếu rồi đọc và điền – không cần Claude. Ô máy điền hiện màu vàng để bạn kiểm. Ô mô tả (<span class="gap-miss q">viền tím</span>: phương pháp, giáo trình…) máy chỉ gom nguồn, Claude đọc rồi điền qua “Nhờ Claude lập lại”.</p>` +
+      `<p class="muted gap-sub">${gapLog.length ? esc(gapLog[gapLog.length - 1]) : 'Ô vàng là máy tự điền – bạn kiểm lại trước khi dùng.'}</p>` +
       `<details class="gap-d"><summary>Từng trung tâm</summary><table class="gap-t"><tbody>${rows}</tbody></table></details>`;
     if (box._h !== h) { const op = box.querySelector('details'), was = !!(op && op.open); box._h = h; box.innerHTML = h; if (was) box.querySelector('details').open = true; } }
   let gapWired = false;
   function gapEnhance() { if (!gapWired) { gapWired = true;
       const st = document.createElement('style'); st.textContent = '.gap-box{border:1px solid var(--ui-line);border-radius:6px;padding:10px 12px;margin:0 0 12px;background:var(--ui-panel);font-size:12px}.gap-h{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.gap-h b{font-size:13px}.gap-h .btn{min-height:30px;padding:4px 12px;font-size:12px}.gap-sub{margin:6px 0 0}.gap-meter{display:inline-block;width:60px;height:6px;border-radius:3px;background:var(--ui-line);vertical-align:middle;overflow:hidden}.gap-meter.big{width:120px}.gap-meter i{display:block;height:100%;background:#2e7d32}.gap-log{margin:6px 0 0;padding-left:18px;color:#b85c3e}.gap-d{margin-top:8px}.gap-d summary{cursor:pointer;color:var(--ui-muted)}.gap-t{width:100%;border-collapse:collapse;margin-top:6px}.gap-t th,.gap-t td{text-align:left;vertical-align:top;padding:5px 6px;border-top:1px solid var(--ui-line)}.gap-t th{font-weight:600;min-width:120px}.gap-t th small{display:block;font-weight:400;color:var(--ui-muted)}.gap-t th small.no{color:#b85c3e}.gap-t td:nth-child(2){white-space:nowrap}.gap-miss{display:inline-block;border:1px dashed var(--ui-muted);border-radius:999px;padding:0 6px;margin:0 4px 3px 0;color:var(--ui-muted)}.gap-miss.q{border-color:#7a5bd1;color:#7a5bd1}.gap-ok{color:#2e7d32;font-weight:600}.gap-chk{color:#a06d00}.gap-old{color:#b85c3e}.gap-q{color:var(--ui-muted)}@media(max-width:700px){.gap-t td:nth-child(4){display:none}}'; document.head.appendChild(st);
-      document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-gap]'); if (!t) return; if (t.dataset.gap === 'run') gapRun(); if (t.dataset.gap === 'rivals') rivals(t); }); }
+      document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-gap]'); if (!t) return; if (t.dataset.gap === 'run') gapRun(t.dataset.gk || ''); if (t.dataset.gap === 'rivals') rivals(t); }); }
     paintGap(); }
   // ---------- KHO CHỮ TRANG RIÊNG ----------
   // Trước: mỗi lần lưu ghi lại cả dự án kèm chữ mọi trang đã đọc (vài MB) → giật. Giờ: dự án lưu nhẹ (số liệu, ô, ghi chú),
@@ -1937,7 +1955,7 @@
   const HUBGO = { l0: 'moc', l1: 'mx', l2: 'les', l3: 'pls' };
   async function hubDo(a) { const r = R(), p = P(); if (!r || !p) return; const go = (st, sec, sel) => { if (sec) ovSec = sec; r.step(st); if (sel) setTimeout(() => { const x = document.querySelector(sel); if (x) { x.scrollIntoView({ behavior: 'smooth', block: 'center' }); x.classList.add('hub-flash'); setTimeout(() => x.classList.remove('hub-flash'), 1600); } }, 350); };
     if (a === 'add') { const b = document.getElementById('rsAddBtn'); if (b) b.click(); }
-    else if (a === 'gap') { gapRun(); toast('Máy đang tìm số liệu – chạy nền, xong sẽ báo'); }
+    else if (a === 'gap') { gapRun(FPH); toast('Máy đang tìm số liệu – chạy nền, xong sẽ báo'); }
     else if (a === 'req') { bfOpen = true; go(2, 'req', '#rsBf'); }
     else if (a === 'moc') go(1, null, '.moc-pos');
     else if (a === 'outline') { if (r.job && r.outline) r.job('Đề xuất khung khóa', () => r.outline()); }
@@ -1953,16 +1971,16 @@
     if (!body || !p) { if (box) box.remove(); return; }
     if (!box) { box = document.createElement('div'); box.id = 'rsHub'; box.className = 'hub'; } if (body.firstElementChild !== box) body.prepend(box);
     if (!force && Date.now() - hubAt < 900 && box.innerHTML) return; hubAt = Date.now();
-    const st = hubState(); if (!st) return; const d = revDiff(), V = vers(), last = V[V.length - 1];
+    const st = hubState(); if (!st) { box.remove(); return; } const d = revDiff(), V = vers(), last = V[V.length - 1];
     const chg = d && d.ch.length ? `<div class="hub-chg"><b>${d.ch.length} thay đổi chưa chốt:</b> ${esc(d.ch.slice(0, 2).map(c => c.txt).join('; '))}${d.ch.length > 2 ? ` (+${d.ch.length - 2})` : ''}${d.spread ? ` → <b>${[d.nr ? d.nr + ' buổi soạn lại' : '', d.moved.length ? 'vị trí PLS đổi' : ''].filter(Boolean).join(', ') || 'lan sang bước khác'}</b>` : ''} <button type="button" class="rs-mini" data-chg="view">Xem và chốt</button></div>`
       : last ? `<div class="hub-chg muted">Bản chốt gần nhất: ${esc(last.label)} · ${fmt(last.at)}</div>` : '';
     const h = `<div class="hub-lights">${st.lights.map(([n, l], i) => `<button type="button" class="hub-l ${l.s}" data-hub="l${i}" title="Bấm để mở phần này"><span class="d"></span><b>${n}</b><small>${esc(l.t)}</small></button>`).join('')}</div>` +
       `<div class="hub-next"><div><small>Việc tiếp theo</small><b>${esc(st.nx.t)}</b><span>${esc(st.nx.w)}</span></div><button type="button" class="btn primary" data-hub="${st.nx.a}">${esc(st.nx.t.split(':')[0])}</button></div>` + chg +
       `<button type="button" class="hub-lean" data-hub="lean">${leanOn() ? 'Hiện chi tiết' : 'Thu gọn'}</button>`;
-    if (h !== hubH && !box.contains(document.activeElement)) { hubH = h; box.innerHTML = h; } }
+    if (box._h !== h && !box.contains(document.activeElement)) { box._h = h; box.innerHTML = h; } }
   let hubWired = false;
   function hubEnhance() { if (!hubWired) { hubWired = true;
-      const st = document.createElement('style'); st.textContent = '.hub{border:1px solid var(--ui-line);border-radius:8px;padding:12px;margin:0 0 14px;background:var(--ui-panel);position:relative}.hub-lights{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.hub-l{text-align:left;border:1px solid var(--ui-line);background:var(--ui-bg);border-radius:6px;padding:8px 10px;font:inherit;cursor:pointer;display:flex;flex-direction:column;gap:3px;color:var(--ui-ink);min-height:64px}.hub-l b{font-size:13px;display:flex;align-items:center;gap:6px}.hub-l small{font-size:11px;color:var(--ui-muted);line-height:1.35}.hub-l .d{display:none}.hub-l b::before{content:"";width:9px;height:9px;border-radius:50%;background:#bbb;flex:none}.hub-l.ok b::before{background:#2e7d32}.hub-l.warn b::before{background:#e0a100}.hub-l.bad b::before{background:#c0392b}.hub-l.warn{border-color:#e0c060}.hub-l.bad{border-color:#e0a0a0}.hub-next{display:flex;gap:12px;align-items:center;margin-top:10px;padding:10px 12px;border-radius:6px;background:var(--ui-bg);border:1.5px solid var(--ui-ink)}.hub-next>div{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}.hub-next small{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ui-muted)}.hub-next b{font-size:14px}.hub-next span{font-size:12px;color:var(--ui-muted)}.hub-next .btn{white-space:nowrap}.hub-chg{font-size:12px;margin-top:8px}.hub-chg .rs-mini{margin-left:6px}.hub-lean{position:absolute;top:-10px;right:12px;font:inherit;font-size:11px;border:1px solid var(--ui-line);background:var(--ui-bg);border-radius:999px;padding:1px 10px;cursor:pointer;color:var(--ui-muted)}.hub-flash{animation:rsFlash 1.4s ease}' +
+      const st = document.createElement('style'); st.textContent = '.hub{border:1px solid var(--ui-line);border-radius:8px;padding:12px;margin:0 0 14px;background:var(--ui-panel);position:relative}.hub-lights{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.hub-l{text-align:left;border:1px solid var(--ui-line);background:var(--ui-bg);border-radius:6px;padding:8px 10px;font:inherit;cursor:pointer;display:flex;flex-direction:column;gap:3px;color:var(--ui-ink);min-height:64px}.hub-l b{font-size:13px;display:flex;align-items:center;gap:6px}.hub-l small{font-size:11px;color:var(--ui-muted);line-height:1.35}.hub-l .d{display:none}.hub-l b::before{content:"";width:9px;height:9px;border-radius:50%;background:#bbb;flex:none}.hub-l.ok b::before{background:#2e7d32}.hub-l.warn b::before{background:#e0a100}.hub-l.bad b::before{background:#c0392b}.hub-l.warn{border-color:#e0c060}.hub-l.bad{border-color:#e0a0a0}.hub-next{display:flex;gap:12px;align-items:center;margin-top:10px;padding:10px 12px;border-radius:6px;background:var(--ui-bg);border:1.5px solid var(--ui-ink)}.hub-next>div{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}.hub-next small{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ui-muted)}.hub-next b{font-size:14px}.hub-next span{font-size:12px;color:var(--ui-muted)}.hub-next .btn{white-space:nowrap}.hub-chg{font-size:12px;margin-top:8px}.hub-chg .rs-mini{margin-left:6px}.hub-lean{position:absolute;top:-10px;right:12px;font:inherit;font-size:11px;border:1px solid var(--ui-line);background:var(--ui-bg);border-radius:999px;padding:1px 10px;cursor:pointer;color:var(--ui-muted)}.rs-relis{margin:8px 0}.rs-relis ul{list-style:none;padding:0;margin:8px 0 10px;display:flex;flex-direction:column;gap:6px}.rs-relis li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border:1px solid var(--ui-line);border-radius:8px;background:var(--ui-bg)}.rs-relis li small{margin-left:4px}.rs-relis .btn{white-space:nowrap}.hub-flash{animation:rsFlash 1.4s ease}' +
         'body.rs-lean #rsGuide,body.rs-lean #rsAI,body.rs-lean #capBar,body.rs-lean #rsBridge,body.rs-lean #gapBox,body.rs-lean .rs-body .rs-chg,body.rs-lean .rs-ov-next,body.rs-lean .rs-ov-steps .rs-ov-s small{display:none!important}@media(max-width:760px){.hub-lights{grid-template-columns:1fr 1fr}.hub-next{flex-direction:column;align-items:stretch}}';
       document.head.appendChild(st);
       document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-hub]'); if (!t) return; const a = t.dataset.hub; hubDo(HUBGO[a] || a); }); }
