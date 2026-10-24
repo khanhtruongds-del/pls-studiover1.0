@@ -74,6 +74,8 @@
     { const g = {}; for (const [k, v] of Object.entries(data)) { const m = k.match(/^([a-z]+_\d+)\./i); if (m) g[m[1]] = (g[m[1]] !== false) && String(v).trim() === ''; }
       for (const [k, empty] of Object.entries(g)) if (empty) { const el = find(rootEl, k); if (el && el !== rootEl) hide(el); } }
     clearUnfilled(rootEl, data);
+    // khung chứa mà mọi khối con đều ẩn (vd dải chip của Key Point khi không có chip) → ẩn luôn, khỏi chiếm một khe trống
+    { const card = rootEl.querySelector('[data-n="card"]'); if (card) [...card.querySelectorAll('[data-n]')].reverse().forEach(e => { const kids = [...e.children].filter(c => c.dataset && c.dataset.n); if (kids.length && !e.dataset.text && kids.every(c => c.style.display === 'none') && ![...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) hide(e); }); }
     // nút loa (ex_n.audio_box): PPTX không kèm âm thanh → không có file tiếng thì ẩn hẳn, khỏi để chấm tròn trống
     rootEl.querySelectorAll('[data-n$="audio_box"]').forEach(b => { const k = b.dataset.n.replace(/_box$/, ''); if (!data[k]) hide(b); });
     // bài nghe: luôn hiện ô audio (biểu tượng tai nghe + tên bài); file âm thanh tích hợp sau
@@ -372,12 +374,12 @@
     // (đọc trái → phải, trên → dưới); nội dung ít (< 45%) thì vẫn để giữa cho cân. Cover / End / Section giữ nguyên.
     if (!/^Slide\/(Cover|End|Section|Section Character)$/.test(r.host.dataset.comp)) {
       const card = r.host.querySelector('[data-n="card"]'); const s0 = scaleOf(r.host);
-      if (card) [...card.querySelectorAll('[data-n]')].forEach(col => {
+      if (card) [card, ...card.querySelectorAll('[data-n]')].forEach(col => {
         if (col.style.flexDirection !== 'column' || col.style.justifyContent !== 'center' || !col.offsetParent) return;
         const kids = [...col.children].filter(k => k.offsetParent); if (!kids.length) return;
         const H = R(col).height; if (H < 200 * s0) return;
         const used = R(kids[kids.length - 1]).bottom - R(kids[0]).top;
-        if (used / H > 0.45) col.style.justifyContent = 'flex-start';
+        col.style.justifyContent = 'flex-start';   // người dùng 24/10: luôn dàn từ trên xuống, dư chỗ ở dưới thì để trống
       });
     }
     // BẢNG (Grammar Table / Table 3 / Table N / Exercise Table): bảng rộng hết khung, hàng cao đều và thoáng – chiếm ~80% chỗ trống, mỗi hàng 96–150px
