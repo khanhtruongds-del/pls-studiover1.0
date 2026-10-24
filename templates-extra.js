@@ -104,7 +104,7 @@
   // 10) KIỂM TRA HIỂU (CCQ): câu hỏi đóng ngắn về NGHĨA; đáp án (Đúng / Sai + lý do ngắn) hiện sau khi lớp trả lời
   build('Slide/CCQ',
     div('items', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:column;gap:24px;justify-content:flex-start;align-items:stretch',
-      range(4).map(i => div(`q_${i}`, `flex:0 0 auto;display:flex;flex-direction:row;gap:24px;align-items:center;padding:20px 28px;border-radius:16px;background-color:${C.soft}`,
+      range(4).map(i => div(`c_${i}`, `flex:0 0 auto;display:flex;flex-direction:row;gap:24px;align-items:center;padding:20px 28px;border-radius:16px;background-color:${C.soft}`,
         circle('no_box', 52, C.fill, C.inv, String(i)) +
         div('body', 'flex:1 1 0px;min-width:0;display:flex;flex-direction:column;gap:4px;align-items:flex-start', txt('text', 'native', 36, C.text, '“I get up at six every day.” – Đây là thói quen?', true)) +
         div('ans', `flex:0 0 auto;max-width:34%;display:flex;flex-direction:row;align-items:center;padding:12px 24px;border-radius:999px;background-color:${C.white};box-shadow:inset 0 0 0 2px ${C.primary}`,
@@ -133,7 +133,7 @@
         div('meta', 'flex:0 0 auto;display:flex;flex-direction:row;gap:20px;align-items:center',
           txt('ipa', 'body', 36, C.muted, '/ˈbrekfəst/', false) + div('pos_box', `flex:0 0 auto;display:flex;flex-direction:row;align-items:center;padding:6px 18px;border-radius:999px;background-color:${C.soft}`, txt('pos', 'bold', 28, C.ink, 'danh từ', false))) +
         txt('mean', 'bold', 48, C.text, 'bữa sáng', true) +
-        div('ex_box', `flex:0 0 auto;align-self:stretch;display:flex;flex-direction:column;gap:6px;padding:24px 28px;border-radius:16px;box-shadow:inset 6px 0 0 0 ${C.primary};background-color:${C.soft}`,
+        div('ex_box', `flex:0 0 auto;align-self:stretch;display:flex;flex-direction:column;gap:6px;padding:24px 28px;border-radius:16px;box-shadow:inset 0 0 0 2px ${C.primary};background-color:${C.white}`,
           txt('exde', 'native', 36, C.text, 'I have breakfast at seven.', true) + txt('exvi', 'body', 30, C.muted, 'Mình ăn sáng lúc 7 giờ.', true)))));
 
   // 13) ĐIỀN TỪ CÓ HỘP TỪ: dải từ gợi ý trên cùng + tối đa 5 câu có chỗ trống; đáp án từng câu hiện sau
