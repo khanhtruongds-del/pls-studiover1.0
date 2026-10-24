@@ -380,13 +380,15 @@
     return `<div class="rs-bf" id="rsBf"><div class="rs-bf-h"><b>Yêu cầu khóa học</b><span class="muted">${esc(status)}</span><button type="button" class="rs-mini" id="rsBfToggle">${open ? 'Thu gọn' : 'Sửa'}</button></div>` +
       (open ? BF.map(([g, fs]) => `<fieldset><legend>${esc(g)}</legend>${fs.map(inp).join('')}</fieldset>`).join('') +
         `<div class="rs-bf-foot"><button type="button" class="btn" id="rsBfDraft">Nhờ Claude điền nháp các ô trống</button><span class="muted">Ô Claude điền được đánh dấu để bạn xác nhận. Ô có * là bắt buộc trước khi đề xuất khung.</span></div>`
-        : `<p class="rs-bf-sum">${sum || '<span class="muted">Chưa có thông tin</span>'}</p>`) + '</div>';
+        : `<p class="rs-bf-sum">${sum || '<span class="muted">Chưa có thông tin</span>'}</p>`) + '</div>' + objPanel();
   }
   function briefText() { const p = P(); if (!p) return ''; const b = p.brief, m = b._m || {};
     const extra = ['courseName', 'classSize', 'mode', 'age', 'entry', 'entryCheck', 'needs', 'method', 'conditions'].filter(k => filled(b, k)).map(k => `${LABEL[k].toLowerCase()}: ${b[k]}${m[k] ? ' (giả định)' : ''}`);
     const as = ['lang', 'level', 'audience'].filter(k => m[k]).map(k => LABEL[k].toLowerCase());
     return (extra.length ? 'Thêm: ' + extra.join('; ') + '.\n' : '') + (as.length ? 'Lưu ý: ' + as.join(', ') + ' là giả định chưa xác nhận.\n' : '') +
-      'Mục tiêu các buổi phải dẫn từ trình độ đầu vào tới đầu ra; nếu đầu vào – đầu ra – số buổi không khả thi thì nói rõ trong desc.\n'; }
+      'Mục tiêu các buổi phải dẫn từ trình độ đầu vào tới đầu ra; nếu đầu vào – đầu ra – số buổi không khả thi thì nói rõ trong desc.\n' +
+      (objs().length ? 'MỤC TIÊU KHÓA (giữ nguyên mã):\n' + objs().map(objLine).join('\n') + '\nCÁCH ĐO:\n' + asses().map(asLine).join('\n') +
+        '\nMỗi buổi trong JSON thêm trường "obj": ["O1", …] = mã mục tiêu buổi đó dạy/luyện; mọi mục tiêu có ít nhất 1 buổi; mục tiêu cần trước dạy trước; buổi Kiểm tra gắn mục tiêu được đo và đặt đúng thời điểm của cách đo.\n' : ''); }
   async function briefDraft() {
     const p = P(); if (!p) return; const b = p.brief, todo = BFF.map(f => f[0]).filter(k => !filled(b, k));
     if (!todo.length) { toast('Các ô đã có đủ – sửa trực tiếp nếu cần'); return; }
@@ -419,17 +421,159 @@
         else if (t.id === 'rsBfDraft') { t.disabled = true; try { await briefDraft(); } finally { t.disabled = false; } }
         else { if (p.brief._m) delete p.brief._m[t.dataset.bfok]; await persist(); root.PLS_RESEARCH.show(); } }); }
     const out = document.querySelector('#rsOut'); if (!out) return;
-    const st = briefState(); let note = document.getElementById('rsBfGate');
-    if (st.missing.length) { out.disabled = true; out.dataset.bfGate = '1';
+    const st = briefState(), os = objState(), why = []; let note = document.getElementById('rsBfGate');
+    if (st.missing.length) why.push('điền đủ ô bắt buộc trong “Yêu cầu khóa học”: ' + st.missing.map(k => LABEL[k]).join(', '));
+    if (!objs().length) why.push('có ít nhất một mục tiêu học tập');
+    else if (os.empty) why.push('viết nội dung cho mục tiêu đang trống');
+    if (os.noAssess.length) why.push('thêm cách đo cho ' + os.noAssess.join(', '));
+    if (why.length) { out.disabled = true; out.dataset.bfGate = '1';
       if (!note) { note = document.createElement('p'); note.id = 'rsBfGate'; out.closest('.rs-bar').after(note); }
-      note.textContent = 'Điền đủ ô bắt buộc trong “Yêu cầu khóa học” để đề xuất khung: ' + st.missing.map(k => LABEL[k]).join(', ') + '.'; }
+      const t = 'Để đề xuất khung khóa, cần ' + why.join('; ') + '.'; if (note.textContent !== t) note.textContent = t; }
     else { if (out.dataset.bfGate) { out.disabled = false; delete out.dataset.bfGate; } if (note) note.remove(); }
+  }
+  // ---------- BƯỚC 2: MỤC TIÊU HỌC TẬP + CÁCH ĐO (thiết kế ngược) ----------
+  const objs = () => { const p = P(); return p ? (p.objectives || (p.objectives = [])) : []; };
+  const asses = () => { const p = P(); return p ? (p.assess || (p.assess = [])) : []; };
+  const idList = (s, pre) => [...new Set((Array.isArray(s) ? s.join(',') : String(s || '')).toUpperCase().match(new RegExp('\\b' + pre + '\\d+\\b', 'g')) || [])];
+  const nextId = (arr, pre) => pre + (arr.reduce((m, x) => Math.max(m, +String(x.id).slice(1) || 0), 0) + 1);
+  const whenNo = w => { const m = /\d+/.exec(String(w || '')); return m ? +m[0] : (/cuối/i.test(String(w || '')) ? 999 : null); };
+  const pending = x => x.by === 'claude' && !x.ok;
+  function objState() { const O = objs(), A = asses(), measured = new Set(A.flatMap(a => a.obj || []));
+    return { noAssess: O.filter(o => !measured.has(o.id)).map(o => o.id), draft: O.filter(pending).length + A.filter(pending).length, empty: O.filter(o => !String(o.text || '').trim()).length }; }
+  let obOpen = null;
+  function objPanel() {
+    const p = P(); if (!p) return ''; const O = objs(), A = asses(), st = objState();
+    const open = obOpen != null ? obOpen : !(O.length && !st.noAssess.length && !st.draft);
+    const status = !O.length ? 'Chưa có mục tiêu' : `${O.length} mục tiêu · ${A.length} cách đo` + (st.noAssess.length ? ` · ${st.noAssess.length} mục tiêu chưa có cách đo` : '') + (st.draft ? ` · ${st.draft} mục Claude đề xuất chờ duyệt` : '');
+    const ta = (attr, i, k, v, ph) => `<textarea ${attr}="${i}" data-k="${k}" rows="2" placeholder="${esc(ph || '')}">${esc(v || '')}</textarea>`;
+    const oRow = (o, i) => `<tr class="${pending(o) ? 'as' : ''}"><td><b>${esc(o.id)}</b></td><td>${ta('data-ob', i, 'text', o.text, 'Học viên sẽ…')}</td><td>${ta('data-ob', i, 'cond', o.cond, 'Trong tình huống…')}</td><td>${ta('data-ob', i, 'crit', o.crit, 'Đúng ≥ 8/10…')}</td>` +
+      `<td><input data-ob="${i}" data-k="pre" value="${esc((o.pre || []).join(', '))}" placeholder="O1"></td><td class="rs-ob-why">${esc([o.src, o.why].filter(Boolean).join(' · '))}${pending(o) ? `<br><button type="button" class="rs-mini" data-obok="${i}">Duyệt</button>` : ''}</td><td><button type="button" class="rs-mini" data-obdel="${i}" aria-label="Xóa ${esc(o.id)}">Xóa</button></td></tr>`;
+    const aRow = (a, i) => `<tr class="${pending(a) ? 'as' : ''}"><td><b>${esc(a.id)}</b></td><td><input data-as="${i}" data-k="obj" value="${esc((a.obj || []).join(', '))}" placeholder="O1, O2"></td><td>${ta('data-as', i, 'how', a.how, 'Bài nói 3 phút chấm theo rubric…')}</td>` +
+      `<td><input data-as="${i}" data-k="when" value="${esc(a.when || '')}" placeholder="Buổi 6 / cuối khóa"></td><td>${pending(a) ? `<button type="button" class="rs-mini" data-asok="${i}">Duyệt</button> ` : ''}<button type="button" class="rs-mini" data-asdel="${i}" aria-label="Xóa ${esc(a.id)}">Xóa</button></td></tr>`;
+    return `<div class="rs-bf rs-ob" id="rsOb"><div class="rs-bf-h"><b>Mục tiêu học tập và cách đo</b><span class="muted">${esc(status)}</span><button type="button" class="rs-mini" id="rsObToggle">${open ? 'Thu gọn' : 'Sửa'}</button></div>` +
+      (open ? `<p class="muted rs-ob-hint">Viết mỗi mục tiêu thành việc học viên làm được và quan sát được. Mã (O1, O2…) giữ nguyên khi sửa để các buổi và cách đo luôn trỏ đúng.</p>` +
+        `<div class="rs-tablewrap"><table class="rs-table rs-obt"><thead><tr><th>Mã</th><th>Học viên sẽ…</th><th>Điều kiện</th><th>Tiêu chí đạt</th><th>Cần trước</th><th>Căn cứ</th><th></th></tr></thead><tbody>${O.map(oRow).join('') || '<tr><td colspan="7" class="muted">Chưa có mục tiêu</td></tr>'}</tbody></table></div>` +
+        `<div class="rs-bf-foot"><button type="button" class="rs-mini" id="rsObAdd">+ Thêm mục tiêu</button></div>` +
+        `<div class="rs-tablewrap"><table class="rs-table rs-obt"><thead><tr><th>Mã</th><th>Đo mục tiêu</th><th>Cách đo</th><th>Khi nào</th><th></th></tr></thead><tbody>${A.map(aRow).join('') || '<tr><td colspan="5" class="muted">Chưa có cách đo</td></tr>'}</tbody></table></div>` +
+        `<div class="rs-bf-foot"><button type="button" class="rs-mini" id="rsAsAdd">+ Thêm cách đo</button><span style="flex:1"></span>${st.draft ? '<button type="button" class="btn" id="rsObOkAll">Duyệt tất cả đề xuất</button>' : ''}<button type="button" class="btn" id="rsObDraft">${O.length ? 'Nhờ Claude rà và bổ sung' : 'Nhờ Claude đề xuất mục tiêu và cách đo'}</button></div>` +
+        (p.objNote ? `<p class="muted rs-ob-hint">Claude lưu ý: ${esc(p.objNote)}</p>` : '')
+        : `<p class="rs-bf-sum">${O.slice(0, 4).map(o => `<b>${esc(o.id)}</b> ${esc(o.text)}`).join('<br>')}${O.length > 4 ? `<br><span class="muted">… và ${O.length - 4} mục tiêu khác</span>` : ''}</p>`) + '</div>';
+  }
+  const briefLine = b => BFF.map(f => f[0]).filter(k => filled(b, k)).map(k => `${LABEL[k]}: ${b[k]}${(b._m || {})[k] ? ' (giả định)' : ''}`).join('; ');
+  const cmpLine = p => Object.entries(p.cells || {}).filter(([, c]) => c && c.v && c.kind !== 'unknown').slice(0, 90).map(([k, c]) => `${k.replace('||', ' – ')}: ${c.v}${c.src ? ' [' + c.src + ']' : ''}`).join('\n');
+  const objLine = o => `${o.id}: ${o.text}${o.cond ? ' | điều kiện: ' + o.cond : ''}${o.crit ? ' | đạt khi: ' + o.crit : ''}${(o.pre || []).length ? ' | cần trước: ' + o.pre.join(',') : ''}${o.ok ? ' [đã duyệt]' : ''}`;
+  const asLine = a => `${a.id} đo ${(a.obj || []).join(',') || '?'}: ${a.how || ''}${a.when ? ' (' + a.when + ')' : ''}${a.ok ? ' [đã duyệt]' : ''}`;
+  async function queueLocal(kind, title, text, sys, maxTokens) {
+    const p = P(); if (!p) return; const key = p.id + '|' + kind + '|[]';
+    if ((await Q.all()).some(j => j.key === key && j.status === 'wait')) { toast('Việc này đã có trong hàng chờ Claude'); return; }
+    await Q.put({ id: 'C' + Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 4), key, proj: p.id, projName: p.name, kind, args: [], title, sys, json: true, maxTokens: maxTokens || 4096, text, at: Date.now(), status: 'wait' });
+    ping(); toast(`Đã gửi Claude: ${title}. Bạn cứ làm việc khác.`);
+  }
+  const parseAns = j => JSON.parse(String(j.answer).trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, ''));
+  async function objDraft() {
+    const p = P(); if (!p) return; const b = p.brief;
+    const srcs = (p.sources || []).filter(s => s.on !== false).map(s => `[${s.id}] ${s.name || ''}${s.center ? ' · ' + s.center : ''}`).join('\n');
+    const text = 'THIẾT KẾ MỤC TIÊU HỌC TẬP VÀ KẾ HOẠCH ĐÁNH GIÁ cho khóa của trung tâm PLS (thiết kế ngược: đi từ đầu ra về đầu vào).\n' +
+      `YÊU CẦU KHÓA: ${briefLine(b) || '(chưa có)'}\n\n` +
+      (objs().length ? `MỤC TIÊU HIỆN CÓ:\n${objs().map(objLine).join('\n')}\n` : '') + (asses().length ? `CÁCH ĐO HIỆN CÓ:\n${asses().map(asLine).join('\n')}\n` : '') +
+      `\nNGUỒN:\n${srcs || '(chưa có)'}\n\nBẢNG SO SÁNH CÁC TRUNG TÂM:\n${cmpLine(p) || '(chưa có)'}\n\n` +
+      'Yêu cầu:\n- 4–8 mục tiêu cấp khóa, đủ để đi từ trình độ đầu vào tới đầu ra trong số buổi đã cho.\n- Mỗi mục tiêu: text = hành vi quan sát được, bắt đầu bằng động từ (nói được, nghe và chọn đúng, viết được…); cond = điều kiện/tình huống; crit = tiêu chí đạt đo được (số câu đúng, thời gian, mức rubric); pre = mã mục tiêu cần trước; src = [S..] nếu có căn cứ; why = 1 câu căn cứ hoặc "(suy luận) …".\n' +
+      '- Mỗi mục tiêu có ít nhất một cách đo; cách đo nêu hình thức và thời điểm ("Buổi 6", "cuối khóa"), khả thi trong số buổi và số phút đã cho.\n- Giữ nguyên các mục [đã duyệt] và mã của chúng; chỉ sửa hoặc bổ sung phần chưa duyệt; mã mới không trùng mã cũ.\n' +
+      'Trả đúng 1 JSON: {"objectives":[{"id":"O1","text":"","cond":"","crit":"","pre":[],"src":"","why":""}],"assess":[{"id":"A1","obj":["O1"],"how":"","when":""}],"note":"<1–2 câu nếu đầu vào–đầu ra–số buổi có vấn đề, không thì để trống>"}';
+    await queueLocal('objectives', 'Đề xuất mục tiêu và cách đo', text, 'Bạn là chuyên gia thiết kế chương trình ngoại ngữ theo thiết kế ngược (backward design). Mục tiêu phải quan sát và đo được. Đề xuất là bản nháp để người dùng duyệt; luôn ghi căn cứ.', 4096);
+  }
+  LOCALK.objectives = async j => {
+    const p = P(), d = parseAns(j), keepO = objs().filter(o => !pending(o)), keepA = asses().filter(a => !pending(a));
+    const usedO = new Set(keepO.map(o => o.id)), usedA = new Set(keepA.map(a => a.id));
+    const newO = (d.objectives || []).filter(o => o && o.text && !usedO.has(String(o.id).toUpperCase())).map(o => ({ id: /^O\d+$/i.test(o.id) ? String(o.id).toUpperCase() : '', text: String(o.text).slice(0, 300), cond: String(o.cond || '').slice(0, 200), crit: String(o.crit || '').slice(0, 200), pre: idList(o.pre, 'O'), src: String(o.src || '').slice(0, 40), why: String(o.why || '').slice(0, 300), by: 'claude', ok: false, ver: 1 }));
+    newO.forEach(o => { if (!o.id || usedO.has(o.id)) o.id = nextId(keepO.concat(newO.filter(x => x.id)), 'O'); usedO.add(o.id); });
+    const newA = (d.assess || []).filter(a => a && a.how && !usedA.has(String(a.id).toUpperCase())).map(a => ({ id: /^A\d+$/i.test(a.id) ? String(a.id).toUpperCase() : '', obj: idList(a.obj, 'O'), how: String(a.how).slice(0, 300), when: String(a.when || '').slice(0, 40), by: 'claude', ok: false }));
+    newA.forEach(a => { if (!a.id || usedA.has(a.id)) a.id = nextId(keepA.concat(newA.filter(x => x.id)), 'A'); usedA.add(a.id); });
+    p.objectives = keepO.concat(newO); p.assess = keepA.concat(newA); p.objNote = String(d.note || '').slice(0, 400); obOpen = true;
+  };
+
+  // ---------- BƯỚC 3: MA TRẬN LIÊN KẾT mục tiêu × buổi × cách đo (quy tắc, chạy tức thì) ----------
+  function matrix() {
+    const p = P(), O = objs(), A = asses(), L = (p && p.outline && p.outline.lessons) || [], first = {}, f = [];
+    L.forEach(l => (l.obj || []).forEach(id => { if (first[id] == null || l.buoi < first[id]) first[id] = l.buoi; }));
+    const has = id => O.some(o => o.id === id);
+    O.forEach(o => {
+      if (L.length && first[o.id] == null) f.push({ lv: 'block', t: `${o.id} chưa có buổi nào dạy` });
+      if (!A.some(a => (a.obj || []).includes(o.id))) f.push({ lv: 'block', t: `${o.id} chưa có cách đo` });
+      (o.pre || []).forEach(q => { if (!has(q)) f.push({ lv: 'warn', t: `${o.id} cần trước ${q} nhưng không có mục tiêu ${q}` });
+        else if (first[q] != null && first[o.id] != null && first[q] > first[o.id]) f.push({ lv: 'warn', t: `${o.id} dạy ở buổi ${first[o.id]}, trước mục tiêu cần trước ${q} (buổi ${first[q]})` }); }); });
+    A.forEach(a => { if (!(a.obj || []).length) f.push({ lv: 'warn', t: `${a.id} chưa gắn mục tiêu nào` });
+      const w = whenNo(a.when); (a.obj || []).forEach(id => { if (!has(id)) f.push({ lv: 'warn', t: `${a.id} đo ${id} nhưng không có mục tiêu ${id}` });
+        else if (w != null && w !== 999 && first[id] != null && w < first[id]) f.push({ lv: 'warn', t: `${a.id} đo ${id} ở buổi ${w}, nhưng ${id} tới buổi ${first[id]} mới dạy` }); });
+      if (w != null && w !== 999 && L.length && w > L.length) f.push({ lv: 'warn', t: `${a.id} đặt ở buổi ${w}, khóa chỉ có ${L.length} buổi` }); });
+    if (O.length) L.forEach(l => { if (!(l.obj || []).length && !/ôn|kiểm/i.test(l.type || '')) f.push({ lv: 'warn', t: `Buổi ${l.buoi} chưa phục vụ mục tiêu nào` }); });
+    return { O, A, L, first, f };
+  }
+  function matrixHtml() {
+    const { O, A, L, f } = matrix(); if (!O.length || !L.length) return '';
+    const nb = f.filter(x => x.lv === 'block').length, unmapped = L.some(l => !(l.obj || []).length);
+    const head = `<tr><th>Mục tiêu</th>${L.map(l => `<th title="${esc(l.name)}">${l.buoi}</th>`).join('')}<th>Đo bằng</th></tr>`;
+    const rows = O.map(o => `<tr><td title="${esc(o.text)}"><b>${esc(o.id)}</b> <span class="muted">${esc(String(o.text || '').slice(0, 42))}${String(o.text || '').length > 42 ? '…' : ''}</span></td>` +
+      L.map(l => `<td class="c"><input type="checkbox" data-mx="${l.buoi}|${esc(o.id)}" aria-label="Buổi ${l.buoi} dạy ${esc(o.id)}"${(l.obj || []).includes(o.id) ? ' checked' : ''}></td>`).join('') +
+      `<td>${esc(A.filter(a => (a.obj || []).includes(o.id)).map(a => a.id + (a.when ? ' · ' + a.when : '')).join('; ') || '—')}</td></tr>`).join('');
+    return `<div class="rs-bf-h"><b>Ma trận liên kết</b><span class="muted">${f.length ? `${f.length} điểm cần xem${nb ? ` · ${nb} chặn phát hành` : ''}` : '✓ Mục tiêu, buổi học và cách đo khớp nhau'}</span></div>` +
+      (f.length ? `<ul class="rs-mx-f">${f.map(x => `<li class="${x.lv}">${esc(x.t)}</li>`).join('')}</ul>` : '') +
+      `<div class="rs-tablewrap"><table class="rs-table rs-mx">${head}${rows}</table></div>` +
+      `<div class="rs-bf-foot"><span class="muted">Tích ô để gắn mục tiêu vào buổi.</span><span style="flex:1"></span>${unmapped ? '<button type="button" class="btn" id="rsMxDraft">Nhờ Claude gắn mục tiêu vào các buổi</button>' : ''}</div>`;
+  }
+  async function mapDraft() {
+    const p = P(); if (!p || !p.outline) return;
+    const text = `GẮN MỤC TIÊU KHÓA VÀO TỪNG BUỔI.\nMỤC TIÊU:\n${objs().map(objLine).join('\n')}\nCÁCH ĐO:\n${asses().map(asLine).join('\n')}\n\nCÁC BUỔI:\n` +
+      p.outline.lessons.map(l => `Buổi ${l.buoi} (${l.type}): ${l.name} – mục tiêu buổi: ${l.goals} – chủ đề: ${l.topics}${(l.obj || []).length ? ' – đang gắn: ' + l.obj.join(',') : ''}`).join('\n') +
+      '\n\nMỗi buổi gắn 1–3 mã mục tiêu mà buổi đó thực sự dạy hoặc luyện; buổi Ôn tập/Kiểm tra gắn mục tiêu được ôn hoặc đo. Mọi mục tiêu phải có ít nhất 1 buổi, mục tiêu cần trước phải được dạy trước.\nTrả đúng 1 JSON: {"map":{"1":["O1"],"2":["O1","O2"]},"note":"<mục tiêu nào không có buổi phù hợp, nếu có>"}';
+    await queueLocal('objmap', 'Gắn mục tiêu vào các buổi', text, 'Bạn là chuyên gia thiết kế chương trình ngoại ngữ. Chỉ dùng mã mục tiêu đã cho.', 2048);
+  }
+  LOCALK.objmap = async j => { const p = P(), d = parseAns(j), ok = new Set(objs().map(o => o.id));
+    (p.outline ? p.outline.lessons : []).forEach(l => { const v = d.map && d.map[String(l.buoi)]; if (Array.isArray(v)) l.obj = idList(v, 'O').filter(id => ok.has(id)); });
+    if (d.note) p.objNote = String(d.note).slice(0, 400); };
+  function objText(buoi) { const p = P(), L = p && p.outline && p.outline.lessons.find(l => l.buoi === buoi); if (!L || !(L.obj || []).length) return '';
+    return '\nMục tiêu khóa mà buổi này phục vụ: ' + objs().filter(o => L.obj.includes(o.id)).map(o => `${o.id} – ${o.text}${o.crit ? ' (đạt khi: ' + o.crit + ')' : ''}`).join('; ') + '.'; }
+  const mxBlockers = () => objs().length ? matrix().f.filter(x => x.lv === 'block').map(x => 'Ma trận: ' + x.t) : [];
+  let obWired = false;
+  function objEnhance() {
+    if (root.PLS_BRIDGE && !root.PLS_BRIDGE._mx) { const ob = root.PLS_BRIDGE.blockers; root.PLS_BRIDGE.blockers = () => ob().concat(mxBlockers()); root.PLS_BRIDGE._mx = 1; }
+    if (!obWired) { obWired = true;
+      document.addEventListener('change', async e => { const el = e.target; if (!el.closest) return; const p = P(); if (!p) return;
+        if (el.dataset.ob != null) { const o = objs()[+el.dataset.ob]; if (!o) return; const k = el.dataset.k;
+          if (k === 'pre') o.pre = idList(el.value, 'O').filter(x => x !== o.id); else { o[k] = el.value.trim(); o.ver = (o.ver || 1) + 1; } o.ok = true; }
+        else if (el.dataset.as != null) { const a = asses()[+el.dataset.as]; if (!a) return; const k = el.dataset.k; if (k === 'obj') a.obj = idList(el.value, 'O'); else a[k] = el.value.trim(); a.ok = true; }
+        else if (el.dataset.mx) { const [b, id] = el.dataset.mx.split('|'), l = p.outline && p.outline.lessons.find(x => String(x.buoi) === b); if (!l) return;
+          l.obj = (l.obj || []).filter(x => x !== id).concat(el.checked ? [id] : []); }
+        else return;
+        await persist(); root.PLS_RESEARCH.show(); });
+      document.addEventListener('click', async e => { const t = e.target.closest && e.target.closest('#rsObToggle,#rsObAdd,#rsAsAdd,#rsObOkAll,#rsObDraft,#rsMxDraft,[data-obok],[data-asok],[data-obdel],[data-asdel]'); if (!t) return; const p = P(); if (!p) return;
+        const O = objs(), A = asses();
+        if (t.id === 'rsObToggle') { const st = objState(); obOpen = !(obOpen != null ? obOpen : !(O.length && !st.noAssess.length && !st.draft)); }
+        else if (t.id === 'rsObAdd') { O.push({ id: nextId(O, 'O'), text: '', cond: '', crit: '', pre: [], by: 'user', ok: true, ver: 1 }); obOpen = true; }
+        else if (t.id === 'rsAsAdd') { A.push({ id: nextId(A, 'A'), obj: [], how: '', when: '', by: 'user', ok: true }); obOpen = true; }
+        else if (t.id === 'rsObOkAll') { O.concat(A).forEach(x => { x.ok = true; }); }
+        else if (t.id === 'rsObDraft') { t.disabled = true; try { await objDraft(); } finally { t.disabled = false; } return; }
+        else if (t.id === 'rsMxDraft') { t.disabled = true; try { await mapDraft(); } finally { t.disabled = false; } return; }
+        else if (t.dataset.obok != null) { O[+t.dataset.obok].ok = true; }
+        else if (t.dataset.asok != null) { A[+t.dataset.asok].ok = true; }
+        else if (t.dataset.obdel != null) { const o = O[+t.dataset.obdel]; if (!o) return;
+          const used = ((p.outline && p.outline.lessons) || []).filter(l => (l.obj || []).includes(o.id)).length + A.filter(a => (a.obj || []).includes(o.id)).length;
+          if (used && !confirm(`${o.id} đang được ${used} buổi / cách đo dùng. Xóa và gỡ khỏi các chỗ đó?`)) return;
+          O.splice(+t.dataset.obdel, 1); ((p.outline && p.outline.lessons) || []).forEach(l => { l.obj = (l.obj || []).filter(x => x !== o.id); }); A.forEach(a => { a.obj = (a.obj || []).filter(x => x !== o.id); }); O.forEach(x => { x.pre = (x.pre || []).filter(q => q !== o.id); }); }
+        else if (t.dataset.asdel != null) { A.splice(+t.dataset.asdel, 1); }
+        await persist(); root.PLS_RESEARCH.show(); }); }
+    const wrap = document.querySelector('.rs-ol') && document.querySelector('.rs-ol').closest('.rs-tablewrap');
+    let box = document.getElementById('rsMx'); const html = wrap ? matrixHtml() : '';
+    if (!html) { if (box) box.remove(); return; }
+    if (!box) { box = document.createElement('div'); box.id = 'rsMx'; box.className = 'rs-bf'; }
+    if (box.previousElementSibling !== wrap) wrap.after(box);
+    if (box._h !== html && !box.contains(document.activeElement)) { box._h = html; box.innerHTML = html; }
   }
   function aiInfo() { const b = document.querySelector('#rsBridge'); if (!b) return; b.scrollIntoView({ behavior: 'smooth', block: 'start' }); b.style.transition = 'box-shadow .3s'; b.style.boxShadow = '0 0 0 3px #d97757'; setTimeout(() => { b.style.boxShadow = ''; }, 1600); }
   const toast = (t, bad) => { const el = document.createElement('div'); el.setAttribute('role', 'status'); el.textContent = t; el.style.cssText = `position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1002;background:${bad ? '#8a2a1b' : '#1f1f1f'};color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;max-width:90vw`; document.body.appendChild(el); setTimeout(() => el.remove(), 4200); };
   function enhance() {
     if (!document.getElementById('plsLocalCss') && document.head) { const st = document.createElement('style'); st.id = 'plsLocalCss';
-      st.textContent = '.rs-bf{border:1px solid var(--ui-line);border-radius:6px;padding:12px;margin:0 0 12px;background:var(--ui-panel)}.rs-bf-h{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}.rs-bf-h .rs-mini{margin:0 0 0 auto}.rs-bf fieldset{border:0;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 10px}.rs-bf legend{font-size:11px;color:var(--ui-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}.rs-bf label{display:flex;flex-direction:column;gap:3px;font-size:12px}.rs-bf input,.rs-bf select{padding:6px 8px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:13px;background:var(--ui-bg);color:var(--ui-ink);min-height:32px}.rs-bf .req{color:#c0392b}.rs-bf label.as input,.rs-bf label.as select{border-color:var(--ui-yellow);background:var(--ui-beige)}.rs-bf .as-n{font-size:11px;color:var(--ui-muted)}.rs-bf .as-n .rs-mini{margin:0 0 0 6px;padding:0}.rs-bf-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}.rs-bf-foot .btn{min-height:32px;padding:5px 12px;font-size:13px}.rs-bf-sum{font-size:13px;margin:6px 0 0}#rsBfGate{font-size:12px;color:#c0392b;margin:6px 0 0}' + '.rs-msg.me{background:var(--ui-beige);color:var(--ui-ink);border:1px solid var(--ui-line)}#rsAsk .btn.primary::after{content:none}' +
+      st.textContent = '.rs-bf{border:1px solid var(--ui-line);border-radius:6px;padding:12px;margin:0 0 12px;background:var(--ui-panel)}.rs-bf-h{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}.rs-bf-h .rs-mini{margin:0 0 0 auto}.rs-bf fieldset{border:0;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 10px}.rs-bf legend{font-size:11px;color:var(--ui-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}.rs-bf label{display:flex;flex-direction:column;gap:3px;font-size:12px}.rs-bf input,.rs-bf select{padding:6px 8px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:13px;background:var(--ui-bg);color:var(--ui-ink);min-height:32px}.rs-bf .req{color:#c0392b}.rs-bf label.as input,.rs-bf label.as select{border-color:var(--ui-yellow);background:var(--ui-beige)}.rs-bf .as-n{font-size:11px;color:var(--ui-muted)}.rs-bf .as-n .rs-mini{margin:0 0 0 6px;padding:0}.rs-bf-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}.rs-bf-foot .btn{min-height:32px;padding:5px 12px;font-size:13px}.rs-bf-sum{font-size:13px;margin:6px 0 0}#rsBfGate{font-size:12px;color:#c0392b;margin:6px 0 0}.rs-ob-hint{font-size:12px;margin:8px 0 0}.rs-obt{font-size:12px}.rs-obt td{vertical-align:top}.rs-obt textarea,.rs-obt input{width:100%;box-sizing:border-box;min-width:90px;padding:4px 6px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:12px;background:var(--ui-bg);color:var(--ui-ink);resize:vertical}.rs-obt tr.as textarea,.rs-obt tr.as input{border-color:var(--ui-yellow);background:var(--ui-beige)}.rs-ob-why{font-size:11px;color:var(--ui-muted);max-width:180px}#rsMx{margin-top:12px}.rs-mx{font-size:12px}.rs-mx td.c{text-align:center}.rs-mx th{font-weight:600;text-align:center}.rs-mx td:first-child{min-width:160px}.rs-mx-f{margin:8px 0;padding-left:18px;font-size:12px}.rs-mx-f li.block{color:#c0392b}.rs-mx-f li.warn{color:var(--ui-ink)}' + '.rs-msg.me{background:var(--ui-beige);color:var(--ui-ink);border:1px solid var(--ui-line)}#rsAsk .btn.primary::after{content:none}' +
         '#rsNoteNew{display:flex;flex-direction:column;gap:6px;margin:0 0 10px}#rsNoteNew textarea{width:100%;box-sizing:border-box;min-height:60px;resize:vertical;padding:8px;border:1px solid var(--ui-line);border-radius:4px;font:inherit;font-size:13px;background:var(--ui-panel);color:var(--ui-ink)}#rsNoteNew .btn{align-self:flex-end;min-height:30px;padding:4px 12px;font-size:12px}';
       document.head.appendChild(st); }
     const notes = document.querySelector('.rs-notes');
@@ -449,13 +593,13 @@
     if (cmp && !document.querySelector('#rsAutoFill')) { const b = document.createElement('button'); b.type = 'button'; b.id = 'rsAutoFill'; b.className = 'btn'; b.textContent = 'Tự điền số liệu'; b.title = 'Máy dò số buổi, phút, sĩ số, học phí, cấp độ… trong nguồn – không cần Claude';
       cmp.parentNode.insertBefore(b, cmp);
       b.onclick = async () => { b.disabled = true; b.textContent = 'Đang dò…'; try { const r = await autoFill(); toast(`Đã điền ${r.filled} ô từ nguồn${r.missing ? ` · ${r.missing} ô chưa thấy, nhờ Claude điền tiếp` : ''}${r.noCenter ? ` · ${r.noCenter} nguồn chưa ghi trung tâm nên bỏ qua` : ''}`); } catch (e) { toast(e.message, true); } finally { b.disabled = false; b.textContent = 'Tự điền số liệu'; } }; }
-    briefEnhance(); migrate();
+    briefEnhance(); objEnhance(); migrate();
     const chip = document.querySelector('#rsAI'); if (chip) { const t = '● Claude · ' + usage(); if (chip.textContent !== t) chip.textContent = t; chip.classList.toggle('ok', true); chip.title = 'Việc cần viết được gửi Claude – nhắn Claude “xử lý hàng chờ PLS” để xử lý'; }
   }
   let tm = 0; new MutationObserver(() => { clearTimeout(tm); tm = setTimeout(enhance, 50); }).observe(document.documentElement, { childList: true, subtree: true });
   setInterval(refresh, 5000); refresh();
 
-  root.PLS_LOCAL = { aiCall, summarize, usage, aiInfo, search, extract, autoFill, localAsk, briefForm, briefText, briefDraft, cleanWeb };
+  root.PLS_LOCAL = { aiCall, summarize, usage, aiInfo, search, extract, autoFill, localAsk, briefForm, briefText, briefDraft, cleanWeb, objText, matrix };
   const attach = () => { if (!root.PLS) return false; root.PLS.ai = ai; return true; };
   if (!attach()) document.addEventListener('DOMContentLoaded', attach);
 })(window);
