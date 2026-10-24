@@ -20,6 +20,14 @@
       if (w) { c.t = 's'; c.v = w; } } }
   // một Mã bài có thể gồm nhiều đoạn (nhiều hội thoại / văn bản, câu số đánh lại từ 1) → tách theo tiêu đề, giữ thứ tự xuất hiện (QC F03/F04)
   const segs = (rows, tk, sortF) => { const m = new Map(); rows.forEach(r => { const k = S(r['Mã đoạn']) || S(r[tk]); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }); return [...m.values()].map(g => g.slice().sort(sortF)); };
+  // QC 24/10 (layout P1 "một track / một văn bản + câu hỏi"): câu hỏi ghi "[Tiêu đề] …" → ghép đúng đoạn; không ghép được thì giữ cả mã bài như cũ
+  const units = (codes, lines, qs, tk) => codes.flatMap(c => { const ls = lines.filter(r => S(r['Mã bài']) === c), q = qs.filter(r => S(r['Mã bài']) === c);
+    const g = segs(ls, tk, () => 0); if (g.length < 2 || !q.length) return [{ c, ls, q }];
+    const key = t => S(t).toLowerCase().replace(/\s+/g, ' '), br = x => key((S(x['Câu hỏi']).match(/^\[([^\]]{1,80})\]/) || [])[1]);
+    const us = g.map(gg => ({ c, ls: gg, q: [], t: key(gg[0][tk]) })), rest = [];
+    q.forEach(x => { const b = br(x), u = b && us.find(u => u.t && (u.t === b || u.t.startsWith(b) || b.startsWith(u.t))); (u ? u.q : rest).push(x); });
+    if (!us.some(u => u.q.length)) return [{ c, ls, q }];
+    us[us.length - 1].q.push(...rest); return us; });
   function readWorkbook(wb, XLSX) {
     const out = {};
     for (const name of wb.SheetNames) {
@@ -35,7 +43,7 @@
 
   const S = v => v == null ? '' : String(v).trim();
   const isB = (r, b) => Number(r['Buổi']) === Number(b);
-  const onPPT = r => !/^không$/i.test(S(r['Lên PPT']));
+  const onPPT = r => !/^không$/i.test(S(r['Lên PPT'])) && !/mở rộng/i.test(S(r['Trên lớp']));   // cột "Trên lớp" = Mở rộng → chỉ sách / app
   const tab = (book, re) => { const k = Object.keys(book).find(n => re.test(n)); return k ? book[k] : []; };
   const sentences = t => S(t).split(/(?<=[.!?])\s+(?=[A-ZÀ-Ỹ])/u).map(x => x.trim()).filter(Boolean);
   const chunk = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
@@ -90,7 +98,9 @@
     if (steps.length > 8) warns.push(`Timeline có ${steps.length} bước – slide tổng quan gộp các bước ngắn kề nhau để hiện đủ trong 8 dòng.`);
     slides.push({ comp: 'Slide/Lesson Overview', data: sec(L.overview, ov), notes: NOTE({ t: s5row['Tự kiểm – tổng phút'] ? `Cả buổi ${S(s5row['Tự kiểm – tổng phút'])} phút` : '', g: ['Đọc mục tiêu, hỏi lớp đã biết gì về chủ đề.', ...sentences(info['Mục tiêu bài'] || s5row['Mục tiêu bài']), 'Lộ trình: ' + steps.map(x => x.name + (x.min != null ? ` (${x.min}')` : '')).join(' → ')], l: [S(s5row['Lưu ý'])] }) });
 
-    const vocab = tab(s6, /Từ vựng$/).filter(r => isB(r, buoi) && onPPT(r) && S(r['Từ']));
+    const vocabAll = tab(s6, /Từ vựng$/).filter(r => isB(r, buoi) && onPPT(r) && S(r['Từ']));
+    const vocab = vocabAll.filter(r => !/^nâng cao$/i.test(S(r['Nhóm'])));   // QC F07: slide chỉ lấy từ Nền tảng / Bắt buộc; từ Nâng cao vào sách + app
+    if (vocabAll.length > vocab.length) warns.push(`${vocabAll.length - vocab.length} từ nhóm Nâng cao chỉ đưa vào sách / app, không lên slide (F07).`);
     const grammar = tab(s6, /Ngữ pháp$/).filter(r => isB(r, buoi) && onPPT(r));
     const pron = tab(s6, /Phát âm/).filter(r => isB(r, buoi) && onPPT(r)).map(r => { const c = s => /\s/.test(s) ? s.replace(/^[a-zà-ỹđ]/, x => x.toUpperCase()) : s; return Object.assign({}, r, { 'Chữ / âm': c(S(r['Chữ / âm'])), 'Bảng chữ / nhóm âm': c(S(r['Bảng chữ / nhóm âm'])) }); });
     const speak = tab(s6, /Mẫu câu/).filter(r => isB(r, buoi) && onPPT(r) && S(r['Câu']));
@@ -202,7 +212,9 @@
           used.add('dd'); slides.push({ auto: 'sumhw', section: L.summary, summary: sumD, homework: sec(L.homework, hwD) });
         } else slides.push({ comp: 'Slide/Summary', data: sumD });
         lastNote({ t: T, g: ['Hỏi lại nhanh: mỗi HV nói 1 từ / 1 câu theo mẫu của buổi.', 'Từ vựng: ' + vocab.map(r => S(r['Từ'])).join(', '), grammar.length ? 'Ngữ pháp: ' + grammar.map(g => S(g['Tên ngữ pháp'])).join('; ') : ''], l: [S(s5row['Dặn dò']) ? 'Dặn dò: ' + S(s5row['Dặn dò']) : '', S(s5row['Lưu ý'])] });
-        for (const x of extra) slides.push({ comp: 'Slide/Section', data: { 'section.title': S(x['Tiêu đề']), 'section.sub': S(x['Loại']) }, notes: NOTE({ g: [S(x['Tiêu đề']), S(x['Nội dung'])], l: [S(x['Kiến thức kết hợp']) ? 'Kết hợp: ' + S(x['Kiến thức kết hợp']) : '', S(x['Nguồn']) ? 'Nguồn: ' + S(x['Nguồn']) : ''] }) });
+        for (const x of extra) slides.push(S(x['Tiêu đề']).length > 30   // câu fact dài không nhét vào slide chuyển mục 1 dòng (tràn chữ – lỗi người dùng báo 24/10)
+          ? { comp: 'Slide/Key Point', data: sec(L.extra || L.speak, Object.assign({ title: S(x['Loại']) || 'Mở rộng', point: S(x['Tiêu đề']), note: S(x['Nội dung']) || (S(x['Kiến thức kết hợp']) ? 'Kết hợp: ' + S(x['Kiến thức kết hợp']) : '') }, Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map(i => ['chip_' + i, ''])))),
+              notes: NOTE({ g: [S(x['Tiêu đề']), S(x['Nội dung'])], l: [S(x['Nguồn']) ? 'Nguồn: ' + S(x['Nguồn']) : ''] }) } : { comp: 'Slide/Section', data: { 'section.title': S(x['Tiêu đề']), 'section.sub': S(x['Loại']) }, notes: NOTE({ g: [S(x['Tiêu đề']), S(x['Nội dung'])], l: [S(x['Kiến thức kết hợp']) ? 'Kết hợp: ' + S(x['Kiến thức kết hợp']) : '', S(x['Nguồn']) ? 'Nguồn: ' + S(x['Nguồn']) : ''] }) });
       } else if (/dặn dò/.test(n) && used.has('dd')) {
         continue;   // đã gộp vào slide Tổng kết + Dặn dò
       } else if (/dặn dò/.test(n)) {
@@ -224,8 +236,8 @@
         const codes = [...new Set(lines.map(r => S(r['Mã bài'])).concat(qs.map(r => S(r['Mã bài']))))].filter(Boolean);
         divider(st.name, [mins, codes.length ? `${codes.length} bài nghe` : 'thực hiện trên app'].filter(Boolean).join(' · '));
         let no = 1; const keys = [];
-        for (const c of codes) {
-          const ls = lines.filter(r => S(r['Mã bài']) === c).sort((a, b) => (+a['Câu số'] || 0) - (+b['Câu số'] || 0)), q = qs.filter(r => S(r['Mã bài']) === c);
+        for (const u of units(codes, lines, qs, 'Tiêu đề bài nghe')) { const c = u.c;
+          const ls = u.ls.slice().sort((a, b) => (+a['Câu số'] || 0) - (+b['Câu số'] || 0)), q = u.q;
           const r0 = ls[0] || {}; const title = [S(r0['Tiêu đề bài nghe']), S(r0['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || c;
           if (q.length) { const d = { track: title, task: 'Nghe và trả lời câu hỏi.', 'task.vi': '' }; let tot = 0; q.map(x => S(x['Câu hỏi']).replace(/^\[[^\]]{1,80}\]\s*/, '')).filter((t, i) => i < 4 && (i === 0 || (tot += t.length) <= 260) && (i > 0 || (tot = t.length))).forEach((t, i) => { d[`q_${i + 1}.no`] = String(i + 1); d[`q_${i + 1}.text`] = t; }); /* câu hỏi trước khi nghe: tối đa 4 câu, ≤ 260 ký tự cho khỏi co chữ */ slides.push({ comp: 'Slide/Listening', data: sec(L.listen || L.speak, d) }); }
           if (q.length) { const ex = A.exercises(q, L.listen || L.speak, no, 'Nghe đoạn ghi âm rồi chọn đáp án đúng.'); no = ex.next; slides.push(...ex.groups); keys.push(...ex.keys); }
@@ -241,8 +253,8 @@
         const codes = [...new Set(lines.map(r => S(r['Mã bài'])).concat(qs.map(r => S(r['Mã bài']))))].filter(Boolean);
         divider(st.name, [mins, codes.length ? `${codes.length} bài đọc` : 'thực hiện trên app'].filter(Boolean).join(' · '));
         let no = 1; const keys = [];
-        for (const c of codes) {
-          const ls = lines.filter(r => S(r['Mã bài']) === c).sort((a, b) => ((+a['Đoạn'] || 0) - (+b['Đoạn'] || 0)) || ((+a['Câu số'] || 0) - (+b['Câu số'] || 0))), q = qs.filter(r => S(r['Mã bài']) === c);
+        for (const u of units(codes, lines, qs, 'Tiêu đề bài đọc')) { const c = u.c;
+          const ls = u.ls.slice().sort((a, b) => ((+a['Đoạn'] || 0) - (+b['Đoạn'] || 0)) || ((+a['Câu số'] || 0) - (+b['Câu số'] || 0))), q = u.q;
           const r0 = ls[0] || {}; const title = [S(r0['Tiêu đề bài đọc']), S(r0['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || c;
           for (const g of segs(ls, 'Tiêu đề bài đọc', (a, b) => ((+a['Đoạn'] || 0) - (+b['Đoạn'] || 0)) || ((+a['Câu số'] || 0) - (+b['Câu số'] || 0)))) { const r1 = g[0] || {}, title = [S(r1['Tiêu đề bài đọc']), S(r1['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || c, ls = g;
           const paras = []; let cur = null; for (const r of ls) { const p = String(r['Đoạn'] || 1); if (!cur || cur.p !== p) { cur = { p, t: [] }; paras.push(cur); } cur.t.push(S(r['Câu'])); }
