@@ -95,11 +95,15 @@
   // CHẾ ĐỘ XEM dạng thanh trượt (segmented) thay cho dropdown: Nghiên cứu · Slide · Sách A4 · Sách 19×27 (người dùng chốt 23/10)
   { const sel = $('#view'), seg = document.createElement('div'); seg.className = 'seg'; seg.setAttribute('role', 'radiogroup'); seg.setAttribute('aria-label', 'Chế độ xem');
     const thumb = document.createElement('span'); thumb.className = 'seg-thumb'; seg.appendChild(thumb);
-    const sync = () => { const bs = [...seg.querySelectorAll('button')]; bs.forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === sel.value)));
-      const on = bs.find(b => b.dataset.v === sel.value); if (on) { thumb.style.width = on.offsetWidth + 'px'; thumb.style.transform = `translateX(${on.offsetLeft - 3}px)`; } };
-    [...sel.options].forEach(o => { const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.v = o.value; b.textContent = o.textContent;
-      b.onclick = () => { sel.value = o.value; sync(); setView(o.value); }; seg.appendChild(b); });
-    sel.hidden = true; sel.after(seg); requestAnimationFrame(sync); if (window.ResizeObserver) new ResizeObserver(sync).observe(seg); else window.addEventListener('resize', sync); S.segSync = sync; }   // thanh trượt hiện ra (hết màn hình bắt đầu) → đo lại vị trí
+    const sync = () => { const bs = [...seg.querySelectorAll('button')]; const cv = /^(A4|19x27)$/.test(sel.value) ? 'A4' : sel.value; bs.forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === cv)));
+      const on = bs.find(b => b.dataset.v === cv); if (S.szSync) S.szSync(); if (on) { thumb.style.width = on.offsetWidth + 'px'; thumb.style.transform = `translateX(${on.offsetLeft - 3}px)`; } };
+    [...sel.options].filter(o => o.value !== '19x27').forEach(o => { const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.v = o.value; b.textContent = o.value === 'A4' ? 'Sách' : o.textContent;
+      b.onclick = () => { const v = o.value === 'A4' ? (S.bookSize || 'A4') : o.value; sel.value = v; sync(); setView(v); }; seg.appendChild(b); });
+    { const sz = document.createElement('div'); sz.className = 'seg seg-sz'; sz.setAttribute('role', 'radiogroup'); sz.setAttribute('aria-label', 'Khổ sách'); sz.title = 'Chọn khổ sách';
+      [['A4', 'Khổ A4'], ['19x27', 'Khổ 19×27']].forEach(([v, t]) => { const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.v = v; b.textContent = t; b.onclick = () => { S.bookSize = v; sel.value = v; sync(); setView(v); }; sz.appendChild(b); });
+      const cs = document.createElement('style'); cs.textContent = '.seg-sz{margin-left:8px}.seg-sz[hidden]{display:none!important}.seg-sz button[aria-checked="true"]{background:var(--ui-ink);color:var(--ui-bg);border-radius:999px}'; document.head.appendChild(cs);
+      S.szEl = sz; S.szSync = () => { const on = /^(A4|19x27)$/.test(sel.value); sz.hidden = !on; if (on) S.bookSize = sel.value; sz.querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === sel.value))); }; }
+    sel.hidden = true; sel.after(seg); if (S.szEl) seg.after(S.szEl); requestAnimationFrame(sync); if (window.ResizeObserver) new ResizeObserver(sync).observe(seg); else window.addEventListener('resize', sync); S.segSync = sync; }   // thanh trượt hiện ra (hết màn hình bắt đầu) → đo lại vị trí
   $('#btnPdf').onclick = () => exportPdf();
   // đang ở tab Sách mà nhập Excel (trang giới thiệu → có bài) → dựng sách luôn
   { let was = document.body.classList.contains('empty'); new MutationObserver(() => { const now = document.body.classList.contains('empty'); if (was && !now && B.SIZES[S.view]) setTimeout(build, 0); was = now; }).observe(document.body, { attributes: true, attributeFilter: ['class'] }); }
