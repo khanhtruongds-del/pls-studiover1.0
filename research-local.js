@@ -163,29 +163,45 @@
   }
 
   // ---------- ĐIỀN SỐ LIỆU BẢNG SO SÁNH (không AI) ----------
-  const LV = '(?:\\b[ABC][12]\\b|IELTS\\s*\\d(?:[.,]\\d)?|TOEIC\\s*\\d{3}|TOEFL\\s*\\d{2,3}|JLPT\\s*N[1-5]|\\bN[1-5]\\b|HSK\\s*[1-9]|TOPIK\\s*[1-6]|mất gốc|người mới bắt đầu|beginner|starters|movers|flyers|KET|PET)';
+  const LV = '(?:\\d{3}\\+?\\s*(?:điểm\\s*)?TOEIC|\\d(?:[.,]\\d)?\\+?\\s*IELTS|\\b[ABC][12]\\b|IELTS\\s*\\d(?:[.,]\\d)?|TOEIC\\s*\\d{3}|TOEFL\\s*\\d{2,3}|JLPT\\s*N[1-5]|\\bN[1-5]\\b|HSK\\s*[1-9]|TOPIK\\s*[1-6]|mất gốc|người mới bắt đầu|beginner|starters|movers|flyers|KET|PET)';
   const RULES = [
     [/số buổi|buổi học|thời lượng khóa/i, s => { const m = /(\d{1,3})\s*(buổi|sessions?|lessons?|tiết)(?!\s*\/\s*tuần)/i.exec(s); return m && m[1] + ' buổi'; }],
     [/phút|thời lượng buổi/i, s => { let m = /(\d{2,3})\s*(phút|minutes?|mins?)/i.exec(s); if (m) return m[1] + ' phút'; m = /(\d(?:[.,]5)?)\s*(giờ|tiếng|hours?)\s*(?:\/|mỗi|một|per)\s*(buổi|session|lesson)/i.exec(s); return m && Math.round(parseFloat(m[1].replace(',', '.')) * 60) + ' phút'; }],
     [/sĩ số|quy mô lớp/i, s => { const m = /(sĩ số|tối đa|lớp|class)[^.\n]{0,25}?(\d{1,2})(?:\s*[-–]\s*(\d{1,2}))?\s*(học viên|hv|người|bạn|students?)/i.exec(s); return m && (m[3] ? m[2] + '–' + m[3] : m[2]) + ' học viên'; }],
-    [/học phí|chi phí|^giá(\s|$)/i, s => { const m = /(học phí|giá|chi phí|fee)[^.\n]{0,25}?(\d[\d.,]*\s*(?:đ|đồng|vnđ|vnd|k\b|tr\b|triệu|usd|\$))/i.exec(s); return m && m[2].trim(); }],
+    [/học phí|chi phí|^giá(\s|$)/i, s => { const m = /(học phí|giá|chi phí|fee)[^.\n]{0,25}?(\d[\d.,]*\s*(?:đồng|đ|vnđ|vnd|k(?![\p{L}])|tr(?![\p{L}])|triệu|usd|\$))/iu.exec(s); return m && m[2].trim(); }],
     [/giáo trình|sách/i, s => { const m = /(giáo trình|sách|textbook|curriculum)\s*(?:chính|sử dụng|dùng)?\s*[:–-]?\s*([A-Z][^.;\n]{2,60})/i.exec(s); return m && m[2].trim(); }],
     [/đầu vào/i, s => { const m = new RegExp('(đầu vào|yêu cầu|dành cho|entry)[^.\\n]{0,40}?(' + LV + ')', 'i').exec(s); return m && m[2]; }],
-    [/đầu ra|cam kết|mục tiêu/i, s => { const m = new RegExp('(đầu ra|cam kết|mục tiêu|đạt|output)[^.\\n]{0,40}?(' + LV + ')', 'i').exec(s); return m && m[2]; }],
+    [/đầu ra|cam kết|mục tiêu/i, s => { const i = s.search(/đầu ra|cam kết|mục tiêu|đạt|output/i); if (i < 0) return null; const all = [...s.slice(i, i + 90).matchAll(new RegExp(LV, 'gi'))].map(m => m[0]).filter(v => !/mất gốc|mới bắt đầu|beginner/i.test(v)); return all.length ? all[all.length - 1] : null; }],
     [/kiểm tra|đánh giá|thi/i, s => /(kiểm tra|bài thi|thi cuối|thi giữa|đánh giá|test|exam)/i.test(s) && s.length <= 220 ? s.replace(/\s+/g, ' ').slice(0, 90) : null],
     [/phương pháp/i, s => /(phương pháp|method|\bCLT\b|\bTPR\b|phản xạ)/i.test(s) && s.length <= 220 ? s.replace(/\s+/g, ' ').slice(0, 90) : null],
     [/tỉ lệ|tỷ lệ|kỹ năng/i, s => /\d{1,3}\s*%/.test(s) && /(nghe|nói|đọc|viết|kỹ năng|skills?)/i.test(s) ? s.replace(/\s+/g, ' ').slice(0, 90) : null]
   ];
+  const NAVW = /(về chúng tôi|tin tức|liên hệ|đăng ký|đăng nhập|trang chủ|tuyển dụng|hệ thống cơ sở|test online|tài liệu|lịch khai giảng|cảm nhận|chính sách|giỏ hàng|tìm kiếm)/gi;
+  // dòng menu / tiêu đề dồn cục: nhiều mục điều hướng, có ###, hoặc toàn chữ Hoa đầu mà không có dấu câu
+  const isNav = x => { const w = x.split(/\s+/), cap = w.filter(z => /^[A-ZĐÂĂÊÔƠƯÁÀẢÃẠÉÈẺẼẸÍÌỈĨỊÓÒỎÕỌÚÙỦŨỤÝỲỶỸỴ]/.test(z)).length;
+    return (x.match(NAVW) || []).length >= 2 || /#{2,}/.test(x) || (x.match(/\s[-|•]\s?|\s?[-|•]\s/g) || []).length >= 3 || (w.length >= 8 && cap / w.length > 0.6 && !/[.,:;!?]/.test(x)); };
+  // độ khớp với khóa đang làm (cấp độ, đầu vào, đối tượng, mục tiêu điểm) → trung tâm có nhiều khóa thì lấy đúng khóa tương đương
+  const briefToks = () => { const b = (P() || {}).brief || {}; const raw = fold([b.level, b.entry, b.audience, b.lang].join(' ').toLowerCase());
+    return [...new Set((raw.match(/[a-z0-9+]{3,}/g) || []).filter(w => !/^(cho|nguoi|hoc|tieng|va|cac|nhung|chua|moi|bat|dau|khoa|khong)$/.test(w)))]; };
+  const relOf = (txt, T) => { const f = fold(String(txt || '').toLowerCase()); return T.reduce((a, w) => a + (f.includes(w) ? 1 : 0), 0); };
+  // máy chỉ điền ô SỐ LIỆU CỨNG; ô mô tả (phương pháp, giáo trình, tỉ lệ kỹ năng, cách kiểm tra) để Claude đọc nguồn rồi điền
+  const QUAL = /phương pháp|tỉ lệ|tỷ lệ|kỹ năng|kiểm tra|đánh giá|giáo trình|sách/i;
+  // ngữ cảnh sai: thời gian làm bài thi ≠ phút/buổi · quà tặng, trị giá ≠ học phí
+  const BADCTX = [[/phút|thời lượng buổi/i, /bài thi|làm bài|thời gian thi|đề thi|bài test|mỗi phần|\d+\s*câu|listening|reading|speaking|writing|part\s*\d|phút\s*\/\s*(ngày|tuần)|mỗi ngày/i], [/học phí|chi phí|^giá/i, /tặng|trị giá|quà|học bổng|lương|thu nhập|giải thưởng|(giảm|ưu đãi|tiết kiệm|khuyến mãi|voucher|hoàn)[^.\n]{0,25}\d/i], [/số buổi/i, /buổi\s*\/\s*tuần|tuần\s*\d\s*buổi|mỗi tuần/i]];
   async function autoFill() {
     const p = P(), srcs = p.sources.filter(s => s.on !== false && s.center); let n = 0, missing = 0;
     for (const s of srcs) { try { await extract(s); } catch (e) { continue; } }
-    srcs.forEach(s => { if (!p.centers.includes(s.center)) p.centers.push(s.center);
-      p.criteria.forEach(k => { const key = s.center + '||' + k, cur = p.cells[key]; if (cur && cur.kind === 'fact') return;
-        const rule = RULES.find(r => r[0].test(k)); if (!rule) return;
-        const pages = s.ex && s.ex.pages ? s.ex.pages : [s.text || ''];
-        for (let i = 0; i < pages.length; i++) for (const x of sentences(pages[i], 8)) {
-          const v = rule[1](x); if (v && okVal(v, k, x)) { p.cells[key] = { v: String(v), q: x.slice(0, 220), src: s.id, page: pages.length > 1 ? String(i + 1) : '', kind: 'fact', auto: true }; n++; return; } }
-        missing++; }); });
+    const T = briefToks(), site = c => { try { return officialOf(p, c); } catch (e) { return ''; } };
+    const byC = {}; srcs.forEach(s => { if (!p.centers.includes(s.center)) p.centers.push(s.center); (byC[s.center] = byC[s.center] || []).push(s); });
+    Object.entries(byC).forEach(([c, ss]) => { const off = site(c);
+      p.criteria.forEach(k => { const key = c + '||' + k, cur = p.cells[key]; if (cur && cur.kind === 'fact' && (!cur.auto || cur.ok)) return;
+        if (QUAL.test(k)) return; const rule = RULES.find(r => r[0].test(k)); if (!rule) return; const bad = (BADCTX.find(b => b[0].test(k)) || [])[1]; let best = null, alt = 0;
+        ss.forEach(s => { const pages = s.ex && s.ex.pages ? s.ex.pages : [s.text || ''], trust = s.kind !== 'link' ? 4 : off && siteOf(s.url || '') === off ? 2 : 0;
+          pages.forEach((pg, i) => { const pr = Math.min(4, relOf(pg.slice(0, 4000), T)); sentences(pg, 8).forEach((x, j) => { if (isNav(x)) return;
+            if (bad && bad.test(x)) return; if (/phút|thời lượng buổi/i.test(k) && !/buổi|ca học|tiết học|session|lesson|class/i.test(x)) return; const v = rule[1](x); if (!v || !okVal(v, k, x)) return; alt++;
+            const sc = trust + pr + relOf(x, T) * 2 + (/học phí|chi phí/i.test(k) && /khóa|trọn gói|toàn khóa|lộ trình/i.test(x) ? 1 : 0) - j / 2000;
+            if (!best || sc > best.sc) best = { sc, v: String(v), q: x.slice(0, 220), src: s.id, page: pages.length > 1 ? String(i + 1) : '' }; }); }); });
+        if (best) { p.cells[key] = { v: best.v, q: best.q, src: best.src, page: best.page, kind: 'fact', auto: true, alt }; n++; } else missing++; }); });
     p.cmpAt = p.cmpAt || Date.now(); await persist(); root.PLS_RESEARCH.show();
     return { filled: n, missing, noCenter: p.sources.filter(s => s.on !== false && !s.center).length };
   }
@@ -356,7 +372,9 @@
     return best ? best[0] : (root.length <= 4 ? root.toUpperCase() : root[0].toUpperCase() + root.slice(1));
   }
   const okVal = (v, k, x) => { const t = String(v || ''); if (/\]\(|https?:|www\.|[\[\]]/.test(t) || /\]\(|https?:\/\//.test(String(x || ''))) return false;
-    if (/học phí|chi phí|giá/i.test(k) && !/(triệu|tr\b|k\b|usd|\$)/i.test(t) && t.replace(/\D/g, '').length < 5) return false;
+    if (/học phí|chi phí|giá/i.test(k) && !/(triệu|tr(?![\p{L}])|k(?![\p{L}])|usd|\$)/iu.test(t) && t.replace(/\D/g, '').length < 5) return false;
+    if (/học phí|chi phí|giá/i.test(k) && !/usd|\$/i.test(t)) { const n = axisNum(k, t); if (n != null && n < 100000) return false; }
+    if (isNav(String(x || ''))) return false;
     if (/giáo trình|sách/i.test(k) && (t.length < 4 || /[()]/.test(t))) return false;
     return true; };
   const migrated = new Set();
@@ -1035,13 +1053,15 @@
   const scopeLabel = () => FL[mapFilter()] + (bandOn() ? ` · đầu ra ${plsOut() - 100}–${plsOut() + 100}` : '');
   const fcent = C => (mapFilter() === 'all' ? C : C.filter(c => ctypeOf(c) === mapFilter())).filter(c => !bandOn() || inBand(c));
   const FL = { lop: 'Khóa có lớp', tu: 'Lộ trình / app tự học', all: 'Tất cả' };
-  function mapAxes() { const p = P(), cr = p.criteria || [], m = p.map || (p.map = {}), C = fcent(centersOf(p));
+  // trục chỉ gồm thước đo CÓ SỐ để xếp (≥ 2 nơi có dữ liệu) – bỏ ô mô tả (cách kiểm tra, phương pháp…) và số thô đã quy đổi (học phí tổng, số buổi, phút)
+  function axOpts() { const p = P(), cr = p.criteria || [], C = fcent(centersOf(p)), need = Math.min(2, Math.max(1, C.length));
+    const cand = [...new Set([FPH, HRS, CAMKET].concat(cr.filter(k => !QUAL.test(k) && !/học phí|chi phí|số buổi|phút|thời lượng/i.test(k))))];
+    return cand.map(k => ({ k, n: C.filter(c => metric(c, k)).length })).filter(o => o.n >= need).sort((a1, b1) => b1.n - a1.n); }
+  function mapAxes() { const p = P(), m = p.map || (p.map = {});
     if (!m.v2) { ['x', 'y'].forEach(a => { if (m[a] && /học phí|chi phí/i.test(m[a])) m[a] = FPH; else if (m[a] && /số buổi/i.test(m[a])) m[a] = HRS; }); m.v2 = 1; }   // trục cũ (học phí tổng, số buổi) → thước đo chung
-    const cnt = k => C.filter(c => metric(c, k)).length, out = cr.find(k => /đầu ra|cam kết/i.test(k));
-    const num = cr.filter(k => NUMK.test(k) && !/học phí|chi phí|số buổi|phút/i.test(k)), need = Math.max(1, Math.min(2, C.length));   // không bao giờ rơi về số thô (học phí tổng, số buổi)
-    const pick = (L, not) => { L = L.filter(k => k && k !== not); return L.find(k => cnt(k) >= need) || L.slice().sort((p1, p2) => cnt(p2) - cnt(p1))[0]; };
-    const x = m.x || pick([FPH, HRS, out].concat(num)) || cr[0] || 'Trục ngang';
-    const y = m.y || pick([HRS, out, CAMKET].concat(num), x) || cr.find(k => k !== x) || 'Trục dọc'; return { x, y }; }
+    const ok = axOpts().map(o => o.k), pref = [FPH, HRS, CAMKET].concat(ok);
+    const x = ok.includes(m.x) ? m.x : pref.find(k => ok.includes(k)) || FPH;
+    const y = ok.includes(m.y) && m.y !== x ? m.y : pref.find(k => ok.includes(k) && k !== x) || (x === HRS ? FPH : HRS); return { x, y }; }
   function mapData(C) { const { x, y } = mapAxes(), key = x + '|' + y;
     const ents = ['PLS'].concat(C).map(name => { const a = metric(name, x), b = metric(name, y); return { name, rx: a ? fmtV(x, a.v) + (a.est ? ' (ước tính)' : '') + ' · ' + rawOf(name, x) : rawOf(name, x), ry: b ? fmtV(y, b.v) + (b.est ? ' (ước tính)' : '') + ' · ' + rawOf(name, y) : rawOf(name, y), vx: a ? a.v : null, vy: b ? b.v : null, est: !!((a && a.est) || (b && b.est)) }; });
     const span = vs => { const a = vs.filter(v => v != null); return a.length ? [Math.min(...a), Math.max(...a)] : null; }, sx = span(ents.map(e => e.vx)), sy = span(ents.map(e => e.vy));
@@ -1054,7 +1074,7 @@
     const chips = `<div class="rs-map-f" role="group" aria-label="Lọc trung tâm">${[['lop', nL], ['tu', C0.length - nL], ['all', C0.length]].map(([k, n]) => `<button type="button" class="rs-map-fb${f === k ? ' on' : ''}" data-mapf="${k}" aria-pressed="${f === k}">${FL[k]} <b>${n}</b></button>`).join('')}${plsOut() != null ? `<button type="button" class="rs-map-fb${bandOn() ? ' on' : ''}" data-mapband aria-pressed="${bandOn()}" title="Chỉ so các khóa có đầu ra gần PLS (lệch không quá 100 điểm)">Cùng phân khúc đầu ra ±100</button>` : ''}</div>`;
     const plsMiss = [...new Set([d.x, d.y].flatMap(k => k === FPH ? [critOf(/học phí|chi phí/i), critOf(/số buổi/i), critOf(/phút|thời lượng/i)] : k === HRS ? [critOf(/số buổi/i), critOf(/phút|thời lượng/i)] : [k]))].filter(k => k && k !== CAMKET && cr.includes(k) && axisNum(k, plsVal(k).v) == null);   // trục quy đổi → hỏi số gốc của PLS
     const plsIn = plsMiss.map(k => `<label class="rs-map-pls">PLS – ${esc(k)} <input data-plsset="${esc(k)}" placeholder="${/học phí|chi phí/i.test(k) ? 'VD: 3.500.000đ' : /số buổi/i.test(k) ? 'VD: 12 buổi' : /phút|thời lượng/i.test(k) ? 'VD: 90 phút' : ''}"></label>`).join('');
-    const opt = sel => [FPH, HRS, CAMKET].concat(cr, [FPH, HRS, CAMKET].concat(cr).includes(sel) ? [] : [sel]).map(k => `<option${k === sel ? ' selected' : ''}>${esc(k)}</option>`).join('') + '<option value="__custom">Tự đặt tên trục…</option>';
+    const AO = axOpts(), opt = sel => (AO.some(o => o.k === sel) ? AO : [{ k: sel, n: 0 }].concat(AO)).map(o => `<option value="${esc(o.k)}"${o.k === sel ? ' selected' : ''}>${esc(o.k)} · ${o.n ? o.n + ' nơi có số' : 'chưa có số'}</option>`).join('');
     const tip = e => `${e.name} – ${d.x}: ${short(e.rx) || 'chưa có'} · ${d.y}: ${short(e.ry) || 'chưa có'}`;
     const pts = d.ents.filter(e => !e.parked).map(e => `<button type="button" class="rs-map-pt${e.name === 'PLS' ? ' pls' : ''}${e.parked ? ' park' : ''}${e.manual ? ' man' : ''}${e.px > 0.62 ? ' flip' : ''}${e.est ? ' est' : ''}" data-mp="${esc(e.name)}" style="left:${(e.px * 100).toFixed(1)}%;top:${((1 - e.py) * 100).toFixed(1)}%" title="${esc(tip(e))}"><i></i><span>${esc(e.name)}</span></button>`).join('');
     const tray = d.ents.filter(e => e.parked).map(e => `<button type="button" class="rs-map-pt park${e.name === 'PLS' ? ' pls' : ''}" data-mp="${esc(e.name)}" title="${esc(tip(e))}"><i></i><span>${esc(e.name)}</span></button>`).join('');
@@ -1519,6 +1539,89 @@
     // tự lấy sâu các link vừa thêm
     if (p && deepOn()) p.sources.filter(s => s.kind === 'link' && !s.parent && !s.deep && s.added && Date.now() - s.added < 10 * 60000).forEach(s => { s.deep = 'queued'; crawl(s); });
     paintCap(); }
+  // ---------- ĐỘ PHỦ NGUỒN + TỰ TÌM CHỖ THIẾU (máy làm hết, không cần Claude) ----------
+  // Đọc bảng so sánh → biết trung tâm nào thiếu ô nào → máy tự tìm website chính chủ, lấy trang con, tìm đúng chủ đề còn thiếu, đọc và điền.
+  const GQ = [[/học phí|chi phí|^giá/i, 'học phí'], [/số buổi|phút|thời lượng|lộ trình/i, 'lộ trình số buổi'], [/đầu ra|cam kết/i, 'cam kết đầu ra'], [/đầu vào/i, 'kiểm tra đầu vào'], [/sĩ số/i, 'sĩ số lớp'], [/giáo trình|sách/i, 'giáo trình']];
+  const HOSTING = /(^|\.)(wordpress|blogspot|wixsite|wix|weebly|github|gitlab|google|sites|notion|canva|webflow|tumblr|medium|substack|ladipage|ladi|mysapo|haravan|trogia24h|rongbay|chotot|muaban|5giay|vatgia|trangvangvietnam|yellowpages|hotfrog|cylex|foody|jobs|vieclam|topcv|careerviet)\./i;
+  const AGG = /(^|\.)(vnexpress|dantri|tuoitre|thanhnien|zingnews|znews|kenh14|vietnamnet|24h|baomoi|cafef|cafebiz|genk|edu2review|reviewedu|toplist|top10|wikihow|quora|reddit|scribd|studocu|123doc|tailieu|vndoc|vietjack|hoc247)\./i;
+  const ctoken = c => fold(String(c || '').toLowerCase()).replace(/trung tam|he thong|anh ngu|ngoai ngu|nhat ngu|han ngu|hoa ngu|hoc vien|language|center|centre|english|academy|school|education|institute|tt\./g, ' ').replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter(w => w.length >= 3);
+  const hasTok = (c, txt) => { const T = ctoken(c), f = fold(String(txt || '').toLowerCase()).replace(/[^a-z0-9]/g, ''); return T.length > 0 && T.every(w => f.includes(w)); };
+  const cellHas = (p, c, k) => { const x = p.cells[c + '||' + k]; return !!(x && String(x.v || '').trim() && !/^(\?|không rõ|chưa rõ|n\/a|—|-)$/i.test(String(x.v).trim())); };
+  const officialOf = (p, c) => { p.site = p.site || {}; if (p.site[c]) return p.site[c]; const n = {};
+    p.sources.filter(s => s.center === c && s.kind === 'link' && s.url && s.on !== false).forEach(s => { const st = siteOf(s.url); if (st && !SOCIAL.test(st + '.') && !AGG.test(st + '.') && !HOSTING.test(st + '.')) n[st] = (n[st] || 0) + (s.parent ? 1 : 3) + (hasTok(c, st) ? 5 : 0); });
+    const best = Object.entries(n).sort((a, b) => b[1] - a[1])[0]; return best ? best[0] : ''; };
+  function srcQual(p, s) { const off = s.center && officialOf(p, s.center), y = +String((s.ex && s.ex.date) || '').slice(0, 4) || 0;
+    const who = s.kind !== 'link' ? 'own' : off && siteOf(s.url) === off ? 'off' : 'third'; return { who, old: y && y <= new Date().getFullYear() - 2 ? y : 0 }; }
+  function coverage() { const p = P(); if (!p) return null; const cr = p.criteria || [], rows = (p.centers || []).map(c => {
+      const miss = cr.filter(k => !cellHas(p, c, k)), chk = cr.filter(k => { const x = p.cells[c + '||' + k]; return x && x.auto && !x.ok && cellHas(p, c, k); });
+      const ss = p.sources.filter(s => s.center === c && s.on !== false).map(s => srcQual(p, s));
+      return { c, miss, chk, n: ss.length, off: ss.filter(q => q.who === 'off').length, own: ss.filter(q => q.who === 'own').length, third: ss.filter(q => q.who === 'third').length, old: ss.filter(q => q.old).length, site: officialOf(p, c) }; });
+    const tot = rows.length * cr.length, have = rows.reduce((a, r) => a + cr.length - r.miss.length, 0); return { rows, tot, have, cr }; }
+  let gapBusy = false, gapLog = [];
+  const gapSay = t => { gapLog.push(t); if (gapLog.length > 6) gapLog.shift(); paintGap(); };
+  // đọc trang qua hàng chờ jina (không vượt giới hạn) rồi gắn sẵn nội dung cho nguồn → "Tự điền" không phải tải lại
+  async function preRead(s) { if (s.ex && s.ex.pages) return; try { const t = await jina(s.url), head = k => ((new RegExp('^' + k + ':\\s*(.+)$', 'mi')).exec(t) || [])[1] || '';
+      const body = t.split(/^Markdown Content:\s*$/m)[1] || t, pub = head('Published Time'), d = pub && !isNaN(Date.parse(pub)) ? new Date(pub).toISOString().slice(0, 10) : '';
+      s.ex = { pages: [cleanWeb(body).slice(0, 60000)], method: 'web', title: head('Title'), date: d, v: 2, at: Date.now() }; } catch (e) {} }
+  async function gapRun() { const p = P(), r = R(); if (!p || !r || !r.addSource || gapBusy) return; gapBusy = true; gapLog = []; paintGap();
+    const topic = topicOf() || fold(String((p.brief || {}).lang || '').toLowerCase()), added = [];
+    const add = (o, c, why) => { const have = new Set(p.sources.map(x => normU(x.url || ''))); if (have.has(normU(o.url))) return null;
+      const s = r.addSource({ kind: 'link', name: (o.title || o.url).slice(0, 80), url: cleanU(o.url), center: c, date: todayS(), note: 'Máy tự tìm cho ô thiếu: ' + why, autoName: !o.title, gap: 1, deep: why === 'website chính chủ' ? 'gaphome' : 'gap' }); added.push(s); return s; };
+    try { const cov = coverage(), todo = cov.rows.filter(x => x.miss.length);
+      if (!todo.length) { gapSay('Bảng đã đủ ô – không cần tìm thêm.'); return; }
+      for (const row of todo) { const c = row.c; let site = row.site;
+        // 1. chưa biết website chính chủ → tìm
+        if (!site) { gapSay(`${c}: tìm website chính chủ…`);
+          const rs = await dsearch(`${c} ${topic}`.trim()).catch(() => []);
+          const hit = rs.find(x => { const st = siteOf(x.url); let hn = ''; try { hn = new URL(x.url).hostname; } catch (e) {} return st && !SOCIAL.test(st + '.') && !AGG.test(st + '.') && !HOSTING.test(st + '.') && hasTok(c, hn); });   // tên trung tâm phải nằm trong tên miền, không chỉ trong tiêu đề bài
+          if (hit) { site = siteOf(hit.url); p.site = p.site || {}; p.site[c] = site; add({ title: hit.title, url: 'https://' + new URL(hit.url).hostname + '/' }, c, 'website chính chủ'); gapSay(`${c}: thấy ${site}`); }
+          else gapSay(`${c}: chưa thấy website chính chủ, tìm bài viết khác`); }
+        // 2. website chính chủ chưa lấy trang con → lấy (học phí, lộ trình, khai giảng…)
+        const home = site && p.sources.find(s => s.center === c && s.kind === 'link' && siteOf(s.url || '') === site && !s.parent);
+        if (home && !/done|fail/.test(home.deep || '')) { gapSay(`${c}: lấy trang con của ${site}…`); home.deep = 'queued'; await crawl(home); }
+        // 3. từng nhóm ô còn thiếu → tìm đúng chủ đề, ưu tiên trang chính chủ, rồi bài viết có nhắc đúng tên
+        const groups = [...new Set(row.miss.map(k => (GQ.find(g => g[0].test(k)) || [])[1]).filter(Boolean))].slice(0, 3);
+        for (const g of groups) { gapSay(`${c}: tìm “${g}”…`);
+          const rs = await dsearch(`${c} ${g} ${topic}`.trim()).catch(() => []);
+          const ok = rs.filter(x => { const st = siteOf(x.url); return st && urlOk(x.url) && !SOCIAL.test(st + '.') && (st === site || hasTok(c, x.title + ' ' + x.url)); })
+            .sort((a, b) => (siteOf(b.url) === site) - (siteOf(a.url) === site)).slice(0, 2);
+          ok.forEach(x => add(x, c, g)); }
+      }
+      // 4. đọc hết nguồn mới rồi điền bảng
+      const fresh = p.sources.filter(s => s.kind === 'link' && s.center && !(s.ex && s.ex.pages) && s.on !== false);
+      for (let i = 0; i < fresh.length; i++) { gapSay(`Đọc nguồn mới ${i + 1}/${fresh.length}…`); await preRead(fresh[i]); }
+      gapSay('Điền bảng…'); const res = await autoFill(), after = coverage();
+      gapSay(`Xong: thêm ${added.length} nguồn · điền thêm ${res.filled} ô · bảng có ${after.have}/${after.tot} ô.`);
+      toast(`Máy đã tìm thêm ${added.length} nguồn và điền ${res.filled} ô – các ô vàng cần bạn kiểm`);
+    } catch (e) { gapSay('Lỗi: ' + e.message); } finally { gapBusy = false; await persist(); paintGap(); root.PLS_RESEARCH.show(); } }
+  // tìm thêm trung tâm cạnh tranh theo yêu cầu khóa học
+  async function rivals(btn) { const p = P(); if (!p) return; const b = p.brief || {}, lang = b.lang || '', lv = b.level || '', topic = topicOf();
+    const qs = [`khóa học ${topic || lang} ${lv} trung tâm`, `trung tâm ${topic || lang} học phí lộ trình ${lv}`, `${topic || lang} ${b.audience || ''} khóa học uy tín`].map(q => q.replace(/\s+/g, ' ').trim());
+    btn.disabled = true; btn.textContent = 'Đang tìm…';
+    try { const rs = (await Promise.all(qs.map(q => dsearch(q).catch(() => [])))).flat(), have = new Set(p.sources.map(s => siteOf(s.url || '')).concat(Object.values(p.site || {}))), by = {};
+      rs.forEach(x => { const st = siteOf(x.url); if (!st || have.has(st) || SOCIAL.test(st + '.') || !urlOk(x.url)) return; (by[st] = by[st] || []).push(x); });
+      const items = Object.entries(by).sort((a, b) => b[1].length - a[1].length).slice(0, 14).map(([st, xs]) => ({ title: xs[0].title + (AGG.test(st + '.') ? ' (bài tổng hợp)' : ''), url: xs[0].url, on: !AGG.test(st + '.') }));
+      if (!items.length) { toast('Không thấy trung tâm mới', true); return; }
+      pickDlg('Trung tâm / bài viết máy vừa tìm thấy', `Theo yêu cầu khóa: ${[lang, lv, b.audience].filter(Boolean).join(' · ')}. Bỏ chọn cái không liên quan – máy sẽ đọc, lấy trang con, rồi bạn bấm “Tự tìm chỗ thiếu”.`, items, 'Thêm và đọc', addLinks);
+    } finally { btn.disabled = false; btn.textContent = 'Tìm thêm trung tâm'; } }
+  function paintGap() { const bar = document.querySelector('#rsAutoFill') && document.querySelector('#rsAutoFill').closest('.rs-bar'), p = P(); let box = document.getElementById('gapBox');
+    if (!bar || !p || !(p.centers || []).length) { if (box) box.remove(); return; }
+    if (!box) { box = document.createElement('div'); box.id = 'gapBox'; box.className = 'gap-box'; } if (bar.nextElementSibling !== box) bar.after(box);
+    const cv = coverage(), pct = cv.tot ? Math.round(cv.have / cv.tot * 100) : 0;
+    const rows = cv.rows.map(x => `<tr><th>${esc(x.c)}${x.site ? `<small>${esc(x.site)}</small>` : '<small class="no">chưa có web chính chủ</small>'}</th><td><span class="gap-meter"><i style="width:${cv.cr.length ? Math.round((cv.cr.length - x.miss.length) / cv.cr.length * 100) : 0}%"></i></span> ${cv.cr.length - x.miss.length}/${cv.cr.length}${x.chk.length ? ` · <span class="gap-chk">${x.chk.length} chờ kiểm</span>` : ''}</td>` +
+      `<td>${x.miss.length ? x.miss.map(k => `<span class="gap-miss${QUAL.test(k) ? ' q' : ''}" title="${QUAL.test(k) ? 'Ô mô tả – Claude đọc nguồn rồi điền' : 'Ô số liệu – máy tự tìm'}">${esc(k)}</span>`).join('') : '<span class="gap-ok">đủ</span>'}</td>` +
+      `<td class="gap-q">${x.n} nguồn${x.off ? ` · ${x.off} chính chủ` : ''}${x.own ? ` · ${x.own} tài liệu` : ''}${x.third ? ` · ${x.third} bên thứ ba` : ''}${x.old ? ` · <span class="gap-old">${x.old} cũ</span>` : ''}</td></tr>`).join('');
+    const h = `<div class="gap-h"><b>Độ phủ nguồn</b><span class="gap-meter big"><i style="width:${pct}%"></i></span><span>${cv.have}/${cv.tot} ô có số liệu (${pct}%)</span><span style="flex:1"></span>` +
+      `<button type="button" class="btn" data-gap="rivals">Tìm thêm trung tâm</button><button type="button" class="btn primary" data-gap="run"${gapBusy ? ' disabled' : ''}>${gapBusy ? 'Máy đang tìm…' : 'Tự tìm chỗ thiếu'}</button></div>` +
+      `<p class="muted gap-sub">Máy tự tìm website chính chủ, lấy trang học phí / lộ trình, tìm đúng chủ đề còn thiếu rồi đọc và điền – không cần Claude. Ô máy điền hiện màu vàng để bạn kiểm. Ô mô tả (<span class="gap-miss q">viền tím</span>: phương pháp, giáo trình…) máy chỉ gom nguồn, Claude đọc rồi điền qua “Nhờ Claude lập lại”.</p>` +
+      (gapLog.length ? `<ul class="gap-log">${gapLog.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '') +
+      `<details class="gap-d"${gapBusy || cv.have < cv.tot ? ' open' : ''}><summary>Từng trung tâm</summary><table class="gap-t"><tbody>${rows}</tbody></table></details>`;
+    if (box._h !== h) { const op = box.querySelector('details'); box._h = h; box.innerHTML = h; if (op && !op.open) box.querySelector('details').open = false; } }
+  let gapWired = false;
+  function gapEnhance() { if (!gapWired) { gapWired = true;
+      const st = document.createElement('style'); st.textContent = '.gap-box{border:1px solid var(--ui-line);border-radius:6px;padding:10px 12px;margin:0 0 12px;background:var(--ui-panel);font-size:12px}.gap-h{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.gap-h b{font-size:13px}.gap-h .btn{min-height:30px;padding:4px 12px;font-size:12px}.gap-sub{margin:6px 0 0}.gap-meter{display:inline-block;width:60px;height:6px;border-radius:3px;background:var(--ui-line);vertical-align:middle;overflow:hidden}.gap-meter.big{width:120px}.gap-meter i{display:block;height:100%;background:#2e7d32}.gap-log{margin:6px 0 0;padding-left:18px;color:#b85c3e}.gap-d{margin-top:8px}.gap-d summary{cursor:pointer;color:var(--ui-muted)}.gap-t{width:100%;border-collapse:collapse;margin-top:6px}.gap-t th,.gap-t td{text-align:left;vertical-align:top;padding:5px 6px;border-top:1px solid var(--ui-line)}.gap-t th{font-weight:600;min-width:120px}.gap-t th small{display:block;font-weight:400;color:var(--ui-muted)}.gap-t th small.no{color:#b85c3e}.gap-t td:nth-child(2){white-space:nowrap}.gap-miss{display:inline-block;border:1px dashed var(--ui-muted);border-radius:999px;padding:0 6px;margin:0 4px 3px 0;color:var(--ui-muted)}.gap-miss.q{border-color:#7a5bd1;color:#7a5bd1}.gap-ok{color:#2e7d32;font-weight:600}.gap-chk{color:#a06d00}.gap-old{color:#b85c3e}.gap-q{color:var(--ui-muted)}@media(max-width:700px){.gap-t td:nth-child(4){display:none}}'; document.head.appendChild(st);
+      document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-gap]'); if (!t) return; if (t.dataset.gap === 'run') gapRun(); if (t.dataset.gap === 'rivals') rivals(t); }); }
+    paintGap(); }
   function aiInfo() { const b = document.querySelector('#rsBridge'); if (!b) return; b.scrollIntoView({ behavior: 'smooth', block: 'start' }); b.style.transition = 'box-shadow .3s'; b.style.boxShadow = '0 0 0 3px #d97757'; setTimeout(() => { b.style.boxShadow = ''; }, 1600); }
   const toast = (t, bad) => { const el = document.createElement('div'); el.setAttribute('role', 'status'); el.textContent = t; el.style.cssText = `position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1002;background:${bad ? '#8a2a1b' : '#1f1f1f'};color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;max-width:90vw`; document.body.appendChild(el); setTimeout(() => el.remove(), 4200); };
   function enhance() {
@@ -1544,7 +1647,7 @@
     if (cmp && !document.querySelector('#rsAutoFill')) { const b = document.createElement('button'); b.type = 'button'; b.id = 'rsAutoFill'; b.className = 'btn'; b.textContent = 'Tự điền số liệu'; b.title = 'Máy dò số buổi, phút, sĩ số, học phí, cấp độ… trong nguồn – không cần Claude';
       cmp.parentNode.insertBefore(b, cmp);
       b.onclick = async () => { b.disabled = true; b.textContent = 'Đang dò…'; try { const r = await autoFill(); toast(`Đã điền ${r.filled} ô từ nguồn${r.missing ? ` · ${r.missing} ô chưa thấy, nhờ Claude điền tiếp` : ''}${r.noCenter ? ` · ${r.noCenter} nguồn chưa ghi trung tâm nên bỏ qua` : ''}`); } catch (e) { toast(e.message, true); } finally { b.disabled = false; b.textContent = 'Tự điền số liệu'; } }; }
-    briefEnhance(); objEnhance(); plsEnhance(); cfgEnhance(); evoEnhance(); ovEnhance(); mapEnhance(); betaEnhance(); notesEnhance(); hookXlsx(); presEnhance(); rrEnhance(); capEnhance(); migrate();
+    briefEnhance(); objEnhance(); plsEnhance(); cfgEnhance(); evoEnhance(); ovEnhance(); mapEnhance(); betaEnhance(); notesEnhance(); hookXlsx(); presEnhance(); rrEnhance(); capEnhance(); gapEnhance(); migrate();
     const chip = document.querySelector('#rsAI'); if (chip) { const t = '● Claude · ' + usage(); if (chip.textContent !== t) chip.textContent = t; chip.classList.toggle('ok', true); chip.title = 'Việc cần viết được gửi Claude – nhắn Claude “xử lý hàng chờ PLS” để xử lý'; }
   }
   let tm = 0; new MutationObserver(() => { clearTimeout(tm); tm = setTimeout(enhance, 50); }).observe(document.documentElement, { childList: true, subtree: true });
