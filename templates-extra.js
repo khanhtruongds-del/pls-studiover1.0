@@ -50,7 +50,7 @@
   // 2) QUY TẮC 35/65: trái 35 % = ô nền nhạt chứa quy tắc + công thức, phải 65 % = 2–4 ví dụ đánh số
   build('Slide/Grammar Rule Split',
     div('columns', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:row;gap:48px;align-items:stretch',
-      div('rule_box', `flex:0 0 35%;align-self:flex-start;display:flex;flex-direction:column;gap:20px;padding:40px;border-radius:16px;background-color:${C.soft};align-items:flex-start`,
+      div('rule_box', `flex:0 0 42%;align-self:flex-start;display:flex;flex-direction:column;gap:20px;padding:40px;border-radius:16px;background-color:${C.soft};align-items:flex-start`,
         txt('label', 'bold', 30, C.ink, 'Quy tắc', false) + txt('rule', 'bold', 36, C.text, 'S + V', true)) +
       div('examples', 'flex:1 1 0px;min-width:0;display:flex;flex-direction:column;gap:32px;justify-content:flex-start;align-items:stretch',
         range(4).map(i => div(`ex_${i}`, 'flex:0 0 auto;display:flex;flex-direction:row;gap:24px;align-items:flex-start',
