@@ -3,7 +3,7 @@
 (function (root) {
   'use strict';
   const LABELS = {   // nhãn header.section theo ngôn ngữ brand (BACKLOG: nhãn đang cố định tiếng Đức)
-    en: { listen: 'LISTENING', read: 'READING', test: 'TEST', practice: 'PRACTICE', check: 'HOMEWORK CHECK', answers: 'ANSWER KEY', vocab: 'VOCABULARY', grammar: 'GRAMMAR', pron: 'PRONUNCIATION', speak: 'SPEAKING', overview: 'LESSON OVERVIEW', summary: 'SUMMARY', homework: 'HOMEWORK', extra: 'TIPS', lesson: 'LESSON', thanks: 'Thank you!' },
+    en: { listen: 'LISTENING', read: 'READING', test: 'TEST', practice: 'PRACTICE', check: 'HOMEWORK CHECK', answers: 'ANSWER KEY', vocab: 'VOCABULARY', grammar: 'GRAMMAR', pron: 'PRONUNCIATION', speak: 'SPEAKING', overview: 'LESSON OVERVIEW', summary: 'SUMMARY', homework: 'HOMEWORK', extra: 'TIPS', lesson: 'LESSON', thanks: 'Thank you!', warm: 'WARM-UP' },
     de: { listen: 'HÖREN', read: 'LESEN', test: 'TEST', practice: 'ÜBUNG', check: 'HAUSAUFGABEN-CHECK', answers: 'LÖSUNGEN', vocab: 'WORTSCHATZ', grammar: 'GRAMMATIK', pron: 'AUSSPRACHE', speak: 'SPRECHEN', overview: 'ÜBERSICHT', summary: 'ZUSAMMENFASSUNG', homework: 'HAUSAUFGABEN', extra: 'TIPPS', lesson: 'LEKTION', thanks: 'Vielen Dank!' },
     fr: { listen: 'ÉCOUTE', read: 'LECTURE', test: 'TEST', practice: 'EXERCICES', check: 'CORRECTION', answers: 'CORRIGÉ', vocab: 'VOCABULAIRE', grammar: 'GRAMMAIRE', pron: 'PRONONCIATION', speak: 'ORAL', overview: 'APERÇU', summary: 'RÉSUMÉ', homework: 'DEVOIRS', extra: 'CONSEILS', lesson: 'LEÇON', thanks: 'Merci !' },
     ko: { listen: '듣기', read: '읽기', test: '시험', practice: '연습', check: '숙제 확인', answers: '정답', vocab: '어휘', grammar: '문법', pron: '발음', speak: '말하기', overview: '수업 개요', summary: '정리', homework: '숙제', extra: '팁', lesson: '제', thanks: '감사합니다!' },
@@ -107,10 +107,24 @@
     const extra = tab(s6, /Ngoài kiến thức/).filter(r => isB(r, buoi) && onPPT(r));
     const divider = (title, sub, nt) => slides.push({ comp: 'Slide/Section', data: { 'section.title': title, 'section.sub': sub || '' }, notes: NOTE(Object.assign({ g: [`Chuyển sang phần: ${title}.`] }, nt || {})) });
     const used = new Set(); let state_testAns = null;
+    const T5 = (re) => { const b = s5 || {}; const k = Object.keys(b).find(n => re.test(n)); return k ? b[k] : []; };
+    const uc = t => t.charAt(0).toUpperCase() + t.slice(1), lc = t => t.charAt(0).toLowerCase() + t.slice(1);
+    // ĐỢT 4 (24/10): KHỞI ĐỘNG – câu hỏi tiếng Anh trong hướng dẫn Mở đầu / Warm-up (S5) + câu hỏi mẫu của phần Nói; cần ≥ 2 câu
+    const leadIn = () => {
+      if (!(root.PLS_TPL && root.PLS_TPL.slides['Slide/Lead In'])) return;
+      const qs = [], seen = new Set(), add = (de, vi) => { de = S(de).replace(/^[“"]|[”"]$/g, ''); const k = de.toLowerCase(); if (de.length < 8 || de.length > 90 || seen.has(k)) return; seen.add(k); qs.push({ de, vi: S(vi) }); };
+      T5(/Hướng dẫn giảng dạy/).filter(r => isB(r, buoi) && /mở đầu|warm|khởi động/i.test(S(r['Hoạt động']))).forEach(r => (S(r['Cách triển khai từng bước']).match(/[A-Z][A-Za-z ,'’-]{3,80}\?/g) || []).forEach(q => add(q, '')));
+      speak.filter(r => /\?\s*$/.test(S(r['Câu']))).forEach(r => add(r['Câu'], r['Nghĩa']));
+      if (qs.length < 2) return;
+      const d = { title: 'Khởi động: ' + topic, kicker: 'Thảo luận theo cặp – trả lời bằng tiếng Anh', 'img:img': name };
+      for (let i = 1; i <= 3; i++) { const q = qs[i - 1]; d[`q_${i}.no`] = q ? String(i) : ''; d[`q_${i}.de`] = q ? q.de : ''; d[`q_${i}.vi`] = q ? q.vi : ''; }
+      slides.push({ comp: 'Slide/Lead In', data: sec(L.warm || L.overview, d), notes: NOTE({ g: ['Cho HV xem ảnh, đoán chủ đề buổi học.', 'HV hỏi – đáp theo cặp 2 phút, gọi 2–3 cặp chia sẻ.', ...qs.slice(0, 3).map(q => q.de)], l: ['Chưa sửa lỗi ở bước này – chỉ khơi gợi.'] }) });
+    };
+    const hasWarm = steps.some(x => /warm|khởi động/i.test(x.name));
 
     for (const st of steps) {
       const n = st.name.toLowerCase(); const mins = st.min != null ? `${st.min} phút` : ''; const T = mins;
-      if (/mở đầu/.test(n)) continue;
+      if (/mở đầu/.test(n)) { if (!hasWarm && !used.has('lead')) { used.add('lead'); leadIn(); } continue; }
       if (/từ vựng/.test(n) && !used.has('vocab')) {
         used.add('vocab'); divider(st.name, `${vocab.length} từ · ${mins}`);
         const TPL = (root.PLS_TPL || {}).slides || {};
@@ -118,6 +132,10 @@
         const picG = {}; vocab.forEach(r => { const k = S(r['Hình minh hoạ']); if (k) (picG[k] = picG[k] || []).push(r); });
         const pics = TPL['Slide/Vocab Picture'] ? Object.entries(picG).filter(([, rs]) => rs.length >= 3 && rs.length <= 5) : [], inPic = new Set(pics.flatMap(([, rs]) => rs));
         const grid = vocab.filter(r => !inPic.has(r));
+        // ĐỢT 4: THẺ TỪ – tối đa 3 từ có câu ví dụ (ưu tiên từ có hình minh hoạ riêng) → 1 từ / slide trước lưới ôn
+        if (TPL['Slide/Vocab Card']) grid.filter(r => S(r['Ví dụ 1']) && S(r['Ví dụ 1']).length <= 80).sort((a, b) => !!S(b['Hình minh hoạ']) - !!S(a['Hình minh hoạ'])).slice(0, 3).forEach(r => {
+          slides.push({ comp: 'Slide/Vocab Card', data: sec(L.vocab, { title: '', word: S(r['Từ']), ipa: S(r['Phiên âm / cách đọc']) ? '/' + S(r['Phiên âm / cách đọc']).replace(/^\/|\/$/g, '') + '/' : '', pos: S(r['Loại từ']), mean: S(r['Nghĩa']), exde: S(r['Ví dụ 1']), exvi: S(r['Nghĩa ví dụ 1']), 'img:img': S(r['Hình minh hoạ']) || S(r['Từ']) }),
+            notes: NOTE({ g: [`Đọc mẫu “${S(r['Từ'])}” 2 lần, cả lớp nhắc lại.`, `Ví dụ: ${S(r['Ví dụ 1'])} – ${S(r['Nghĩa ví dụ 1'])}`, 'Gọi 2 HV đặt câu khác với từ này.'], l: [S(r['Cách dùng']), S(r['Trọng âm']) ? 'Trọng âm: ' + S(r['Trọng âm']) : ''] }) }); });
         if (grid.length) for (const part of chunk(grid, Math.ceil(grid.length / Math.ceil(grid.length / 24)))) slides.push({ auto: 'vocab', section: L.vocab, items: part.map(r => ({ de: S(r['Từ']), vi: S(r['Nghĩa']), nt: wordNote(r), nw: wordWarn(r) })), notes: NOTE({ t: T, g: ['Đọc mẫu từng từ 2 lần, cả lớp nhắc lại; hỏi nghĩa trước khi lật nghĩa.'] }) });
         for (const [lab, rs] of pics) { const d = { title: lab, 'img:img': lab }; rs.forEach((r, i) => { d[`item_${i + 1}.no`] = String(i + 1); d[`item_${i + 1}.de`] = S(r['Từ']); d[`item_${i + 1}.vi`] = S(r['Nghĩa']); }); slides.push({ comp: 'Slide/Vocab Picture', data: sec(L.vocab, d), notes: NOTE({ g: ['Cho HV nhìn hình đoán từ trước, rồi đọc mẫu.', ...rs.map(wordNote)], l: rs.map(wordWarn) }) }); }
         // SƠ ĐỒ QUAN HỆ TỪ (mẫu bổ sung): ≥ 3 cặp đồng nghĩa / trái nghĩa trong từ của buổi → 1 slide (tối đa 6 cặp)
@@ -138,6 +156,11 @@
         used.add('grammar'); divider(st.name, mins);
         // mỗi điểm ngữ pháp: máy tự chọn mẫu (auto.js); câu hỏi luyện tập của điểm đó theo sau; đáp án gom cuối mục
         const A = root.PLS_AUTO; const gq = tab(s6, /Câu hỏi ngữ pháp/).filter(r => onPPT(r)); let no = 1; const keys = [];
+        // ĐỢT 4: ĐIỀN TỪ CÓ HỘP TỪ – gom câu có chỗ trống mà đáp án 1–2 từ của CẢ mục ngữ pháp (≥ 3 câu) → 1 slide ôn cuối mục (tối đa 5 câu)
+        const LT = ['A', 'B', 'C', 'D'], ansOf = r => { const a = S(r['Đáp án']).toUpperCase().charAt(0); return LT.includes(a) ? S(r[a]) : ''; };
+        const gCodes = new Set(grammar.map(g => S(g['Mã mục'])));
+        const bankOk = gq.filter(r => isB(r, buoi) && gCodes.has(S(r['Mã ngữ pháp'])) && /_{2,}|…|\.\.\./.test(S(r['Câu hỏi'])) && ansOf(r) && ansOf(r).split(/\s+/).length <= 2 && ansOf(r).length <= 16 && !/\//.test(ansOf(r)));
+        const bankUse = A && bankOk.length >= 3 && root.PLS_TPL && root.PLS_TPL.slides['Slide/Gap Fill Bank'] ? bankOk.slice(0, 5) : [];
         for (const g of grammar) {
           const tn = S(g['Tên ngữ pháp']), ng = S(g['Nghĩa']);
           const same = ng && tn.toLowerCase().includes(ng.toLowerCase().replace(/\s*\(.*$/, '').slice(0, 12));
@@ -146,9 +169,35 @@
             l: [...S(g['Lưu ý']).split('\n'), S(g['Dấu hiệu nhận biết']) ? 'Dấu hiệu nhận biết: ' + S(g['Dấu hiệu nhận biết']) : '', S(g['So sánh với ngữ pháp đã học']) ? 'So với bài đã học: ' + S(g['So sánh với ngữ pháp đã học']) : ''] });
           if (A) slides.push({ auto: 'grammar', section: L.grammar, g: A.parseGrammar(g, title), notes: gNote });
           else { const d = { title, 'rule': S(g['Cấu trúc (công thức)']).split('\n')[0] }; [1, 2, 3].forEach(i => { if (S(g['Ví dụ ' + i])) { d[`ex_${i}.de`] = S(g['Ví dụ ' + i]); d[`ex_${i}.vi`] = S(g['Nghĩa ví dụ ' + i]); } }); slides.push({ comp: 'Slide/Grammar Rule', data: sec(L.grammar, d), notes: gNote }); }
-          const qs = gq.filter(r => S(r['Mã ngữ pháp']) && S(r['Mã ngữ pháp']) === S(g['Mã mục']) && isB(r, buoi));
+          const exs = [1, 2, 3].map(i => ({ de: S(g['Ví dụ ' + i]), vi: S(g['Nghĩa ví dụ ' + i]) })).filter(e => e.de);
+          const uses = S(g['Cách sử dụng']).split('\n').map(t => S(t).replace(/^\d+[.)]\s*/, '')).filter(Boolean).map(t => S(t.split(/:\s/)[0]).replace(/[.;]$/, ''));
+          // ĐỢT 4: DÒNG THỜI GIAN cho các thì (nhận theo tên ngữ pháp)
+          const TK = [[/past perfect/i, 'pastperfect'], [/past continuous/i, 'pastcont'], [/present perfect/i, 'perfect'], [/past simple/i, 'past'], [/dùng cho tương lai/i, 'future'], [/present simple vs|vs present continuous/i, ''], [/present continuous/i, 'now'], [/present simple/i, 'habit'], [/be going to/i, 'going'], [/^will\b/i, 'future']];
+          const tk = (TK.find(([re]) => re.test(tn)) || [])[1];
+          if (tk && exs.length && root.PLS_TPL && root.PLS_TPL.slides['Slide/Tense Timeline'])
+            slides.push({ comp: 'Slide/Tense Timeline', data: sec(L.grammar, { title: tn.replace(/\s*\(.*\)$/, '') + ' – trên dòng thời gian', _kind: tk, label: 'Cấu trúc', l_past: 'Quá khứ', l_now: 'Bây giờ', l_fut: 'Tương lai', rule: S(g['Cấu trúc (công thức)']).split('\n').map(S).filter(Boolean).slice(0, 2).map(t => t.length <= 34 ? t.replace(/ /g, '\u00a0') : t).join('\n'), use: uses[0] ? uc(uses[0]) : '', de: exs[0].de, vi: exs[0].vi }),
+              notes: NOTE({ g: ['Vẽ trục thời gian lên bảng, chỉ vị trí hành động so với BÂY GIỜ.', `Ví dụ: ${exs[0].de}`], l: [S(g['Dấu hiệu nhận biết']) ? 'Dấu hiệu: ' + S(g['Dấu hiệu nhận biết']) : ''] }) });
+          // ĐỢT 4: KIỂM TRA HIỂU – câu ví dụ ghép với NGHĨA (lấy đúng từ dữ liệu); câu 2 ghép nghĩa của ví dụ khác → Sai. Không tự suy luận cách dùng (tránh đáp án sai)
+          const exv = exs.filter(e => e.vi);
+          if (exv.length >= 2 && root.PLS_TPL && root.PLS_TPL.slides['Slide/CCQ']) {
+            const short = tn.replace(/\s*\(.*\)$/, ''), d = { title: 'Đúng hay sai? – ' + (short.length > 40 ? short.slice(0, 40).replace(/\s+\S*$/, '') + '…' : short) }, why = [];
+            for (let i = 1; i <= 4; i++) { const e = exv[i - 1]; if (!e) { ['no', 'text', 'ans.val'].forEach(k => { d[`q_${i}.${k}`] = ''; }); continue; }
+              const wrong = i === 2 ? exv.find(x => x !== e && x.vi !== e.vi) : null;
+              d[`q_${i}.no`] = String(i); d[`q_${i}.text`] = `“${e.de}” nghĩa là: ${(wrong || e).vi.replace(/[.!?]$/, '')}?`; d[`q_${i}.ans.val`] = wrong ? 'Sai' : 'Đúng'; why.push(`${i}. ${wrong ? 'Sai – đúng là: ' + e.vi : 'Đúng'}`); }
+            slides.push({ comp: 'Slide/CCQ', data: sec(L.grammar, d), notes: NOTE({ g: ['Đọc từng câu, cả lớp giơ tay Đúng / Sai rồi mới bấm hiện đáp án.', 'Hỏi thêm: dấu hiệu nào trong câu cho em biết?', ...why] }) });
+          }
+          let qs = gq.filter(r => S(r['Mã ngữ pháp']) && S(r['Mã ngữ pháp']) === S(g['Mã mục']) && isB(r, buoi));
+          qs = qs.filter(r => !bankUse.includes(r));   // câu đã vào slide hộp từ cuối mục
           if (A && qs.length) { const ex = A.exercises(qs, L.practice || L.grammar, no); no = ex.next; slides.push(...ex.groups); keys.push(...ex.keys); }
         }
+        if (bankUse.length) { const use = bankUse, d = { title: 'Ôn tập: điền từ vào chỗ trống', label: 'Từ gợi ý:' }, ans = use.map(ansOf);
+          const dis = [...new Set(use.flatMap(r => LT.map(x => S(r[x]))).filter(w => w && !ans.some(a => a.toLowerCase() === w.toLowerCase()) && w.split(/\s+/).length <= 2 && w.length <= 16))].slice(0, Math.max(0, Math.min(2, 8 - ans.length)));
+          const bank = [...new Set([...ans, ...dis])].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())).slice(0, 8);
+          for (let i = 1; i <= 8; i++) d[`chip_${i}.text`] = bank[i - 1] || '';
+          for (let i = 1; i <= 5; i++) { const r = use[i - 1]; if (!r) { ['no', 'text', 'ans.val'].forEach(k => { d[`s_${i}.${k}`] = ''; }); continue; }
+            d[`s_${i}.no`] = no + '.'; d[`s_${i}.text`] = S(r['Câu hỏi']).replace(/^\[[^\]]{1,80}\]\s*/, '').replace(/^[^:]{0,60}:\s*/, '').replace(/_{2,}|…|\.\.\./, '_____'); d[`s_${i}.ans.val`] = ans[i - 1];
+            keys.push([no, ans[i - 1], S(r['Giải thích'])]); no++; }
+          slides.push({ comp: 'Slide/Gap Fill Bank', data: sec(L.practice || L.grammar, d), notes: NOTE({ g: ['HV tự điền trong 2 phút, đổi bài với bạn bên cạnh, rồi bấm hiện từng đáp án.', ...use.map((r, i) => `${S(r['Câu hỏi'])} → ${ans[i]}`)] }) }); }
         if (A && keys.length) slides.push(...A.answerSlides(keys, L.answers || L.grammar, 'Đáp án luyện tập ngữ pháp'));
       } else if (/phát âm|bảng chữ|hán tự/.test(n) && !used.has('pron')) {
         used.add('pron');
@@ -204,6 +253,12 @@
           }
         }
       } else if (/tổng kết/.test(n)) {
+        // ĐỢT 4: TỰ ĐÁNH GIÁ cuối buổi (thang 3/2/1) theo mục tiêu bài
+        const cando = sentences(info['Mục tiêu bài'] || s5row['Mục tiêu bài']).map(t => uc(S(t).replace(/^học viên\s+(sẽ\s+)?/i, '').replace(/[.;]$/, ''))).filter(Boolean).slice(0, 4);
+        if (cando.length >= 2 && root.PLS_TPL && root.PLS_TPL.slides['Slide/Self Check']) {
+          const d = { title: 'Tự đánh giá: sau buổi học, mình có thể…', hint: 'Khoanh mức của bạn:', scale: '3 = làm tốt  ·  2 = tạm được  ·  1 = cần ôn thêm' }; for (let i = 1; i <= 4; i++) { d[`g_${i}.no`] = cando[i - 1] ? String(i) : ''; d[`g_${i}.text`] = cando[i - 1] || ''; ['3', '2', '1'].forEach(v => { d[`g_${i}.dot_${v}.v`] = cando[i - 1] ? v : ''; }); }
+          slides.push({ comp: 'Slide/Self Check', data: sec(L.summary, d), notes: NOTE({ g: ['HV tự khoanh 3 / 2 / 1 cho từng mục (vào vở hoặc giơ ngón tay).', 'Mục nào nhiều HV chọn 1 → ôn lại 2 phút trước khi dặn dò.'] }) });
+        }
         const sumD = sec(L.summary, { 'title': 'Tổng kết buổi học',
           'col_1.title': 'Từ vựng', 'col_1.text': vocab.slice(0, 8).map(r => S(r['Từ'])).join(', ') + (vocab.length > 8 ? ` … (${vocab.length} từ)` : ''),
           'col_2.title': 'Ngữ pháp', 'col_2.text': grammar.map(g => S(g['Tên ngữ pháp'])).join('\n') || '–',
@@ -284,6 +339,7 @@
         divider(st.name, mins); slides.push(...state_testAns); state_testAns = null;
       } else {
         divider(st.name, [mins, /kiểm tra|btvn|nghe|đọc/.test(n) ? 'thực hiện trên app' : ''].filter(Boolean).join(' · '));
+        if (/warm|khởi động/.test(n) && !used.has('lead')) { used.add('lead'); leadIn(); }
       }
     }
     slides.push({ comp: 'Slide/End', data: { 'thanks.de': L.thanks, 'thanks.vi': 'Cảm ơn các bạn!' }, notes: NOTE({ g: ['Cảm ơn lớp, nhắc lại bài tập về nhà và hạn nộp.', S(s5row['Dặn dò'])], l: [S(s5row['Lưu ý'])] }) });
