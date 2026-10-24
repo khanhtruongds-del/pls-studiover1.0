@@ -280,6 +280,8 @@
   const unlock = id => { try { localStorage.removeItem('pls.cq.lock.' + id); } catch (e) {} };
   const TAB = Math.random().toString(36).slice(2, 8);
   async function applyDone() {
+    if (!isClaudeTab()) { const n = mine().filter(j => j.status === 'done').length, base = document.title.replace(/^\(\d+\) Claude đã xong – /, '');
+      document.title = n && document.visibilityState !== 'visible' ? `(${n}) Claude đã xong – ${base}` : base; }   // tab ẩn: hiện trên tiêu đề tab để người dùng quay lại
     if (applying || isClaudeTab() || document.visibilityState !== 'visible') return;
     const r = R(), p = P(); if (!r || !p || !r.job) return;
     const done = mine().filter(j => j.status === 'done' || j.status === 'fail').sort((a, b) => a.at - b.at); if (!done.length) return;
@@ -793,7 +795,7 @@
   const LF = { name: 'tên buổi', type: 'loại buổi', desc: 'mô tả', goals: 'mục tiêu bài', parts: 'thành phần', timeline: 'timeline', homework: 'dặn dò', vocab: 'từ vựng', grammar: 'ngữ pháp', topics: 'chủ đề' };
   const norm = v => Array.isArray(v) ? v.join(',') : String(v == null ? '' : v).trim();
   function diffSnap(a, b) { const ch = [], ba = a.brief || {}, bb = b.brief || {};
-    BFF.forEach(([k, l]) => { if (norm(ba[k]) !== norm(bb[k])) ch.push({ t: 'brief', k, txt: `${l}: “${norm(ba[k]) || '—'}” → “${norm(bb[k]) || '—'}”` }); });
+    BFF.forEach(([k, l]) => { if (!norm(ba[k])) return; if (norm(ba[k]) !== norm(bb[k])) ch.push({ t: 'brief', k, txt: `${l}: “${norm(ba[k]) || '—'}” → “${norm(bb[k]) || '—'}”` }); });
     const byId = arr => Object.fromEntries((arr || []).map(x => [x.id, x]));
     const oa = byId(a.objectives), ob = byId(b.objectives), OL = { text: 'nội dung', cond: 'điều kiện', crit: 'tiêu chí đạt', pre: 'cần trước' };
     Object.keys(oa).forEach(id => { if (!ob[id]) ch.push({ t: 'obj-del', id, txt: `Bỏ mục tiêu ${id}` }); });
@@ -1505,6 +1507,8 @@
     const f = ' ' + fold(raw.toLowerCase()).replace(/[^a-z0-9]+/g, ' ') + ' ';
     if (mine.some(e => f.includes(' ' + e + ' '))) return false;
     return OTHERP.filter(e => !mine.includes(e)).some(e => f.includes(' ' + e + ' ')) || /\bSAT\b|\/sat[\/-]|khoa-hoc-sat/.test(raw); }   // SAT: chỉ chữ in hoa / trong link (tránh "sát đề")
+  // chữ của link hay dính: "Cơ bảnXem chi tiết", "Lớp họcLIVE" → tách chữ, bỏ đuôi nút
+  const tidyLink = t => String(t || '').replace(/(\p{Ll}{2}|\d)(\p{Lu})/gu, '$1 $2').replace(/\s*(Xem chi tiết|Xem thêm|Chi tiết|Tìm hiểu thêm|Đăng ký ngay|Read more)\s*$/i, '').replace(/\s+/g, ' ').trim();
   let capMsg = '', capBusy = 0;
   // collect: mảng gom nguồn (khi máy đang tự lấp chỗ thiếu) → chưa thêm vào dự án, không vẽ lại giao diện
   async function crawl(s, collect) { const p = P(); if (!p) return; const r = R(); if (!r || !r.addSource) return; const root0 = rootOf(s.url);
@@ -1513,7 +1517,7 @@
       const subs = L.filter(l => urlOk(l.url) && rootOf(l.url) === root0 && normU(l.url) !== normU(s.url) && !have.has(normU(l.url)))
         .filter(l => !otherProg(l.text + ' ' + l.url))
         .map(l => Object.assign(l, { sc: scoreSub(l, topic) })).filter(l => l.sc >= 3).sort((a, b) => b.sc - a.sc).slice(0, 8);
-      subs.forEach(l => (collect ? x => collect.push(Object.assign(x, { _par: s })) : r.addSource)({ kind: 'link', name: (l.text || l.url.replace(/^https?:\/\/(www\.)?/, '')).slice(0, 80), url: l.url, center: s.center || '', date: todayS(), note: 'Trang con của ' + s.id, parent: s.id, autoName: !l.text }));
+      subs.forEach(l => (collect ? x => collect.push(Object.assign(x, { _par: s })) : r.addSource)({ kind: 'link', name: (tidyLink(l.text) || l.url.replace(/^https?:\/\/(www\.)?/, '')).slice(0, 80), url: l.url, center: s.center || '', date: todayS(), note: 'Trang con của ' + s.id, parent: s.id, autoName: !l.text }));
       // bài tổng hợp: nhiều website khác được nhắc tới → gợi ý thêm
       const ext = {}; L.forEach(l => { const rt = rootOf(l.url); if (!rt || rt === root0 || junkLink(l.url, l.text, root0) || !urlOk(l.url) || l.text.length < 3) return; (ext[rt] = ext[rt] || []).push(l); });
       const men = Object.entries(ext).map(([rt, ls]) => ({ name: (ls.find(x => x.text.length <= 50) || ls[0]).text.slice(0, 50), url: (ls.find(x => { try { return new URL(x.url).pathname.length <= 1; } catch (e) { return false; } }) || ls[0]).url, root: rt }))
@@ -1790,7 +1794,7 @@
   function bmRank(I, q, keep) { const qt = [...new Set(toks(q))], N = I.docs.length;
     return I.docs.filter(d => !keep || keep(d.c)).map(d => ({ c: d.c, sc: qt.reduce((a, x) => { const f = d.tf[x]; if (!f) return a; const idf = Math.log(1 + (N - I.df[x] + .5) / (I.df[x] + .5)); return a + idf * f * 2.2 / (f + 1.2 * (.25 + .75 * d.len / I.avg)) * (x.includes('_') ? 1.5 : 1); }, 0) }))
       .filter(x => x.sc > 0).sort((a, b) => b.sc - a.sc); }
-  const BUDGET = 60000;
+  const BUDGET = 30000;   // chạy thử 24/10: 67k ký tự/lần quá tốn lượt Claude
   async function packSources(o, ctx) { const p = P(); if (!p) return null; await hydrate();
     const ids = []; let at = null, instr = [];
     (o.contents || []).forEach((m, mi) => { const ps = m.parts || [], out = []; for (let i = 0; i < ps.length; i++) { const t = ps[i] && ps[i].text, h = t && /^=== NGUỒN (S\d+):/.exec(t);
