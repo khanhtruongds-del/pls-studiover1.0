@@ -134,6 +134,7 @@
         pick.rs.forEach((r, k) => out.push(Object.assign(r, { src: i, part: k, plans: scored.map(p => ({ label: p.label, score: p.score, active: p === pick })) })));
       } else out.push(Object.assign(renderOne(s, stage, i, 0), { src: i, part: 0 }));
     }
+    state.deckSize = E.deckNormalize ? E.deckNormalize(out) : null;   // cỡ chữ chuẩn cả bài (trung vị, mỗi slide ±1 bậc)
     state.slides = out;
     // kiểm chuẩn v2.0 cả bài (29 luật) – lỗi theo slide gộp vào danh sách lỗi của slide
     if (window.PLS_STD) {
