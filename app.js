@@ -456,8 +456,8 @@
     const all = exportView(device.font ? device : null, aud), keep = all.map((x, i) => i).filter(i => !stu || state.slides[i].spec.comp !== 'Slide/Answer Key');   // bản học viên: bỏ slide đáp án
     const xs = keep.map(i => all[i]);
     // QC F06 (người dùng chốt 24/10): bắt buộc đủ hình mới cho xuất – còn ô "Thiếu hình" là dừng, báo đúng slide
-    const noImg = keep.map(i => [i + 1, ((state.slides[i] || {}).issues || []).find(x => x.code === 'noImage')]).filter(([, x]) => x);   // lấy từ slide đang dựng (bản xuất đã lọc noImage)
-    if (noImg.length) { $('#xstage').innerHTML = ''; const msg = `Chưa xuất được: còn ${noImg.length} slide thiếu hình (slide ${noImg.slice(0, 8).map(([n]) => n).join(', ')}${noImg.length > 8 ? '…' : ''}). Thêm đủ hình rồi xuất lại.`; setStatus(msg); throw new Error(msg); }
+    const noImg = keep.map(i => [i + 1, ((state.slides[i] || {}).images || []).filter(x => x && (x.type === 'none' || x.type === 'empty'))]).filter(([, x]) => x.length);   // theo danh sách hình từng slide (ô chưa có hình: none / empty)
+    if (noImg.length) { $('#xstage').innerHTML = ''; const msg = `Chưa xuất được: còn ${noImg.reduce((a, [, x]) => a + x.length, 0)} ô thiếu hình ở ${noImg.length} slide (${noImg.slice(0, 6).map(([n, x]) => 'slide ' + n + ': ' + x.map(y => y.word || y.key).join(', ')).join('; ')}${noImg.length > 6 ? '…' : ''}). Thêm đủ hình rồi xuất lại.`; setStatus(msg); throw new Error(msg); }
     const bad = xs.flatMap(x => x.issues.filter(i => i.lv === 'do').map(i => `slide ${x.slide}: ${i.msg}`));
     const model = await E.toModel(xs.map(x => x.host), { transition: state.tr });
     if (!stu) model.slides.forEach((m, k) => { const i = keep[k]; if (state.slides[i]) m.notes = notesOf(state.slides[i]); });   // ghi chú giảng (có đáp án) chỉ ở bản giáo viên   // ghi chú giảng → Notes của từng slide
