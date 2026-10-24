@@ -163,7 +163,7 @@
   function dlgPlans(spec) {
     const L = spec.lines, out = [];
     const mk = (comp, cap, label) => { const parts = chunk(L, cap); out.push({ label: `${label} (${parts.length} slide)`, fill: L.length / (parts.length * cap), cover: 1, fillW: 15,
-      slides: parts.map((p, i) => { const d = { situation: spec.situation + (parts.length > 1 ? ` (${i + 1}/${parts.length})` : '') }; p.forEach((x, k) => { d[`line_${k + 1}.speaker`] = x.sp; d[`line_${k + 1}.de`] = x.de; d[`line_${k + 1}.vi`] = x.vi; }); return { comp, data: head(d, spec.section) }; }) }); };
+      slides: parts.map((p, i) => { const d = { situation: spec.situation + (parts.length > 1 ? ` (${i + 1}/${parts.length})` : ''), _audio: spec.audio || '' }; p.forEach((x, k) => { d[`line_${k + 1}.speaker`] = x.sp; d[`line_${k + 1}.de`] = x.de; d[`line_${k + 1}.vi`] = x.vi; }); return { comp, data: head(d, spec.section) }; }) }); };
     for (const cap of [10, 7, 5]) mk('Slide/Dialogue Long', cap, `Hội thoại dài, ${cap} câu/slide`);   // câu kèm dịch dài → 7 hoặc 5 câu/slide đỡ co chữ
     mk('Slide/Dialogue', 4, 'Hội thoại kèm ảnh, 4 câu/slide');
     return out;
