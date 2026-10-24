@@ -220,10 +220,10 @@
   // ---------- việc AI ----------
   async function job(label, fn) {
     if (busy) return; busy = label; render();
-    try { await fn(); } catch (e) { toast(e.message || String(e), true); log('Lỗi: ' + e.message); }
+    try { await fn(); } catch (e) { if (!(e && e.queued)) { toast(e.message || String(e), true); log('Lỗi: ' + e.message); } }
     busy = null; save(); render();
   }
-  async function ask(q) {
+  async function ask(q) { AI.ctx = { kind: 'ask', args: [q] };
     if (!on().length) throw new Error('Chưa có nguồn nào được chọn');
     P.chat.push({ role: 'user', text: q, at: Date.now() }); render();
     const { parts, tools } = await sourceParts();
@@ -232,7 +232,7 @@
     const r = await AI.call({ sys: SYS, contents, tools, maxTokens: 4096, tier: 'lite' });
     P.chat.push({ role: 'model', text: r.text, at: Date.now() });
   }
-  async function compare() {
+  async function compare() { AI.ctx = { kind: 'compare', args: [] };
     if (!on().length) throw new Error('Chưa có nguồn nào được chọn');
     const centers = [...new Set(on().map(s => s.center).filter(Boolean))];
     const { parts, tools } = await sourceParts();
@@ -249,7 +249,7 @@
     log('So sánh ' + (d.cells || []).length + ' ô');
   }
   function cmpText() { return P.centers.map(c => c + ': ' + P.criteria.map(k => { const x = P.cells[c + '||' + k]; return k + ' = ' + (x ? x.v : 'chưa rõ'); }).join('; ')).join('\n'); }
-  async function outline() {
+  async function outline() { AI.ctx = { kind: 'outline', args: [] };
     const b = P.brief, { parts, tools } = await sourceParts();
     const prompt = `ĐỊNH HƯỚNG KHUNG KHÓA HỌC cho trung tâm PLS.\nYêu cầu: ngôn ngữ dạy: ${b.lang || '?'}; cấp độ đầu ra: ${b.level || '?'}; đối tượng: ${b.audience || '?'}; số buổi: ${b.sessions}; phút/buổi: ${b.minutes}; ghi chú: ${b.extra || 'không'}.\n` +
       (P.centers.length ? 'Bảng so sánh đã có:\n' + cmpText() + '\n' : '') +
@@ -266,7 +266,7 @@
   const LES_S6 = ['S6-Từ vựng', 'S6-Ngữ pháp', 'S6-Câu hỏi ngữ pháp', 'S6-Mẫu câu & giao tiếp', 'S6-Bảng chữ - Phát âm', 'S6-Hán tự', 'S6-Nghe', 'S6-Nghe câu hỏi', 'S6-Đọc', 'S6-Đọc câu hỏi', 'S6-BTVN', 'S6-Ngoài kiến thức'];
   const LES_S5 = ['S5', 'Hướng dẫn giảng dạy', 'Đặc tả bài tập'];
   const spec = (book, sh) => { const t = (TPL[book] || {})[sh]; return t ? `• ${sh}: cột = ${JSON.stringify(t.cols)}${t.ex ? '\n  ví dụ 1 dòng: ' + JSON.stringify(t.ex) : ''}` : ''; };
-  async function lesson(buoi) {
+  async function lesson(buoi) { AI.ctx = { kind: 'lesson', args: [buoi] };
     const O = P.outline; if (!O) throw new Error('Chưa có khung khóa – làm bước Định hướng trước');
     const L = O.lessons.find(l => l.buoi === buoi); if (!L) throw new Error('Không có buổi ' + buoi + ' trong khung');
     if (!O.locked) O.locked = O.ver;   // soạn bài = chốt khung đang dùng
@@ -343,7 +343,7 @@
   const lessonRows = buoi => { const o = {}; ['s6', 's5'].forEach(bk => Object.entries(P.books[bk] || {}).forEach(([sh, rs]) => { if (/Khoá & bài|Thông tin khoá/.test(sh)) return;
     const x = rs.filter(r => +r['Buổi'] === buoi).map(r => { const c = {}; Object.entries(r).forEach(([k, v]) => { if (!/^(Lên App|Lên PPT|Lên PDF|Buổi|Hình minh hoạ|File audio|Audio|Video|Hình ảnh)$/.test(k) && v !== '' && v != null) c[k] = v; }); return c; });
     if (x.length) o[sh] = x; })); return o; };
-  async function review(buoi) {
+  async function review(buoi) { AI.ctx = { kind: 'review', args: [buoi] };
     const O = P.outline, L = O && O.lessons.find(l => l.buoi === buoi), C = P.lessons[buoi]; if (!L || !C) throw new Error('Buổi ' + buoi + ' chưa soạn');
     const prompt = `SOÁT BÀI buổi ${buoi} (${L.name}) của khóa "${O.course.name || P.name}", dạy ${P.brief.lang || 'ngoại ngữ'} cho người Việt, đầu ra ${O.course.level || P.brief.level}, đối tượng: ${P.brief.audience || '?'}, ${P.brief.minutes} phút/buổi.\n` +
       `Mục tiêu buổi: ${L.goals}\nNội dung đã soạn (JSON theo sheet Excel, số dòng tính từ 1 trong từng sheet):\n${JSON.stringify(lessonRows(buoi))}\n` +
@@ -421,7 +421,7 @@
         </ol></section>
         <section class="w-side"><p class="muted" style="margin:0 0 2px;font-size:12px">Trước khi bắt đầu</p><h2>Cần biết</h2><p class="sub">Mọi thứ lưu trên trình duyệt của máy này, không cần đăng nhập.</p>
           <div class="item"><b>Không cần key, không tốn tiền</b><span class="muted">Đọc PDF, ảnh scan, link; tìm trong nguồn; tự điền số liệu và kiểm tra bài – máy làm ngay trên trình duyệt này.</span></div>
-          <div class="item"><b>Phần cần viết thì nhờ Claude</b><span class="muted">Hỏi đáp, lập bảng so sánh, đề xuất khung, soạn và soát bài sẽ xếp hàng chờ Claude. Ghép đôi một lần ở ô Nhận xét (cột Quy trình).</span></div>
+          <div class="item"><b>Phần cần viết thì nhờ Claude</b><span class="muted">Hỏi đáp, lập bảng so sánh, đề xuất khung, soạn và soát bài sẽ xếp hàng chờ Claude. Gửi xong thì nhắn Claude “xử lý hàng chờ PLS”, bạn cứ làm việc khác.</span></div>
           <div class="item"><b>Luôn kiểm lại</b><span class="muted">Bấm trích dẫn để xem trang gốc; bài soạn phải được người dạy duyệt trước khi dùng.</span></div></section></div>`;
     box.querySelector('#rsOpen').onclick = () => { mode = 'work'; if (!AI.key()) keyDlg(); render(); };
   }
@@ -568,7 +568,7 @@
       <section class="rs-col rs-left" aria-label="Nguồn">
         <div class="rs-proj"><select id="rsProj" aria-label="Khóa đang nghiên cứu">${projects.map(p => `<option value="${p.id}" ${p.id === P.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
           <button type="button" class="btn" id="rsNew" title="Khóa nghiên cứu mới">+</button><button type="button" class="btn" id="rsRen" title="Đổi tên">✎</button></div>
-        <button type="button" class="rs-ai ${hasKey ? 'ok' : ''}" id="rsAI" title="Bấm để xem ghép đôi Claude">${hasKey ? '● ' + AI.name() + ' · ' + esc(AI.usage()) : '○ Kết nối AI (miễn phí)'}</button>
+        <button type="button" class="rs-ai ${hasKey ? 'ok' : ''}" id="rsAI" title="Việc gửi Claude">${hasKey ? '● ' + AI.name() + ' · ' + esc(AI.usage()) : '○ Kết nối AI (miễn phí)'}</button>
         <div class="rs-src-head"><h3>Nguồn <span class="muted">${P.sources.filter(s => s.on !== false).length}/${P.sources.length} đang dùng</span></h3></div>
         <button type="button" class="rs-addbtn" id="rsAddBtn"><span>＋</span> Thêm nguồn</button>
         ${P.sources.length ? `<label class="rs-all"><input type="checkbox" id="rsAll" ${allOn ? 'checked' : ''}> Chọn tất cả nguồn</label><div class="rs-groups">${groups}</div><p class="rs-hint muted">Kéo thả file vào cột này để thêm nhanh</p>`
@@ -576,7 +576,7 @@
       </section>
       <section class="rs-col rs-body" aria-label="Không gian làm việc">
         <h2 class="rs-ptitle">${esc(STEPS[cur].name)} <small>${esc(STEPS[cur].sub)}</small></h2>
-        ${busy ? `<div class="rs-busy" role="status"><span class="rs-spin"></span>${esc(busy)}… đã gửi Claude – thường xong trong 1–3 phút khi Claude đang trực</div>` : ''}
+        ${busy ? `<div class="rs-busy" role="status"><span class="rs-spin"></span>${esc(busy)}…</div>` : ''}
         ${tmsg ? `<div class="rs-toast ${tmsg.bad ? 'bad' : ''}" role="alert">${esc(tmsg.t)}</div>` : ''}
         <div class="rs-pane">${[paneChat, paneCmp, paneDir, paneLes][cur]()}</div>
       </section>
@@ -640,7 +640,7 @@
         <button type="button" class="btn" id="rsRevAll" ${busy || !unrev ? 'disabled' : ''}>Claude soát ${unrev ? unrev + ' buổi chưa soát' : 'xong hết'}</button>
         <button type="button" class="btn" id="rsXlsx" ${n ? '' : 'disabled'}>Tải Excel S5 + S6</button><span class="muted">${n}/${O.lessons.length} buổi · khung v${O.locked || O.ver}</span></div>
       <div class="rs-tablewrap"><table class="rs-table rs-les"><thead><tr><th>Buổi</th><th>Nội dung</th><th>Trạng thái</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p class="muted">Soạn và soát: mỗi buổi gửi Claude một lần (thường 1–3 phút khi Claude đang trực). Soát theo 5 nhóm: chính xác, hợp người học, liên kết mục tiêu, khả thi, nhất quán – kèm ma trận mục tiêu. Soạn lại vẫn giữ 3 bản trước để khôi phục.</p>`;
+      <p class="muted">Soạn và soát: mỗi buổi gửi Claude một lần, kết quả tự vào khi Claude xử lý xong. Soát theo 5 nhóm: chính xác, hợp người học, liên kết mục tiêu, khả thi, nhất quán – kèm ma trận mục tiêu. Soạn lại vẫn giữ 3 bản trước để khôi phục.</p>`;
   }
   function paneMatrix() {
     const O = P.outline, ST = { 'đủ': 'fact', 'ít': 'warn', 'thiếu': 'bad' };
@@ -709,7 +709,7 @@
     // soạn bài
     qa('[data-sub]').forEach(b => b.onclick = () => { lesSub = b.dataset.sub; render(); });
     qa('[data-rev]').forEach(b => b.onclick = () => job('Claude đang soát buổi ' + b.dataset.rev, () => review(+b.dataset.rev)));
-    if (q('#rsRevAll')) q('#rsRevAll').onclick = () => job('Claude đang soát', async () => { for (const l of P.outline.lessons) { const L = P.lessons[l.buoi]; if (!L || L.ai) continue; busy = 'Claude đang soát buổi ' + l.buoi; render(); await review(l.buoi); save(); } });
+    if (q('#rsRevAll')) q('#rsRevAll').onclick = () => job('Claude đang soát', async () => { for (const l of P.outline.lessons) { const L = P.lessons[l.buoi]; if (!L || L.ai) continue; busy = 'Claude đang soát buổi ' + l.buoi; render(); await review(l.buoi).catch(e => { if (!e || !e.queued) throw e; }); save(); } });
     qa('[data-restore]').forEach(b => b.onclick = () => { const [bu, k] = b.dataset.restore.split('/').map(Number); if (!confirm('Khôi phục buổi ' + bu + ' về bản trước? Bản đang có sẽ được cất vào lịch sử.')) return; restoreLesson(bu, k); render(); });
     if (q('#rsRel')) q('#rsRel').onclick = () => { const bl = blockers(); if (bl.length && !confirm(`Còn ${bl.length} điểm nên xử lý (chưa soạn / còn lỗi / chưa Claude soát). Vẫn phát hành?`)) return; const no = release(q('#rsRelNote').value.trim()); toast('Đã phát hành bản ' + no); };
     const relOf = no => (P.releases || []).find(r => r.no === +no);
@@ -718,7 +718,7 @@
     qa('[data-relxlsx]').forEach(b => b.onclick = () => { try { toast('Đã tải ' + exportXlsx(relOf(b.dataset.relxlsx)).join(' + ')); } catch (e) { toast(e.message, true); } });
     qa('[data-reldel]').forEach(b => b.onclick = () => { if (!confirm('Xóa bản phát hành ' + b.dataset.reldel + '?')) return; P.releases = P.releases.filter(r => r.no !== +b.dataset.reldel); if (P.curRelease === +b.dataset.reldel) P.curRelease = (P.releases[P.releases.length - 1] || {}).no; save(); render(); });
     qa('[data-les]').forEach(b => b.onclick = () => job('Đang soạn buổi ' + b.dataset.les, () => lesson(+b.dataset.les)));
-    if (q('#rsLesAll')) q('#rsLesAll').onclick = () => job('Đang soạn các buổi', async () => { for (const l of P.outline.lessons) { if (P.lessons[l.buoi]) continue; busy = 'Đang soạn buổi ' + l.buoi; render(); await lesson(l.buoi); save(); } });
+    if (q('#rsLesAll')) q('#rsLesAll').onclick = () => job('Đang soạn các buổi', async () => { for (const l of P.outline.lessons) { if (P.lessons[l.buoi]) continue; busy = 'Đang soạn buổi ' + l.buoi; render(); await lesson(l.buoi).catch(e => { if (!e || !e.queued) throw e; }); save(); } });
     if (q('#rsXlsx')) q('#rsXlsx').onclick = () => { try { const fs = exportXlsx(); toast('Đã tải ' + fs.join(' + ')); } catch (e) { toast(e.message, true); } };
     qa('[data-open]').forEach(b => b.onclick = async () => { try { await openInSlide(+b.dataset.open); } catch (e) { toast(e.message, true); } });
   }
@@ -727,6 +727,6 @@
     const fs = [...((e.clipboardData && e.clipboardData.files) || [])]; if (!fs.length) return; e.preventDefault(); addDlg(fs.map((f, i) => new File([f], f.name && f.name !== 'image.png' ? f.name : `Ảnh dán ${i + 1}.png`, { type: f.type }))); });
   // cổng lệnh (Claude / kiểm thử): PLS.research.*
   root.PLS_RESEARCH = { show: render, steps: STEPS, mode: m => { if (m) { mode = m; render(); } return mode; },
-    _: { AI, addDlg, discover, summarize, review, release, blockers, restoreLesson, sub: k => { lesSub = k; render(); }, load: async () => { await load(); return P; }, proj: () => P, ask, compare, outline, lesson, mergeLesson, check, booksOut, exportXlsx, openInSlide, addSource, addFiles, step: i => { cur = i; render(); } } };
+    _: { AI, job, addDlg, discover, summarize, review, release, blockers, restoreLesson, sub: k => { lesSub = k; render(); }, load: async () => { await load(); return P; }, proj: () => P, ask, compare, outline, lesson, mergeLesson, check, booksOut, exportXlsx, openInSlide, addSource, addFiles, step: i => { cur = i; render(); } } };
   if (root.PLS) root.PLS.research = { state: () => P && { name: P.name, sources: P.sources.map(s => s.id + ' ' + s.name), centers: P.centers, outline: P.outline && P.outline.lessons.length, lessons: Object.keys(P.lessons) }, ask: q => job('Đang trả lời', () => ask(q)) };
 })(typeof window !== 'undefined' ? window : globalThis);
