@@ -17,9 +17,9 @@
         { id: 'mc-opts', label: 'Bấm hiện lựa chọn → khoanh đáp án', desc: 'Bấm 1: hiện cả 4 lựa chọn · bấm 2: khoanh đáp án đúng' },
         { id: 'mc-seq', label: 'Từng lựa chọn → khoanh đáp án', desc: 'Mỗi lựa chọn 1 lần bấm, cuối cùng khoanh đáp án đúng' }); }
     else if (ans && ans.kind === 'match' && ans.pairs.length) { type = 'match'; label = 'Nối cột';
-      P.push({ id: 'match-each', label: 'Nối dây từng cặp', desc: 'Mỗi lần bấm 1 dây nối câu trái → đáp án phải' },
-        { id: 'match-all', label: 'Nối dây cùng lúc', desc: '1 lần bấm hiện tất cả dây nối' },
-        { id: 'match-key', label: 'Hiện chữ đáp án (1 – c)', desc: 'Mỗi lần bấm hiện chữ cái đáp án cạnh câu trái' }); }
+      P.push({ id: 'match-key', label: 'Hiện chữ đáp án (1 – c)', desc: 'Mỗi lần bấm hiện chữ cái đáp án cạnh câu trái – gọn, không dây chéo' },
+        { id: 'match-each', label: 'Nối dây từng cặp', desc: 'Mỗi lần bấm 1 dây nối câu trái → đáp án phải' },
+        { id: 'match-all', label: 'Nối dây cùng lúc', desc: '1 lần bấm hiện tất cả dây nối' }); }
     else if (ans && ans.kind === 'text' && ans.items.some(x => x.text)) { type = 'text'; label = /Order/.test(comp) ? 'Sắp xếp câu' : 'Điền / viết';
       P.push({ id: 'text-each', label: 'Hiện đáp án từng câu', desc: 'Mỗi lần bấm hiện đáp án 1 câu (chữ màu brand)' },
         { id: 'text-all', label: 'Hiện đáp án cùng lúc', desc: '1 lần bấm hiện đáp án cả slide' }); }
@@ -53,22 +53,25 @@
   const div = (css, n) => { const d = document.createElement('div'); d.style.cssText = 'box-sizing:border-box;position:absolute;' + css; if (n) d.dataset.n = n; return d; };
   function textDiv(css, text, ff, n) { const d = div(css, n); d.dataset.text = '1'; d.textContent = text; d.style.fontFamily = ff; d.style.whiteSpace = 'pre'; return d; }
   // khung đáp án đúng + dấu ✓
-  function ring(r, el, n) { const b = inkBox(r, el), p = 14, ff = fontOf(el);
-    const w = div(`left:${b.x - p}px;top:${b.y - p}px;width:${b.w + 2 * p + 70}px;height:${b.h + 2 * p}px;border:6px solid ${INK};border-radius:24px`, n);
-    const d = Math.min(56, b.h + 2 * p - 16);
-    w.appendChild(textDiv(`right:10px;top:${(b.h + 2 * p - 12 - d) / 2}px;width:${d}px;height:${d}px;border-radius:50%;background:${INK};color:${ON};font-size:${Math.round(d * 0.62)}px;font-weight:700;line-height:${d}px;text-align:center`, '✓', ff, n + '.tick'));
+  // khung đáp án đúng (QC 24/10: kiểu cũ ôm theo chữ, lọt thỏm trong ô → xấu): viền ôm trọn ô lựa chọn, bo góc theo thẻ, ✓ gọn ở cuối ô
+  function ring(r, el, n) { const g = geo(r), b = g(el), ff = fontOf(el), o = 4;
+    const rad = Math.max(8, Math.round((parseFloat(getComputedStyle(el).borderTopLeftRadius) || 12) * (b.w / Math.max(1, el.getBoundingClientRect().width || b.w))));
+    const w = div(`left:${b.x - o}px;top:${b.y - o}px;width:${b.w + 2 * o}px;height:${b.h + 2 * o}px;border:5px solid ${INK};border-radius:${rad + o}px`, n);
+    const d = Math.max(28, Math.min(44, b.h - 14));
+    w.appendChild(textDiv(`right:${Math.round(d * 0.35)}px;top:${(b.h + 2 * o - 10 - d) / 2}px;width:${d}px;height:${d}px;border-radius:50%;background:${INK};color:${ON};font-size:${Math.round(d * 0.6)}px;font-weight:700;line-height:${d}px;text-align:center`, '✓', ff, n + '.tick'));
     layer(r).appendChild(w); return w; }
   // dây nối: khung = hộp bao của đoạn thẳng; SVG để xem trên web, data-line để xuất PPTX thành đường thẳng thật
   function line(r, a, b, n) { const g = geo(r), A = g(a), B = g(b);
     const x1 = A.x + A.w + 12, y1 = A.y + A.h / 2, x2 = B.x - 12, y2 = B.y + B.h / 2;
     const x = Math.min(x1, x2), y = Math.min(y1, y2), w = Math.max(2, Math.abs(x2 - x1)), h = Math.max(2, Math.abs(y2 - y1));
     const d = div(`left:${x}px;top:${y}px;width:${w}px;height:${h}px;overflow:visible`, n);
-    d.dataset.line = [x1 > x2 ? 1 : 0, y1 > y2 ? 1 : 0, 6].join(',');
-    d.innerHTML = `<svg width="${w}" height="${h}" style="position:absolute;left:0;top:0;overflow:visible"><line x1="${x1 - x}" y1="${y1 - y}" x2="${x2 - x}" y2="${y2 - y}" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><circle cx="${x1 - x}" cy="${y1 - y}" r="9" fill="currentColor"/><circle cx="${x2 - x}" cy="${y2 - y}" r="9" fill="currentColor"/></svg>`;
+    d.dataset.line = [x1 > x2 ? 1 : 0, y1 > y2 ? 1 : 0, 4].join(',');
+    d.innerHTML = `<svg width="${w}" height="${h}" style="position:absolute;left:0;top:0;overflow:visible"><line x1="${x1 - x}" y1="${y1 - y}" x2="${x2 - x}" y2="${y2 - y}" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><circle cx="${x1 - x}" cy="${y1 - y}" r="7" fill="currentColor"/><circle cx="${x2 - x}" cy="${y2 - y}" r="7" fill="currentColor"/></svg>`;
     d.style.color = INK; layer(r).appendChild(d); return d; }
   // nhãn tròn (chữ cái đáp án nối cột)
-  function badge(r, el, text, n) { const b = inkBox(r, el), d = 60, ff = fontOf(el);
-    const w = textDiv(`left:${b.x + b.w + 16}px;top:${b.y + (b.h - d) / 2}px;width:${d}px;height:${d}px;border-radius:50%;background:${INK};color:${ON};font-size:34px;font-weight:700;line-height:${d}px;text-align:center`, text, ff, n);
+  function badge(r, el, text, n) { const t = inkBox(r, el), c = geo(r)(el), d = 56, ff = fontOf(el);   // thẳng hàng ở mép phải ô (không chạy theo độ dài chữ)
+    const b = c.w > t.w + d + 24 ? { x: c.x + c.w - d - 34, y: c.y, w: 0, h: c.h } : t;
+    const w = textDiv(`left:${b.x + b.w + 16}px;top:${b.y + (b.h - d) / 2}px;width:${d}px;height:${d}px;border-radius:50%;background:${INK};color:${ON};font-size:32px;font-weight:700;line-height:${d}px;text-align:center`, text, ff, n);
     layer(r).appendChild(w); return w; }
   // chữ đáp án: đặt trên đường kẻ (sắp xếp câu) hoặc cuối dòng câu hỏi (điền / viết)
   function answerText(r, item, text, n) { const g = geo(r), ff = fontOf(item);
@@ -89,7 +92,9 @@
     r.host.querySelectorAll('[data-fx]').forEach(e => { delete e.dataset.fx; delete e.dataset.fxWhen; delete e.dataset.fxOrder; });
     if (id === 'auto') return E().planFx(r, (root.PLS && root.PLS._int && root.PLS._int.state.fx) || {});
     const out = []; let order = 0;
-    const add = (el, role, when) => { if (!el) return; order++; el.dataset.fx = 'appear'; el.dataset.fxWhen = when; el.dataset.fxOrder = order; out.push({ n: el.dataset.n, role, fx: 'appear', when, order }); };
+    // QC 24/10 (người dùng): có chuyển động nhẹ, không chỉ "bật hiện" – khung / ✓ / nhãn đáp án: Zoom · lựa chọn: Fly từ dưới · dây, chữ, từ – nghĩa: Fade
+    const fxOf = (el, role) => { const ov = el.closest && el.closest('[data-n="fx.layer"]'); if (role === 'option') return 'fly'; if (ov && !el.dataset.line && !el.dataset.text) return 'zoom'; if (ov && el.dataset.text && /^\s*\S{1,2}\s*$/.test(el.textContent)) return 'zoom'; return 'fade'; };
+    const add = (el, role, when) => { if (!el) return; order++; const fx = fxOf(el, role); el.dataset.fx = fx; el.dataset.fxWhen = when; el.dataset.fxOrder = order; out.push({ n: el.dataset.n, role, fx, when, order }); };
     const find = k => E().find(rt, k);
     const ans = (r.spec && r.spec.ans) || {};
     if (id === 'none') return (r.fx = []);
