@@ -51,8 +51,8 @@
   }
   const pdfDate = d => { const m = /D:(\d{4})(\d\d)(\d\d)/.exec(d || ''); return m ? `${m[1]}-${m[2]}-${m[3]}` : ''; };
   async function readLink(url) {
-    const r = await fetch('https://r.jina.ai/' + url, { headers: { 'X-Return-Format': 'markdown' } }); if (!r.ok) throw new Error('Không đọc được trang (' + r.status + ')');
-    const t = await r.text(), head = k => ((new RegExp('^' + k + ':\\s*(.+)$', 'mi')).exec(t) || [])[1] || '';
+    let t; try { t = await jina(url); } catch (e) { throw new Error('Không đọc được trang (' + e.message + ')'); }   // qua hàng chờ: không vượt giới hạn 20 trang/phút
+    const head = k => ((new RegExp('^' + k + ':\\s*(.+)$', 'mi')).exec(t) || [])[1] || '';
     const body = t.split(/^Markdown Content:\s*$/m)[1] || t;
     const pub = head('Published Time'), d = pub && !isNaN(Date.parse(pub)) ? new Date(pub).toISOString().slice(0, 10) : '';
     return { pages: [cleanWeb(body).slice(0, 60000)], method: 'web', title: head('Title'), date: d, v: 2 };
@@ -63,8 +63,12 @@
     if (/^image\//i.test(mime)) { onStep && onStep('đọc chữ trong ảnh'); return { pages: await ocrImages([blob]), method: 'ocr', title: '', date: '' }; }
     return { pages: [clean(await blob.text())], method: 'text', title: '', date: '' };
   }
+  const exIn = new Map();
   async function extract(s, onStep) {
-    if (s.ex && s.ex.pages) return s.ex;
+    if (!(s.ex && s.ex.pages)) await hydrate();
+    if (s.ex && s.ex.pages) return s.ex; if (exIn.has(s)) return exIn.get(s);
+    const run = extract0(s, onStep).finally(() => exIn.delete(s)); exIn.set(s, run); return run; }
+  async function extract0(s, onStep) {
     let ex;
     if (s.kind === 'link') ex = await readLink(s.url);
     else if ((s.kind === 'pdf' || s.kind === 'image') && s.blob) ex = await readBlob(s.blob, s.mime || (s.kind === 'pdf' ? 'application/pdf' : 'image/png'), onStep);
@@ -227,7 +231,7 @@
   async function syncDb() { const p = P(); if (!p || !p.id) return false;
     const rec = await new Promise(res => { try { const q = indexedDB.open('pls-research', 1); q.onsuccess = () => { try { const g = q.result.transaction('proj').objectStore('proj').get(p.id); g.onsuccess = () => res(g.result); g.onerror = () => res(null); } catch (e) { res(null); } }; q.onerror = () => res(null); } catch (e) { res(null); } });
     if (!rec || !(rec.at > (p.at || 0))) return false;
-    Object.keys(p).forEach(k => { if (!(k in rec)) delete p[k]; }); Object.assign(p, rec); return true; }
+    Object.keys(p).forEach(k => { if (!(k in rec)) delete p[k]; }); Object.assign(p, rec); await hydrate(); return true; }
   const typing = () => /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '');
   async function refresh() { try { cache = await Q.all(); } catch (e) { cache = []; }
     if (document.visibilityState === 'visible' && !typing() && root.PLS_RESEARCH && await syncDb()) root.PLS_RESEARCH.show();
@@ -258,9 +262,11 @@
     if ((await Q.all()).some(j => j.key === key && j.status === 'wait')) throw queued('Việc này đã có trong hàng chờ Claude');
     const title = ctx.kind === 'ask' ? 'Hỏi: ' + String(ctx.args[0] || '').replace(/\s+/g, ' ').slice(0, 80) : (KINDS[ctx.kind] || 'Yêu cầu') + (ctx.args[0] != null ? ' ' + ctx.args[0] : '');
     const id = 'C' + Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 4);
+    let pk = null; try { pk = await packSources(o, ctx); } catch (e) { pk = null; }
     await Q.put({ id, key, proj: p && p.id, projName: p && p.name, kind: ctx.kind, args: ctx.args, title, sys: o.sys || '', json: !!o.json, maxTokens: o.maxTokens || 8192, text: await flatten(o), at: Date.now(), status: 'wait' });
     ping(); sentNote(title);
-    throw queued(`Đã gửi Claude: ${title}. Kết quả tự vào khi Claude làm xong – bạn cứ làm việc khác.`);
+    const info = pk ? ` · ${pk.n} nguồn · ${Math.round(pk.chars / 1000)}k ký tự${pk.off.length ? ` · bỏ ${pk.off.length} nguồn lạc đề (${pk.off.map(s => s.id).join(', ')})` : ''}` : '';
+    throw queued(`Đã gửi Claude: ${title}${info}. Kết quả tự vào khi Claude làm xong – bạn cứ làm việc khác.`);
   }
 
   // Tab của người dùng (đang hiện, đúng khóa) đưa câu trả lời vào. Tab Claude không tự đưa, tránh hai tab cùng ghi.
@@ -1434,18 +1440,18 @@
   const topicOf = () => { const b = (P() || {}).brief || {}; return fold(String(b.lang || b.level || '').toLowerCase()).split(/\s+/).find(w => /toeic|ielts|hsk|jlpt|topik|vstep|sat|cambridge|anh|trung|nhat|han|duc|phap/.test(w)) || ''; };
   let capMsg = '', capBusy = 0;
   async function crawl(s) { const p = P(); if (!p) return; const r = R(); if (!r || !r.addSource) return; const root0 = rootOf(s.url);
-    capBusy++; capMsg = `Đang lấy trang con của ${s.center || root0}…`; paintCap();
+    capBusy++; bgSet('crawl' + s.id, `Lấy trang con của ${s.center || root0}`);
     try { const md = await jina(s.url, true), L = parseLinks(md), topic = topicOf(), have = new Set(p.sources.map(x => normU(x.url || '')));
       const subs = L.filter(l => urlOk(l.url) && rootOf(l.url) === root0 && normU(l.url) !== normU(s.url) && !have.has(normU(l.url)))
         .map(l => Object.assign(l, { sc: scoreSub(l, topic) })).filter(l => l.sc >= 3).sort((a, b) => b.sc - a.sc).slice(0, 8);
       subs.forEach(l => r.addSource({ kind: 'link', name: (l.text || l.url.replace(/^https?:\/\/(www\.)?/, '')).slice(0, 80), url: l.url, center: s.center || '', date: todayS(), note: 'Trang con của ' + s.id, parent: s.id, autoName: !l.text }));
       // bài tổng hợp: nhiều website khác được nhắc tới → gợi ý thêm
-      const ext = {}; L.forEach(l => { const rt = rootOf(l.url); if (!rt || rt === root0 || SOCIAL.test(new URL(l.url).hostname + '.') || !urlOk(l.url) || l.text.length < 3) return; (ext[rt] = ext[rt] || []).push(l); });
+      const ext = {}; L.forEach(l => { const rt = rootOf(l.url); if (!rt || rt === root0 || junkLink(l.url, l.text, root0) || !urlOk(l.url) || l.text.length < 3) return; (ext[rt] = ext[rt] || []).push(l); });
       const men = Object.entries(ext).map(([rt, ls]) => ({ name: (ls.find(x => x.text.length <= 50) || ls[0]).text.slice(0, 50), url: (ls.find(x => { try { return new URL(x.url).pathname.length <= 1; } catch (e) { return false; } }) || ls[0]).url, root: rt }))
         .filter(m => !have.has(normU(m.url)) && !p.sources.some(x => rootOf(x.url || '') === m.root));
       s.deep = 'done'; s.deepN = subs.length; if (men.length >= 3) s.mentions = men.slice(0, 15);
-      await persist(); root.PLS_RESEARCH.show(); if (subs.length) toast(`Đã thêm ${subs.length} trang con của ${s.center || root0}`);
-    } catch (e) { s.deep = 'fail'; await persist(); } finally { capBusy--; capMsg = capBusy ? capMsg : ''; paintCap(); } }
+      await persist(); showSoon(); if (subs.length && !gapBusy) toast(`Đã thêm ${subs.length} trang con của ${s.center || root0}`);
+    } catch (e) { s.deep = 'fail'; await persist(); } finally { capBusy--; bgEnd('crawl' + s.id); paintCap(); } }
   // tìm web (DuckDuckGo qua r.jina.ai) – dùng cho "Tìm rộng hơn"
   async function dsearch(q) { const t = await jina('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q) + '&kl=vn-vi'), out = [], seen = new Set();
     const real = u => { const m = u.match(/[?&]uddg=([^&)]+)/); try { return m ? decodeURIComponent(m[1]) : u; } catch (e) { return u; } };
@@ -1502,7 +1508,7 @@
   function paintCap() { const col = document.querySelector('#researchView .rs-left'), p = P(); let bar = document.getElementById('capBar');
     if (!col || !p) { if (bar) bar.remove(); return; }
     const todo = p.sources.filter(s => s.kind === 'link' && !s.parent && !s.deep && s.on !== false), men = p.sources.filter(s => (s.mentions || []).length);
-    const h = (capMsg ? `<p class="cap-run">⏳ ${esc(capMsg)}</p>` : '') +
+    const h = 
       (todo.length && !capBusy ? `<p>${todo.length} website chưa lấy trang con (học phí, lộ trình, khai giảng…) <button type="button" class="rs-mini" data-cap="deepall">Lấy hết</button></p>` : '') +
       men.map(s => `<p>Nguồn ${esc(s.id)} nhắc tới ${s.mentions.length} trung tâm khác <button type="button" class="rs-mini" data-cap="men" data-sid="${esc(s.id)}">Xem và thêm</button></p>`).join('');
     if (!h) { if (bar) bar.remove(); return; }
@@ -1558,9 +1564,9 @@
       return { c, miss, chk, n: ss.length, off: ss.filter(q => q.who === 'off').length, own: ss.filter(q => q.who === 'own').length, third: ss.filter(q => q.who === 'third').length, old: ss.filter(q => q.old).length, site: officialOf(p, c) }; });
     const tot = rows.length * cr.length, have = rows.reduce((a, r) => a + cr.length - r.miss.length, 0); return { rows, tot, have, cr }; }
   let gapBusy = false, gapLog = [];
-  const gapSay = t => { gapLog.push(t); if (gapLog.length > 6) gapLog.shift(); paintGap(); };
+  const gapSay = t => { gapLog.push(t); if (gapLog.length > 6) gapLog.shift(); bgSet('gap', t); };
   // đọc trang qua hàng chờ jina (không vượt giới hạn) rồi gắn sẵn nội dung cho nguồn → "Tự điền" không phải tải lại
-  async function preRead(s) { if (s.ex && s.ex.pages) return; try { const t = await jina(s.url), head = k => ((new RegExp('^' + k + ':\\s*(.+)$', 'mi')).exec(t) || [])[1] || '';
+  async function preRead(s) { if (s.ex && s.ex.pages) return; try { await extract(s); return; } catch (e) {} try { const t = await jina(s.url), head = k => ((new RegExp('^' + k + ':\\s*(.+)$', 'mi')).exec(t) || [])[1] || '';
       const body = t.split(/^Markdown Content:\s*$/m)[1] || t, pub = head('Published Time'), d = pub && !isNaN(Date.parse(pub)) ? new Date(pub).toISOString().slice(0, 10) : '';
       s.ex = { pages: [cleanWeb(body).slice(0, 60000)], method: 'web', title: head('Title'), date: d, v: 2, at: Date.now() }; } catch (e) {} }
   async function gapRun() { const p = P(), r = R(); if (!p || !r || !r.addSource || gapBusy) return; gapBusy = true; gapLog = []; paintGap();
@@ -1573,7 +1579,7 @@
         // 1. chưa biết website chính chủ → tìm
         if (!site) { gapSay(`${c}: tìm website chính chủ…`);
           const rs = await dsearch(`${c} ${topic}`.trim()).catch(() => []);
-          const hit = rs.find(x => { const st = siteOf(x.url); let hn = ''; try { hn = new URL(x.url).hostname; } catch (e) {} return st && !SOCIAL.test(st + '.') && !AGG.test(st + '.') && !HOSTING.test(st + '.') && hasTok(c, hn); });   // tên trung tâm phải nằm trong tên miền, không chỉ trong tiêu đề bài
+          const hit = rs.find(x => { const st = siteOf(x.url); let hn = ''; try { hn = new URL(x.url).hostname; } catch (e) {} return st && !junkHost(x.url) && !SOCIAL.test(st + '.') && !AGG.test(st + '.') && !HOSTING.test(st + '.') && hasTok(c, hn); });   // tên trung tâm phải nằm trong tên miền, không chỉ trong tiêu đề bài
           if (hit) { site = siteOf(hit.url); p.site = p.site || {}; p.site[c] = site; add({ title: hit.title, url: 'https://' + new URL(hit.url).hostname + '/' }, c, 'website chính chủ'); gapSay(`${c}: thấy ${site}`); }
           else gapSay(`${c}: chưa thấy website chính chủ, tìm bài viết khác`); }
         // 2. website chính chủ chưa lấy trang con → lấy (học phí, lộ trình, khai giảng…)
@@ -1583,7 +1589,7 @@
         const groups = [...new Set(row.miss.map(k => (GQ.find(g => g[0].test(k)) || [])[1]).filter(Boolean))].slice(0, 3);
         for (const g of groups) { gapSay(`${c}: tìm “${g}”…`);
           const rs = await dsearch(`${c} ${g} ${topic}`.trim()).catch(() => []);
-          const ok = rs.filter(x => { const st = siteOf(x.url); return st && urlOk(x.url) && !SOCIAL.test(st + '.') && (st === site || hasTok(c, x.title + ' ' + x.url)); })
+          const ok = rs.filter(x => { const st = siteOf(x.url); return st && urlOk(x.url) && !junkHost(x.url) && !SOCIAL.test(st + '.') && (st === site || hasTok(c, x.title + ' ' + x.url)); })
             .sort((a, b) => (siteOf(b.url) === site) - (siteOf(a.url) === site)).slice(0, 2);
           ok.forEach(x => add(x, c, g)); }
       }
@@ -1593,13 +1599,13 @@
       gapSay('Điền bảng…'); const res = await autoFill(), after = coverage();
       gapSay(`Xong: thêm ${added.length} nguồn · điền thêm ${res.filled} ô · bảng có ${after.have}/${after.tot} ô.`);
       toast(`Máy đã tìm thêm ${added.length} nguồn và điền ${res.filled} ô – các ô vàng cần bạn kiểm`);
-    } catch (e) { gapSay('Lỗi: ' + e.message); } finally { gapBusy = false; await persist(); paintGap(); root.PLS_RESEARCH.show(); } }
+    } catch (e) { gapSay('Lỗi: ' + e.message); } finally { gapBusy = false; bgEnd('gap'); await persist(); paintGap(); root.PLS_RESEARCH.show(); } }
   // tìm thêm trung tâm cạnh tranh theo yêu cầu khóa học
   async function rivals(btn) { const p = P(); if (!p) return; const b = p.brief || {}, lang = b.lang || '', lv = b.level || '', topic = topicOf();
     const qs = [`khóa học ${topic || lang} ${lv} trung tâm`, `trung tâm ${topic || lang} học phí lộ trình ${lv}`, `${topic || lang} ${b.audience || ''} khóa học uy tín`].map(q => q.replace(/\s+/g, ' ').trim());
     btn.disabled = true; btn.textContent = 'Đang tìm…';
     try { const rs = (await Promise.all(qs.map(q => dsearch(q).catch(() => [])))).flat(), have = new Set(p.sources.map(s => siteOf(s.url || '')).concat(Object.values(p.site || {}))), by = {};
-      rs.forEach(x => { const st = siteOf(x.url); if (!st || have.has(st) || SOCIAL.test(st + '.') || !urlOk(x.url)) return; (by[st] = by[st] || []).push(x); });
+      rs.forEach(x => { const st = siteOf(x.url); if (!st || have.has(st) || junkHost(x.url) || SOCIAL.test(st + '.') || !urlOk(x.url)) return; (by[st] = by[st] || []).push(x); });
       const items = Object.entries(by).sort((a, b) => b[1].length - a[1].length).slice(0, 14).map(([st, xs]) => ({ title: xs[0].title + (AGG.test(st + '.') ? ' (bài tổng hợp)' : ''), url: xs[0].url, on: !AGG.test(st + '.') }));
       if (!items.length) { toast('Không thấy trung tâm mới', true); return; }
       pickDlg('Trung tâm / bài viết máy vừa tìm thấy', `Theo yêu cầu khóa: ${[lang, lv, b.audience].filter(Boolean).join(' · ')}. Bỏ chọn cái không liên quan – máy sẽ đọc, lấy trang con, rồi bạn bấm “Tự tìm chỗ thiếu”.`, items, 'Thêm và đọc', addLinks);
@@ -1614,14 +1620,125 @@
     const h = `<div class="gap-h"><b>Độ phủ nguồn</b><span class="gap-meter big"><i style="width:${pct}%"></i></span><span>${cv.have}/${cv.tot} ô có số liệu (${pct}%)</span><span style="flex:1"></span>` +
       `<button type="button" class="btn" data-gap="rivals">Tìm thêm trung tâm</button><button type="button" class="btn primary" data-gap="run"${gapBusy ? ' disabled' : ''}>${gapBusy ? 'Máy đang tìm…' : 'Tự tìm chỗ thiếu'}</button></div>` +
       `<p class="muted gap-sub">Máy tự tìm website chính chủ, lấy trang học phí / lộ trình, tìm đúng chủ đề còn thiếu rồi đọc và điền – không cần Claude. Ô máy điền hiện màu vàng để bạn kiểm. Ô mô tả (<span class="gap-miss q">viền tím</span>: phương pháp, giáo trình…) máy chỉ gom nguồn, Claude đọc rồi điền qua “Nhờ Claude lập lại”.</p>` +
-      (gapLog.length ? `<ul class="gap-log">${gapLog.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '') +
-      `<details class="gap-d"${gapBusy || cv.have < cv.tot ? ' open' : ''}><summary>Từng trung tâm</summary><table class="gap-t"><tbody>${rows}</tbody></table></details>`;
-    if (box._h !== h) { const op = box.querySelector('details'); box._h = h; box.innerHTML = h; if (op && !op.open) box.querySelector('details').open = false; } }
+      `<details class="gap-d"><summary>Từng trung tâm</summary><table class="gap-t"><tbody>${rows}</tbody></table></details>`;
+    if (box._h !== h) { const op = box.querySelector('details'), was = !!(op && op.open); box._h = h; box.innerHTML = h; if (was) box.querySelector('details').open = true; } }
   let gapWired = false;
   function gapEnhance() { if (!gapWired) { gapWired = true;
       const st = document.createElement('style'); st.textContent = '.gap-box{border:1px solid var(--ui-line);border-radius:6px;padding:10px 12px;margin:0 0 12px;background:var(--ui-panel);font-size:12px}.gap-h{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.gap-h b{font-size:13px}.gap-h .btn{min-height:30px;padding:4px 12px;font-size:12px}.gap-sub{margin:6px 0 0}.gap-meter{display:inline-block;width:60px;height:6px;border-radius:3px;background:var(--ui-line);vertical-align:middle;overflow:hidden}.gap-meter.big{width:120px}.gap-meter i{display:block;height:100%;background:#2e7d32}.gap-log{margin:6px 0 0;padding-left:18px;color:#b85c3e}.gap-d{margin-top:8px}.gap-d summary{cursor:pointer;color:var(--ui-muted)}.gap-t{width:100%;border-collapse:collapse;margin-top:6px}.gap-t th,.gap-t td{text-align:left;vertical-align:top;padding:5px 6px;border-top:1px solid var(--ui-line)}.gap-t th{font-weight:600;min-width:120px}.gap-t th small{display:block;font-weight:400;color:var(--ui-muted)}.gap-t th small.no{color:#b85c3e}.gap-t td:nth-child(2){white-space:nowrap}.gap-miss{display:inline-block;border:1px dashed var(--ui-muted);border-radius:999px;padding:0 6px;margin:0 4px 3px 0;color:var(--ui-muted)}.gap-miss.q{border-color:#7a5bd1;color:#7a5bd1}.gap-ok{color:#2e7d32;font-weight:600}.gap-chk{color:#a06d00}.gap-old{color:#b85c3e}.gap-q{color:var(--ui-muted)}@media(max-width:700px){.gap-t td:nth-child(4){display:none}}'; document.head.appendChild(st);
       document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-gap]'); if (!t) return; if (t.dataset.gap === 'run') gapRun(); if (t.dataset.gap === 'rivals') rivals(t); }); }
     paintGap(); }
+  // ---------- KHO CHỮ TRANG RIÊNG ----------
+  // Trước: mỗi lần lưu ghi lại cả dự án kèm chữ mọi trang đã đọc (vài MB) → giật. Giờ: dự án lưu nhẹ (số liệu, ô, ghi chú),
+  // chữ trang nằm kho 'pls-pages', chỉ ghi khi trang mới đọc / đổi. Mở khóa → máy nạp lại chữ trang vào bộ nhớ.
+  const PG = { d: null, open() { return this.d || (this.d = new Promise((res, rej) => { const r = indexedDB.open('pls-pages', 1); r.onupgradeneeded = () => r.result.createObjectStore('pg'); r.onsuccess = () => res(r.result); r.onerror = () => { this.d = null; rej(r.error); }; })); } };
+  const pgSig = s => (s.ex && s.ex.pages ? 'e' + (s.ex.at || 0) + ':' + s.ex.pages.length + ':' + String(s.ex.pages[0] || '').length : '') + '|' + (s.web ? 'w' + (s.webAt || 0) + ':' + s.web.length : '');
+  const pgDone = new Map();
+  function pgWrite(pid, list) { const todo = list.filter(s => { const g = pgSig(s); return g !== '|' && pgDone.get(pid + '|' + s.id) !== g; }); if (!todo.length) return;
+    const rows = todo.map(s => { const g = pgSig(s); pgDone.set(pid + '|' + s.id, g); return [pid + '|' + s.id, { pages: (s.ex && s.ex.pages) || null, web: s.web || null, webAt: s.webAt || 0, sig: g }]; });
+    PG.open().then(d => { const st = d.transaction('pg', 'readwrite').objectStore('pg'); rows.forEach(([k, v]) => st.put(v, k)); }).catch(() => rows.forEach(([k]) => pgDone.delete(k))); }
+  const stripProj = v => { if (!v || !v.id || !Array.isArray(v.sources)) return v; pgWrite(v.id, v.sources);
+    return Object.assign({}, v, { sources: v.sources.map(s => { if (!(s.ex && s.ex.pages) && !s.web) return s; const o = Object.assign({}, s);
+      if (o.ex && o.ex.pages) o.ex = Object.assign({}, o.ex, { pages: null, paged: 1 }); if (o.web) { o.web = null; o.webPaged = 1; } return o; }) }); };
+  (function () { const put0 = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (v, k) { try { if (this.name === 'proj' && this.transaction.db.name === 'pls-research') v = stripProj(v); } catch (e) {} return arguments.length > 1 ? put0.call(this, v, k) : put0.call(this, v); }; })();
+  const hydSeen = new WeakSet(); let hydP = null;
+  function hydrate() { const p = P(); if (!p || !Array.isArray(p.sources)) return Promise.resolve(); if (hydSeen.has(p.sources)) return hydP || Promise.resolve(); hydSeen.add(p.sources);
+    const need = p.sources.filter(s => (s.ex && s.ex.paged && !s.ex.pages) || (s.webPaged && !s.web)); if (!need.length) return Promise.resolve();
+    const run = PG.open().then(d => new Promise(res => { const t = d.transaction('pg'), st = t.objectStore('pg');
+      need.forEach(s => { const q = st.get(p.id + '|' + s.id); q.onsuccess = () => { const r = q.result;
+        if (s.ex && s.ex.paged && !s.ex.pages) { if (r && r.pages) { s.ex.pages = r.pages; delete s.ex.paged; } else s.ex = null; }   // mất chữ → máy đọc lại khi cần
+        if (s.webPaged && !s.web) { if (r && r.web) { s.web = r.web; s.webAt = r.webAt; } delete s.webPaged; }
+        if (r) pgDone.set(p.id + '|' + s.id, r.sig); }; });
+      t.oncomplete = res; t.onerror = res; })).catch(() => {});
+    hydP = run.finally(() => { hydP = null; }); return hydP; }
+
+  // ---------- CHẠY NỀN: tiến trình ẩn gọn trong 1 chấm nhỏ, bấm mới xem ----------
+  const BG = { on: new Map(), log: [] };
+  const bgSet = (k, t) => { BG.on.set(k, t); BG.log.push(new Date().toTimeString().slice(0, 5) + ' ' + t); if (BG.log.length > 40) BG.log.shift(); paintBg(); };
+  const bgEnd = k => { BG.on.delete(k); paintBg(); };
+  function paintBg() { const head = document.querySelector('#researchView .rs-src-head h3'); let el = document.getElementById('bgPill');
+    if (!head) return; if (!BG.on.size) { if (el) el.remove(); const pop = document.getElementById('bgPop'); if (pop) pop.remove(); return; }
+    if (!el) { el = document.createElement('button'); el.type = 'button'; el.id = 'bgPill'; el.className = 'bg-pill'; el.title = 'Máy đang chạy nền – bấm để xem'; }
+    if (el.parentElement !== head) head.appendChild(el);
+    const t = '● ' + [...BG.on.values()].slice(-1)[0]; if (el.textContent !== t) el.textContent = t.length > 46 ? t.slice(0, 45) + '…' : t;
+    const pop = document.getElementById('bgPop'); if (pop) { const h = BG.log.slice(-12).map(x => `<li>${esc(x)}</li>`).join(''); if (pop._h !== h) { pop._h = h; pop.querySelector('ul').innerHTML = h; } } }
+  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('#bgPill'); let pop = document.getElementById('bgPop');
+    if (!b) { if (pop && !e.target.closest('#bgPop')) pop.remove(); return; }
+    if (pop) { pop.remove(); return; } pop = document.createElement('div'); pop.id = 'bgPop'; pop.className = 'bg-pop'; pop.innerHTML = '<b>Máy đang làm nền</b><ul></ul>';
+    const r = b.getBoundingClientRect(); pop.style.top = (r.bottom + window.scrollY + 6) + 'px'; pop.style.left = (r.left + window.scrollX) + 'px'; document.body.appendChild(pop); paintBg(); });
+  // vẽ lại màn hình: gom nhiều lần thành 1 (tối đa ~1 lần / 1,5 giây), không vẽ khi đang gõ
+  let shT = 0, shLast = 0;
+  const showSoon = () => { if (shT) return; const w = Math.max(250, 1500 - (Date.now() - shLast));
+    shT = setTimeout(function go() { if (typing()) { shT = setTimeout(go, 800); return; } shT = 0; shLast = Date.now(); root.PLS_RESEARCH.show(); }, w); };
+
+  // ---------- LINK RÁC: chat, đăng ký thi, mạng xã hội, công cụ bán hàng ----------
+  const JUNKH = /(^|\.)(m\.me|me|pancake|pages\.fm|fchat|subiz|tawk|livechat|chatbot|botbanhang|harasocial|harafunnel|ladipage|ladi|forms\.gle|calendly|linktr|bitly|tinyurl|beacons|taplink|idp|britishcouncil|ielts|iig|ets|cambridgeenglish|vietcombank|momo|zalopay|vnpay|onelink|apps\.apple|play\.google|chplay)\./i;
+  const JUNKT = /(đăng ký|đăng kí|dang ky|trò chuyện|chat|liên hệ|lien he|hotline|tư vấn|tu van|đăng nhập|login|zalo|messenger|fanpage|tải app|download|thanh toán|giỏ hàng|chính sách|điều khoản|tuyển dụng|cookie)/i;
+  const junkHost = url => { let h = ''; try { h = new URL(url).hostname.toLowerCase(); } catch (e) { return true; } return SOCIAL.test(h + '.') || JUNKH.test(h + '.') || JUNKH.test(siteOf(url) + '.'); };
+  const sameBrand = (a, b) => { const x = String(a || '').split('.')[0], y = String(b || '').split('.')[0]; return x.length >= 4 && y.length >= 4 && (x.includes(y) || y.includes(x)); };
+  const junkLink = (url, text, root0) => { let h = ''; try { h = new URL(url).hostname.toLowerCase(); } catch (e) { return true; } const st = siteOf(url);
+    return SOCIAL.test(h + '.') || JUNKH.test(h + '.') || JUNKH.test(st + '.') || JUNKT.test(text || '') || (root0 && sameBrand(st, root0)); };
+
+  // ---------- GỬI CLAUDE GỌN: bỏ nguồn lạc đề, chỉ gửi đoạn liên quan (kèm mã nguồn để trích dẫn) ----------
+  const EXAMS = ['toeic', 'ielts', 'toefl', 'vstep', 'hsk', 'jlpt', 'topik', 'delf'];
+  const myExam = () => { const p = P() || {}, b = p.brief || {}, f = fold([b.lang, b.level, b.extra, b.entry, p.name].join(' ').toLowerCase()); return EXAMS.filter(e => new RegExp('\\b' + e + '\\b').test(f)); };
+  const offC = new Map();
+  function offTopic(s) { if (s.keep) return false; const mine = myExam(); if (!mine.length || !(s.ex && s.ex.pages)) return false;
+    const key = s.id + '|' + pgSig(s) + '|' + mine.join(','); if (offC.has(key)) return offC.get(key);
+    const f = fold((s.name + ' ' + (s.url || '') + ' ' + s.ex.pages.join(' ').slice(0, 30000)).toLowerCase()), cnt = e => (f.match(new RegExp('\\b' + e + '\\b', 'g')) || []).length;
+    const me = mine.reduce((a, e) => a + cnt(e), 0), other = EXAMS.filter(e => !mine.includes(e)).reduce((a, e) => a + cnt(e), 0), v = (me === 0 && other >= 3) || other >= 8 * Math.max(1, me);
+    offC.set(key, v); return v; }
+  function boiler(srcs) { const by = {}; srcs.forEach(s => { const st = s.url ? siteOf(s.url) : ''; if (!st || !(s.ex && s.ex.pages)) return;
+      (by[st] = by[st] || []).push(new Set(s.ex.pages.join('\n').split('\n').map(x => x.trim()).filter(x => x.length >= 3 && x.length < 240))); });
+    const bad = new Set(); Object.values(by).forEach(arr => { if (arr.length < 3) return; const n = {}; arr.forEach(set => set.forEach(x => { n[x] = (n[x] || 0) + 1; }));
+      Object.entries(n).forEach(([x, c]) => { if (c >= 3 && c >= arr.length * 0.5) bad.add(x); }); }); return bad; }
+  function bmIndex(C) { const docs = C.map(c => { const tf = {}; toks(c.t).forEach(x => { tf[x] = (tf[x] || 0) + 1; }); return { c, tf, len: Object.values(tf).reduce((a, b) => a + b, 0) || 1 }; });
+    const avg = docs.reduce((a, d) => a + d.len, 0) / Math.max(1, docs.length), df = {}; docs.forEach(d => Object.keys(d.tf).forEach(x => { df[x] = (df[x] || 0) + 1; })); return { docs, avg, df }; }
+  function bmRank(I, q, keep) { const qt = [...new Set(toks(q))], N = I.docs.length;
+    return I.docs.filter(d => !keep || keep(d.c)).map(d => ({ c: d.c, sc: qt.reduce((a, x) => { const f = d.tf[x]; if (!f) return a; const idf = Math.log(1 + (N - I.df[x] + .5) / (I.df[x] + .5)); return a + idf * f * 2.2 / (f + 1.2 * (.25 + .75 * d.len / I.avg)) * (x.includes('_') ? 1.5 : 1); }, 0) }))
+      .filter(x => x.sc > 0).sort((a, b) => b.sc - a.sc); }
+  const BUDGET = 60000;
+  async function packSources(o, ctx) { const p = P(); if (!p) return null; await hydrate();
+    const ids = []; let at = null, instr = [];
+    (o.contents || []).forEach((m, mi) => { const ps = m.parts || [], out = []; for (let i = 0; i < ps.length; i++) { const t = ps[i] && ps[i].text, h = t && /^=== NGUỒN (S\d+):/.exec(t);
+        if (h) { ids.push(h[1]); if (!at) { at = { mi }; out.push({ text: '\u0000PACK' }); } i++; continue; } out.push(ps[i]); if (t && m.role !== 'model') instr.push(t); } m._parts = out; });
+    if (!ids.length) { (o.contents || []).forEach(m => { delete m._parts; }); return null; }
+    const all = ids.map(id => p.sources.find(s => s.id === id)).filter(Boolean);
+    for (const s of all) if (!(s.ex && s.ex.pages)) { try { await extract(s); } catch (e) {} }
+    const off = all.filter(offTopic), use = all.filter(s => !off.includes(s)), txt = s => s.ex && s.ex.pages ? s.ex.pages.join('\n') : String(s.text || '');
+    const raw = use.reduce((a, s) => a + txt(s).length, 0);
+    if (raw <= BUDGET && !off.length) { (o.contents || []).forEach(m => { delete m._parts; }); return { n: all.length, chars: raw, off: [], cut: 0, kept: true }; }
+    const bad = boiler(use), C = [];
+    use.forEach(s => { const pages = s.ex && s.ex.pages ? s.ex.pages : [s.text || ''];
+      pages.forEach((t, i) => { const body = String(t).split('\n').filter(x => !bad.has(x.trim())).join('\n'); let buf = '';
+        body.split(/\n\s*\n|\n(?=[-•*\d#])/).forEach(par => { if ((buf + par).length > 700 && buf) { C.push({ s, p: i + 1, n: pages.length, t: buf.trim(), k: C.length }); buf = ''; } buf += par + '\n'; });
+        if (buf.trim()) C.push({ s, p: i + 1, n: pages.length, t: buf.trim(), k: C.length }); }); });
+    const I = bmIndex(C), b = p.brief || {}, crit = p.criteria || [], centers = [...new Set(use.map(s => s.center || ''))];
+    const lead = instr.join('\n').replace(/\s+/g, ' ').slice(0, 400), qs = (ctx.kind === 'ask' || ctx.kind === 'note' ? [lead] : []).concat(crit, [[b.lang, b.level, b.entry, b.audience].join(' ')]).filter(q => q && q.trim());
+    const pick = new Set(); let size = 0; const take = c => { if (!c || pick.has(c) || size + c.t.length > BUDGET) return; pick.add(c); size += c.t.length + 30; };
+    const ranked = qs.map(q => centers.map(cn => bmRank(I, q, c => (c.s.center || '') === cn).slice(0, 3)));
+    for (let r = 0; r < 3; r++) ranked.forEach(byC => byC.forEach(list => take(list[r] && list[r].c)));
+    qs.forEach(q => bmRank(I, q).slice(0, 6).forEach(x => take(x.c)));
+    use.forEach(s => { if (![...pick].some(c => c.s === s)) take(C.find(c => c.s === s)); });   // mỗi nguồn ít nhất 1 đoạn
+    const got = [...pick].sort((a, b) => a.k - b.k), none = use.filter(s => !got.some(c => c.s === s));
+    const list = use.map(s => `- ${s.id} · ${s.name}${s.center ? ' · ' + s.center : ''}${s.url ? ' · ' + s.url : ''}${s.date ? ' · ' + s.date : ''}`).join('\n');
+    let cur = null; const body = got.map(c => { const h = c.s !== cur ? `\n=== NGUỒN ${c.s.id}: ${c.s.name} · Trung tâm: ${c.s.center || 'chưa ghi'} ===\n` : ''; cur = c.s; return h + (c.n > 1 ? `[${c.s.id}, tr.${c.p}] ` : `[${c.s.id}] `) + c.t; }).join('\n');
+    const pack = `=== CÁC NGUỒN – máy đã lọc trước khi gửi ===\nCó ${use.length} nguồn dùng được. Máy chỉ gửi ${got.length} đoạn liên quan nhất (theo tiêu chí, câu hỏi và yêu cầu khóa), đã bỏ menu / chân trang lặp lại. Trích dẫn đúng mã [S…] ở đầu mỗi đoạn. Không thấy thông tin trong các đoạn này thì ghi "chưa rõ trong nguồn đã gửi" – không đoán.\nDanh sách nguồn:\n${list}\n${body}` +
+      (off.length ? `\n\nĐÃ BỎ vì lạc đề (không phải ${myExam().join('/').toUpperCase()}): ${off.map(s => s.id + ' ' + s.name).join('; ')}` : '') +
+      (none.length ? `\n\nNguồn không có đoạn nào khớp (chưa gửi): ${none.map(s => s.id).join(', ')}` : '');
+    (o.contents || []).forEach(m => { m.parts = m._parts.map(x => x.text === '\u0000PACK' ? { text: pack } : x); delete m._parts; });
+    return { n: use.length, chars: pack.length, off, cut: raw - size, kept: false }; }
+  // đánh dấu nguồn lạc đề ngay trong cột nguồn, bấm "Giữ" nếu máy đoán sai
+  function offEnhance() { const p = P(); if (!p) return;
+    document.querySelectorAll('#researchView li.rs-src input[data-on]').forEach(inp => { const s = p.sources.find(x => x.id === inp.dataset.on), li = inp.closest('li'); if (!s || !li) return;
+      const off = offTopic(s), tag = li.querySelector('.rs-offtag'); if (off && !tag) { const t = document.createElement('span'); t.className = 'rs-offtag'; t.innerHTML = `lạc đề <button type="button" data-keep="${esc(s.id)}" title="Máy thấy nguồn này nói về kỳ thi khác – không gửi Claude. Bấm nếu vẫn muốn dùng">Giữ</button>`; li.appendChild(t); }
+      else if (!off && tag) tag.remove(); }); }
+  let liteWired = false;
+  function liteEnhance() { hydrate(); if (!liteWired) { liteWired = true;
+      const st = document.createElement('style'); st.textContent = '.bg-pill{margin-left:8px;border:0;background:none;font:inherit;font-size:11px;font-weight:400;color:#b85c3e;cursor:pointer;padding:0;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;animation:bgP 1.6s ease-in-out infinite}@keyframes bgP{50%{opacity:.45}}.bg-pop{position:absolute;z-index:1003;background:var(--ui-bg);border:1px solid var(--ui-line);border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.15);padding:8px 10px;font-size:12px;max-width:340px}.bg-pop ul{margin:6px 0 0;padding-left:16px;color:var(--ui-muted)}.rs-offtag{display:inline-flex;gap:4px;align-items:center;font-size:10px;color:#b85c3e;border:1px dashed #d97757;border-radius:999px;padding:0 6px;margin:2px 0 0 22px}.rs-offtag button{border:0;background:none;font:inherit;font-size:10px;color:var(--ui-ink);text-decoration:underline;cursor:pointer;padding:0}';
+      document.head.appendChild(st);
+      document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-keep]'); if (!b) return; const s = (P() || {}).sources.find(x => x.id === b.dataset.keep); if (!s) return; s.keep = true; persist(); offEnhance(); toast(`Giữ ${s.id} – sẽ gửi Claude như nguồn bình thường`); }); }
+    offEnhance(); paintBg(); }
   function aiInfo() { const b = document.querySelector('#rsBridge'); if (!b) return; b.scrollIntoView({ behavior: 'smooth', block: 'start' }); b.style.transition = 'box-shadow .3s'; b.style.boxShadow = '0 0 0 3px #d97757'; setTimeout(() => { b.style.boxShadow = ''; }, 1600); }
   const toast = (t, bad) => { const el = document.createElement('div'); el.setAttribute('role', 'status'); el.textContent = t; el.style.cssText = `position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1002;background:${bad ? '#8a2a1b' : '#1f1f1f'};color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;max-width:90vw`; document.body.appendChild(el); setTimeout(() => el.remove(), 4200); };
   function enhance() {
@@ -1647,10 +1764,12 @@
     if (cmp && !document.querySelector('#rsAutoFill')) { const b = document.createElement('button'); b.type = 'button'; b.id = 'rsAutoFill'; b.className = 'btn'; b.textContent = 'Tự điền số liệu'; b.title = 'Máy dò số buổi, phút, sĩ số, học phí, cấp độ… trong nguồn – không cần Claude';
       cmp.parentNode.insertBefore(b, cmp);
       b.onclick = async () => { b.disabled = true; b.textContent = 'Đang dò…'; try { const r = await autoFill(); toast(`Đã điền ${r.filled} ô từ nguồn${r.missing ? ` · ${r.missing} ô chưa thấy, nhờ Claude điền tiếp` : ''}${r.noCenter ? ` · ${r.noCenter} nguồn chưa ghi trung tâm nên bỏ qua` : ''}`); } catch (e) { toast(e.message, true); } finally { b.disabled = false; b.textContent = 'Tự điền số liệu'; } }; }
-    briefEnhance(); objEnhance(); plsEnhance(); cfgEnhance(); evoEnhance(); ovEnhance(); mapEnhance(); betaEnhance(); notesEnhance(); hookXlsx(); presEnhance(); rrEnhance(); capEnhance(); gapEnhance(); migrate();
+    liteEnhance(); briefEnhance(); objEnhance(); plsEnhance(); cfgEnhance(); evoEnhance(); ovEnhance(); mapEnhance(); betaEnhance(); notesEnhance(); hookXlsx(); presEnhance(); rrEnhance(); capEnhance(); gapEnhance(); migrate();
     const chip = document.querySelector('#rsAI'); if (chip) { const t = '● Claude · ' + usage(); if (chip.textContent !== t) chip.textContent = t; chip.classList.toggle('ok', true); chip.title = 'Việc cần viết được gửi Claude – nhắn Claude “xử lý hàng chờ PLS” để xử lý'; }
   }
-  let tm = 0; new MutationObserver(() => { clearTimeout(tm); tm = setTimeout(enhance, 50); }).observe(document.documentElement, { childList: true, subtree: true });
+  const OURS = '#bgPill,#bgPop,#gapBox,#capBar,.rs-offtag,.rs-chk';
+  const ours = n => { const e = n && (n.nodeType === 1 ? n : n.parentElement); return !!(e && e.closest && e.closest(OURS)); };
+  let tm = 0; new MutationObserver(recs => { if (recs.every(r => ours(r.target) || ([...r.addedNodes, ...r.removedNodes].length && [...r.addedNodes, ...r.removedNodes].every(x => x.nodeType === 1 && x.matches && x.matches(OURS))))) return; clearTimeout(tm); tm = setTimeout(enhance, 120); }).observe(document.documentElement, { childList: true, subtree: true });
   setInterval(refresh, 5000); refresh();
 
   root.PLS_LOCAL = { aiCall, summarize, usage, aiInfo, search, extract, autoFill, localAsk, briefForm, briefText, briefDraft, cleanWeb, objText: b => objText(b) + pilotNote(b) + (cfg().rules ? '\nQuy tắc cấp học: ' + cfg().rules : ''), matrix, cfgText, versions: vers, saveVer, diffSnap, impactOf, applyPatch, pilotFind, plsHead, plsCell, plsOverview, takeTests, baseExtra };
