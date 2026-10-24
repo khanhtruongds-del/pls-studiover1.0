@@ -633,7 +633,7 @@
     if (me.why) return { cls: 'ok', t: 'Khác biệt có chủ đích', d: me.why };
     if (!others.length) return { cls: 'gap', t: 'Khoảng trống', d: 'Chưa trung tâm nào công bố – PLS có thể nói rõ để tạo khác biệt' };
     if (!me.v) return { cls: 'miss', t: 'PLS chưa có', d: `${others.length} trung tâm có công bố` };
-    if (NUMK.test(k)) { const xs = others.map(num).filter(x => x != null).sort((a, b) => a - b), x = num(me.v);
+    if (NUMK.test(k)) { const xs = others.map(v => axisNum(k, v)).filter(x => x != null).sort((a, b) => a - b), x = axisNum(k, me.v);
       if (xs.length && x != null) { const med = xs[Math.floor((xs.length - 1) / 2)], fmt = n => n >= 1e5 ? n.toLocaleString('vi-VN') : String(Math.round(n * 10) / 10);
         if (Math.abs(x - med) <= med * 0.15) return { cls: 'same', t: 'Giống đa số', d: `trung vị ${fmt(med)} (${xs.length} nơi)` };
         return { cls: 'diff', t: x > med ? 'Cao hơn đa số' : 'Thấp hơn đa số', d: `trung vị ${fmt(med)} (${xs.length} nơi) – đánh dấu nếu là chủ đích` }; } }
@@ -941,14 +941,14 @@
   function plsChart(C) { const p = P(), crit = (p.criteria || []).filter(k => NUMK.test(k));
     const f = n => n >= 1e6 ? (Math.round(n / 1e5) / 10) + ' tr' : n >= 1e4 ? Math.round(n / 1e3) + 'k' : String(Math.round(n * 10) / 10);
     const rows = crit.map(k => {
-      const pts = C.map(c => { const x = (p.cells || {})[c + '||' + k]; let n = x && x.v && x.kind !== 'unknown' ? num(x.v) : null;
-        if (n != null && /phút/i.test(k) && /giờ|tiếng|\dh\b/i.test(x.v)) n *= 60; return n != null && n > 0 ? { c, n, v: x.v } : null; }).filter(Boolean);
-      const me = num(plsVal(k).v); if (!pts.length && me == null) return '';
+      const pts = C.map(c => { const x = (p.cells || {})[c + '||' + k]; const n = x && x.v && x.kind !== 'unknown' ? axisNum(k, x.v) : null; return n != null ? { c, n, v: x.v } : null; }).filter(Boolean);
+      const skip = C.filter(c => { const x = (p.cells || {})[c + '||' + k]; return x && x.v && !/chưa rõ/i.test(x.v) && axisNum(k, x.v) == null; }).length;
+      const me = axisNum(k, plsVal(k).v); if (!pts.length && me == null) return '';
       const all = pts.map(x => x.n).concat(me != null ? [me] : []), lo = Math.min(...all), hi = Math.max(...all), pos = n => hi === lo ? 50 : 4 + (n - lo) / (hi - lo) * 92;
       const xs = pts.map(x => x.n).sort((a, b) => a - b), med = xs.length ? xs[Math.floor((xs.length - 1) / 2)] : null;
       return `<div class="rs-ov-row"><span class="rs-ov-k">${esc(k)}</span><span class="rs-ov-track" aria-hidden="true">${pts.map(x => `<i style="left:${pos(x.n)}%" title="${esc(x.c)}: ${esc(x.v)}"></i>`).join('')}` +
         `${med != null ? `<s style="left:${pos(med)}%" title="Trung vị ${f(med)}"></s>` : ''}${me != null ? `<b style="left:${pos(me)}%" title="PLS: ${f(me)}"></b>` : ''}</span>` +
-        `<span class="rs-ov-v">${me != null ? 'PLS <b>' + f(me) + '</b>' : '<span class="muted">PLS chưa có</span>'}${med != null ? ` · trung vị ${f(med)} (${xs.length} nơi)` : ''}</span></div>`; }).join('');
+        `<span class="rs-ov-v">${me != null ? 'PLS <b>' + f(me) + '</b>' : '<span class="muted">PLS chưa có</span>'}${med != null ? ` · trung vị ${f(med)} (${xs.length} nơi)` : ''}${skip ? ` · <span class="muted" title="Số liệu tính theo tuần, ngày hoặc tự học – không so trực tiếp được">${skip} nơi khác đơn vị</span>` : ''}</span></div>`; }).join('');
     return rows ? rows + '<p class="rs-ov-leg"><span class="rs-ov-dot pls"></span>PLS · <span class="rs-ov-dot"></span>trung tâm (rê chuột để xem tên) · <span class="rs-ov-bar"></span>trung vị</p>' : ''; }
   function ovSections() { const p = P(), st = briefState(), os = objState(), L = (p.outline && p.outline.lessons) || [], mx = L.length && objs().length ? matrix().f : [], nb = mx.filter(x => x.lv === 'block').length, V = vers(), dl = dirtyList().length;
     const pr = p.pilot && p.pilot.rounds && p.pilot.rounds.length ? (p.pilot.data[p.pilot.rounds[p.pilot.rounds.length - 1].id] || {}) : {}, pilN = Object.keys(pr).length;
@@ -986,17 +986,27 @@
   }
 
   // ---------- BẢN ĐỒ ĐỊNH VỊ: PLS và các trung tâm trên 2 trục, kéo thả để chỉnh ----------
-  const axisNum = (k, v) => { const s = String(v || ''); if (!s) return null;
+  // đọc số có kiểm đơn vị: "12 tuần" không phải số buổi, "30 phút mỗi ngày" không phải phút/buổi
+  const CAMKET = 'Mức cam kết đầu ra';
+  const outKey = () => ((P() || {}).criteria || []).find(k => /đầu ra|cam kết/i.test(k)) || 'Đầu ra cam kết';
+  const camLevel = s => { s = String(s || ''); if (!s.trim() || /chưa rõ/i.test(s)) return null;
+    if (/hợp đồng|hoàn (tiền|học phí)|học lại miễn phí|bao đậu|đảm bảo đầu ra/i.test(s)) return 3;
+    if (/không (nêu|có)? ?cam kết|không cam kết|không nêu/i.test(s)) return 1; return 2; };
+  const axisNum = (k, v) => { const s = String(v || ''); if (!s || /chưa rõ/i.test(s)) return null;
+    if (k === CAMKET) return camLevel(s);
+    if (/số buổi/i.test(k)) { const m = s.match(/(\d+)\s*(?:[–-]\s*\d+\s*)?buổi/i); if (m) return +m[1]; if (/tuần|tháng|ngày|chặng|giai đoạn|tiết|bài/i.test(s)) return null; }
+    if (/phút|thời lượng/i.test(k)) { if (/mỗi ngày|\/\s*ngày|một ngày|hằng ngày|mỗi tuần|\/\s*tuần/i.test(s) && !/buổi/i.test(s)) return null; let n = num(s); if (n != null && /giờ|tiếng|\dh\b/i.test(s)) n *= 60; return n != null && n > 0 ? n : null; }
+    if (/học phí|chi phí|giá/i.test(k) && /\/\s*(giờ|buổi|tháng)|mỗi (giờ|buổi|tháng)/i.test(s)) return null;
     if (/đầu ra|cam kết|mục tiêu|cấp độ|điểm/i.test(k)) { const ns = (s.match(/\d{2,4}/g) || []).map(Number).filter(n => n >= 10 && n <= 990); return ns.length ? Math.max(...ns) : null; }
-    let n = num(s); if (n != null && /phút/i.test(k) && /giờ|tiếng|\dh\b/i.test(s)) n *= 60; return n != null && n > 0 ? n : null; };
+    const n = num(s); return n != null && n > 0 ? n : null; };
   function mapAxes() { const p = P(), cr = p.criteria || [], m = p.map || {}, C = centersOf(p);
-    const cnt = k => C.filter(c => axisNum(k, ((p.cells || {})[c + '||' + k] || {}).v) != null).length;
+    const cnt = k => C.filter(c => axisNum(k, ((p.cells || {})[c + '||' + (k === CAMKET ? outKey() : k)] || {}).v) != null).length;
     const numc = cr.filter(k => NUMK.test(k) || /đầu ra|cam kết/i.test(k)).map(k => [k, cnt(k)]).sort((a, b) => b[1] - a[1]);
     const fee = cr.find(k => /học phí|chi phí/i.test(k)), out = cr.find(k => /đầu ra|cam kết/i.test(k));
     const x = m.x || (fee && cnt(fee) >= 3 ? fee : (numc.find(([k]) => k !== out) || [cr[0] || 'Trục ngang'])[0]);
-    const y = m.y || (out && out !== x && cnt(out) >= 3 ? out : (numc.find(([k]) => k !== x) || [cr.find(k => k !== x) || 'Trục dọc'])[0]); return { x, y }; }
+    const y = m.y || (x !== CAMKET && cnt(CAMKET) >= 3 ? CAMKET : out && out !== x && cnt(out) >= 3 ? out : (numc.find(([k]) => k !== x) || [cr.find(k => k !== x) || 'Trục dọc'])[0]); return { x, y }; }
   function mapData(C) { const p = P(), { x, y } = mapAxes(), key = x + '|' + y, man = ((p.map || {}).pos || {})[key] || {};
-    const raw = (name, k) => name === 'PLS' ? plsVal(k).v : (((p.cells || {})[name + '||' + k] || {}).v || '');
+    const raw = (name, k0) => { const k = k0 === CAMKET ? outKey() : k0; return name === 'PLS' ? plsVal(k).v : (((p.cells || {})[name + '||' + k] || {}).v || ''); };
     const ents = ['PLS'].concat(C).map(name => ({ name, rx: raw(name, x), ry: raw(name, y) })).map(e => Object.assign(e, { vx: axisNum(x, e.rx), vy: axisNum(y, e.ry) }));
     const span = vs => { const a = [...new Set(vs.filter(v => v != null))].sort((m, n) => m - n); return a.length ? a : null; }, sx = span(ents.map(e => e.vx)), sy = span(ents.map(e => e.vy));
     const nrm = (v, s) => v == null || !s ? null : s.length === 1 ? 0.5 : 0.08 + s.indexOf(v) / (s.length - 1) * 0.84;
@@ -1007,7 +1017,7 @@
     return { x, y, key, ents }; }
   const short = t => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > 70 ? t.slice(0, 68) + '…' : t; };
   function mapHtml(C, big) { const p = P(); if (!p || !C.length) return ''; const d = mapData(C), cr = p.criteria || [];
-    const opt = sel => cr.concat(cr.includes(sel) ? [] : [sel]).map(k => `<option${k === sel ? ' selected' : ''}>${esc(k)}</option>`).join('') + '<option value="__custom">Tự đặt tên trục…</option>';
+    const opt = sel => [CAMKET].concat(cr, [CAMKET].concat(cr).includes(sel) ? [] : [sel]).map(k => `<option${k === sel ? ' selected' : ''}>${esc(k)}</option>`).join('') + '<option value="__custom">Tự đặt tên trục…</option>';
     const tip = e => `${e.name} – ${d.x}: ${short(e.rx) || 'chưa có'} · ${d.y}: ${short(e.ry) || 'chưa có'}`;
     const pts = d.ents.filter(e => !e.parked).map(e => `<button type="button" class="rs-map-pt${e.name === 'PLS' ? ' pls' : ''}${e.parked ? ' park' : ''}${e.manual ? ' man' : ''}${e.px > 0.62 ? ' flip' : ''}" data-mp="${esc(e.name)}" style="left:${(e.px * 100).toFixed(1)}%;top:${((1 - e.py) * 100).toFixed(1)}%" title="${esc(tip(e))}"><i></i><span>${esc(e.name)}</span></button>`).join('');
     const tray = d.ents.filter(e => e.parked).map(e => `<button type="button" class="rs-map-pt park${e.name === 'PLS' ? ' pls' : ''}" data-mp="${esc(e.name)}" title="${esc(tip(e))} – kéo vào bản đồ"><i></i><span>${esc(e.name)}</span></button>`).join('');
