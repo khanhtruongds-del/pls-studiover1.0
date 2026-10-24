@@ -256,8 +256,10 @@
         const de = tab(s6, /Đề kiểm tra/).filter(r => isB(r, buoi) && onPPT(r))[0];
         if (!de) { divider(st.name, [mins, 'thực hiện trên app'].filter(Boolean).join(' · ')); continue; }
         const qs = tab(s6, /Câu hỏi kiểm tra/).filter(r => S(r['Mã đề']) === S(de['Mã đề']) && onPPT(r));
+        if (!qs.length) { warns.push(`Đề ${S(de['Mã đề'])} chưa có câu hỏi trong S6-Câu hỏi kiểm tra – chưa dựng slide đề.`); divider(st.name, [mins, 'đề chưa có câu hỏi'].filter(Boolean).join(' · ')); continue; }   // không để slide còn chữ mẫu
         const parts = []; for (const r of qs) { const k = S(r['Phần']) || S(r['Kỹ năng']) || 'Câu hỏi'; let p = parts.find(x => x.k === k); if (!p) parts.push(p = { k, n: 0, t: 0 }); p.n++; p.t += +r['Thời gian ước tính'] || 0; }
         const d = { title: S(de['Tên đề']).replace(/^Buổi\s*\d+\s*-\s*/i, '').replace(/\s*-\s*\d+\s*$/, '') || st.name, total_q: String(qs.length), 'total_q.unit': 'câu', total_min: String(Number(de['Thời gian làm bài (phút)']) || st.min || ''), 'total_min.unit': 'phút' };
+        for (let i = Math.min(parts.length, 6); i < 6; i++) ['no', 'name', 'count', 'time'].forEach(k => { d[`part_${i + 1}.${k}`] = ''; });   // ô phần không dùng → trống (không hiện chữ mẫu)
         parts.slice(0, 6).forEach((p, i) => { d[`part_${i + 1}.no`] = String(i + 1); d[`part_${i + 1}.name`] = p.k; d[`part_${i + 1}.count`] = p.n + ' câu'; d[`part_${i + 1}.time`] = p.t ? Math.max(1, Math.round(p.t)) + ' phút' : ''; });
         slides.push({ comp: 'Slide/Test Intro', data: sec(L.test || L.homework, d), notes: NOTE({ t: `${d.total_min || ''} phút`.trim(), g: [`Giới thiệu đề: ${qs.length} câu, ${parts.length} phần (${parts.map(p => p.k).join(', ')}).`, 'Nhắc HV cất tài liệu, làm bài độc lập.'], l: ['Báo thời gian khi còn 5 phút.'] }) });
         const ex = A.exercises(qs, L.test || L.homework, 1); slides.push(...ex.groups);
