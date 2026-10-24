@@ -116,6 +116,7 @@
       else if (kind === 'order') { x.chunks = q.split(/\s*\/\s*/).filter(Boolean); x.a = S(r['Đáp án']); keys.push([x.no, x.a]); }
       else if (kind === 'match') { x.l = q.replace(/^nối\s*[:：]?\s*/i, ''); x.r = S(r['Đáp án']); x._key = true; keys.push([x.no, x]); }
       else { x.a = S(r['Đáp án']); keys.push([x.no, x.a]); }
+      if (x.why && keys.length && keys[keys.length - 1][0] === x.no) keys[keys.length - 1][2] = x.why;   // QC F08: giải thích đi kèm đáp án (vào Notes)
       cur.items.push(x);
     }
     groups.forEach(g => delete g.part);
@@ -134,18 +135,19 @@
     return [{ label: 'Gộp tổng kết + dặn dò', slides: [{ comp: 'Slide/Summary Homework', data: d }], fill: 1, fillW: 20, cover: 1 },
       { label: 'Tách 2 slide', slides: [{ comp: 'Slide/Summary', data: sm }, { comp: 'Slide/Homework', data: hw }], fill: 0.7, fillW: 20, cover: 1 }];
   }
-  function ansRows(keys) { return keys.map(([n, v]) => [n, v && typeof v === 'object' ? `${v.l} – ${v.r}` : S(v)]).filter(([, v]) => v); }
+  function ansRows(keys) { return keys.map(([n, v, w]) => [n, v && typeof v === 'object' ? `${v.l} – ${v.r}` : S(v), S(w)]).filter(([, v]) => v); }
   function ansPlans(spec) {
     const rows = ansRows(spec.keys); if (!rows.length) return [];
     const out = [];
-    for (let n = 1; n <= 3; n++) {
-      if (n > 1 && rows.length < n * 4) break;   // ít đáp án thì không chia trang
+    const n0 = Math.max(1, Math.ceil(rows.length / 10));   // QC F08: tối đa 10 đáp án / slide (20 đáp án một trang thì cuối lớp không đọc được)
+    for (let n = n0; n <= n0 + 2; n++) {
+      if (n > n0 && rows.length < n * 4) break;   // ít đáp án thì không chia trang
       const size = Math.ceil(rows.length / n), parts = chunk(rows, size);
       const slides = parts.map((p, i) => { const d = { title: spec.title + (parts.length > 1 ? ` (${i + 1}/${parts.length})` : '') };
         p.forEach(([no, v], k) => { d[`a_${k + 1}.key`] = String(no); d[`a_${k + 1}.text`] = v; });
-        return { comp: 'Slide/Answer Key', layout: 'flow', data: head(d, spec.section), notes: 'GIẢNG\n• Chữa nhanh: HV tự chấm, giơ tay câu sai.\n• Chỉ giảng lại các câu nhiều HV sai.\n\nĐÁP ÁN\n' + p.map(([no, v]) => `• ${no}. ${v}`).join('\n') }; });
+        return { comp: 'Slide/Answer Key', layout: 'flow', data: head(d, spec.section), notes: 'GIẢNG\n• Chữa nhanh: HV tự chấm, giơ tay câu sai.\n• Chỉ giảng lại các câu nhiều HV sai.\n\nĐÁP ÁN\n' + p.map(([no, v, w]) => `• ${no}. ${v}${w ? ' – ' + w : ''}`).join('\n') }; });
       // 1 trang: fill 1; mỗi trang thêm bị trừ điểm rõ để chỉ chia khi trang gộp bị tràn / chữ quá nhỏ
-      out.push({ label: n === 1 ? 'Gộp 1 trang' : `Chia ${n} trang`, slides, fill: 1 / n, fillW: 30, cover: 1 });
+      out.push({ label: n === 1 ? 'Gộp 1 trang' : `Chia ${n} trang`, slides, fill: n0 / n, fillW: 30, cover: 1 });
     }
     return out;
   }
