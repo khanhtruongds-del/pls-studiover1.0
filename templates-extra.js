@@ -89,9 +89,95 @@
         txt('deadline', 'bold', 30, C.inv, 'Trước buổi sau', false))),
     'notitle;flex-direction:row;padding:0px;gap:0px;overflow:hidden;align-items:stretch');
 
+  // ================= ĐỢT 4 (24/10 – so với Oxford / Cambridge / TKT: các bước còn thiếu) =================
+  // 9) KHỞI ĐỘNG (lead-in): ảnh lớn trái + 2–3 câu hỏi thảo luận phải (gợi chủ đề, kích hoạt vốn đã biết)
+  build('Slide/Lead In',
+    div('columns', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:row;gap:48px;align-items:stretch',
+      div('img', `flex:0 0 42%;align-self:stretch;border-radius:16px;background-color:${C.soft}`, '') +
+      div('qs', 'flex:1 1 0px;min-width:0;display:flex;flex-direction:column;gap:28px;justify-content:center;align-items:stretch',
+        txt('kicker', 'bold', 30, C.ink, 'Thảo luận theo cặp', false) +
+        range(3).map(i => div(`q_${i}`, 'flex:0 0 auto;display:flex;flex-direction:row;gap:20px;align-items:flex-start',
+          circle('no_box', 56, C.fill, C.inv, String(i)) +
+          div('body', 'flex:1 1 0px;min-width:0;display:flex;flex-direction:column;gap:4px;align-items:flex-start',
+            txt('de', 'native', 40.5, C.text, 'What do you do every morning?', true) + txt('vi', 'body', 32, C.muted, 'Mỗi sáng bạn làm gì?', true)))).join(''))));
+
+  // 10) KIỂM TRA HIỂU (CCQ): câu hỏi đóng ngắn về NGHĨA; đáp án (Đúng / Sai + lý do ngắn) hiện sau khi lớp trả lời
+  build('Slide/CCQ',
+    div('items', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:column;gap:24px;justify-content:flex-start;align-items:stretch',
+      range(4).map(i => div(`q_${i}`, `flex:0 0 auto;display:flex;flex-direction:row;gap:24px;align-items:center;padding:20px 28px;border-radius:16px;background-color:${C.soft}`,
+        circle('no_box', 52, C.fill, C.inv, String(i)) +
+        div('body', 'flex:1 1 0px;min-width:0;display:flex;flex-direction:column;gap:4px;align-items:flex-start', txt('text', 'native', 36, C.text, '“I get up at six every day.” – Đây là thói quen?', true)) +
+        div('ans', `flex:0 0 auto;max-width:34%;display:flex;flex-direction:row;align-items:center;padding:12px 24px;border-radius:999px;background-color:${C.white};box-shadow:inset 0 0 0 2px ${C.primary}`,
+          txt('val', 'bold', 30, C.ink, 'Đúng', true)))).join('')));
+
+  // 11) DÒNG THỜI GIAN CỦA THÌ: trục Quá khứ – Bây giờ – Tương lai, dấu mốc theo thì (hook vẽ), công thức + 1 ví dụ
+  build('Slide/Tense Timeline',
+    div('tl', 'flex:0 0 auto;align-self:stretch;height:260px;display:block', 
+      div('axis', `position:absolute;left:0px;right:0px;top:128px;height:6px;border-radius:3px;background-color:${C.border}`, '') +
+      div('now', `position:absolute;left:calc(50% - 3px);top:92px;width:6px;height:78px;border-radius:3px;background-color:${C.dark}`, '') +
+      txt('l_past', 'bold', 28, C.muted, 'Quá khứ', false, 'position:absolute;left:0px;top:44px') +
+      txt('l_now', 'bold', 28, C.dark, 'Bây giờ', false, 'position:absolute;left:calc(50% - 80px);width:160px;top:44px;text-align:center') +
+      txt('l_fut', 'bold', 28, C.muted, 'Tương lai', false, 'position:absolute;right:0px;top:44px;text-align:right')) +
+    div('bottom', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:row;gap:40px;align-items:flex-start',
+      div('rule_box', `flex:0 0 48%;display:flex;flex-direction:column;gap:12px;padding:28px 32px;border-radius:16px;background-color:${C.soft};align-items:flex-start`,
+        txt('label', 'bold', 30, C.ink, 'Cấu trúc', false) + txt('rule', 'bold', 36, C.text, 'S + V(s/es)', true)) +
+      div('ex', 'flex:1 1 0px;min-width:0;display:flex;flex-direction:column;gap:8px;padding-top:12px;align-items:flex-start',
+        txt('use', 'bold', 30, C.ink, 'Dùng khi…', true) + txt('de', 'native', 40.5, C.text, 'I get up at six every day.', true) + txt('vi', 'body', 32, C.muted, 'Mình dậy lúc 6 giờ mỗi ngày.', true))), 'gap:24px');
+
+  // 12) THẺ TỪ: 1 từ / slide – ảnh lớn trái, phải: từ to, phiên âm + loại từ, nghĩa, câu ví dụ + nghĩa
+  build('Slide/Vocab Card',
+    div('columns', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:row;gap:56px;align-items:stretch',
+      div('img', `flex:0 0 44%;align-self:stretch;border-radius:16px;background-color:${C.soft}`, '') +
+      div('info', 'flex:1 1 0px;min-width:0;display:flex;flex-direction:column;gap:18px;justify-content:center;align-items:flex-start',
+        txt('word', 'native', 79.5, C.ink, 'breakfast', true) +
+        div('meta', 'flex:0 0 auto;display:flex;flex-direction:row;gap:20px;align-items:center',
+          txt('ipa', 'body', 36, C.muted, '/ˈbrekfəst/', false) + div('pos_box', `flex:0 0 auto;display:flex;flex-direction:row;align-items:center;padding:6px 18px;border-radius:999px;background-color:${C.soft}`, txt('pos', 'bold', 28, C.ink, 'danh từ', false))) +
+        txt('mean', 'bold', 48, C.text, 'bữa sáng', true) +
+        div('ex_box', `flex:0 0 auto;align-self:stretch;display:flex;flex-direction:column;gap:6px;padding:24px 28px;border-radius:16px;box-shadow:inset 6px 0 0 0 ${C.primary};background-color:${C.soft}`,
+          txt('exde', 'native', 36, C.text, 'I have breakfast at seven.', true) + txt('exvi', 'body', 30, C.muted, 'Mình ăn sáng lúc 7 giờ.', true)))));
+
+  // 13) ĐIỀN TỪ CÓ HỘP TỪ: dải từ gợi ý trên cùng + tối đa 5 câu có chỗ trống; đáp án từng câu hiện sau
+  build('Slide/Gap Fill Bank',
+    div('bank', `flex:0 0 auto;align-self:stretch;display:flex;flex-direction:row;flex-wrap:wrap;gap:16px;align-items:center;padding:20px 28px;border-radius:16px;background-color:${C.soft}`,
+      txt('label', 'bold', 30, C.ink, 'Từ gợi ý:', false) +
+      range(8).map(i => div(`chip_${i}`, `flex:0 0 auto;display:flex;flex-direction:row;align-items:center;padding:8px 22px;border-radius:12px;background-color:${C.white};box-shadow:inset 0 0 0 2px ${C.primary}`, txt('text', 'native', 32, C.text, 'always', false))).join('')) +
+    div('items', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:column;gap:22px;justify-content:flex-start;align-items:stretch',
+      range(5).map(i => div(`s_${i}`, 'flex:0 0 auto;display:flex;flex-direction:row;gap:20px;align-items:center',
+        txt('no', 'bold', 36, C.ink, String(i) + '.', false) + txt('text', 'native', 36, C.text, 'I ___ have breakfast with my family.', true, 'flex:1 1 0px') +
+        div('ans', `flex:0 0 auto;display:flex;flex-direction:row;align-items:center;padding:8px 22px;border-radius:999px;background-color:${C.fill}`, txt('val', 'bold', 30, C.inv, 'always', false)))).join('')), 'gap:28px');
+
+  // 14) TỰ ĐÁNH GIÁ CUỐI BUỔI (can-do, thang 3/2/1 như Cambridge "Review your progress")
+  build('Slide/Self Check',
+    div('legend', 'flex:0 0 auto;align-self:stretch;display:flex;flex-direction:row;gap:28px;align-items:center',
+      txt('hint', 'bold', 30, C.ink, 'Khoanh mức của bạn:', false) + txt('scale', 'body', 30, C.muted, '3 = làm tốt  ·  2 = tạm được  ·  1 = cần ôn thêm', false)) +
+    div('rows', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:column;gap:20px;justify-content:flex-start;align-items:stretch',
+      range(4).map(i => div(`g_${i}`, `flex:0 0 auto;display:flex;flex-direction:row;gap:24px;align-items:center;padding:18px 28px;border-radius:16px;background-color:${C.soft}`,
+        circle('no_box', 52, C.fill, C.inv, String(i)) + txt('text', 'body', 36, C.text, 'Kể được 4–5 thói quen hằng ngày.', true, 'flex:1 1 0px') +
+        div('dots', 'flex:0 0 auto;display:flex;flex-direction:row;gap:14px;align-items:center',
+          ['3', '2', '1'].map(v => div('dot_' + v, `flex:0 0 auto;width:60px;height:60px;display:flex;flex-direction:row;justify-content:center;align-items:center;border-radius:50%;background-color:${C.white};box-shadow:inset 0 0 0 2px ${C.primary}`, txt('v', 'bold', 28, C.ink, v, false, 'text-align:center;line-height:1'))).join('')))).join('')), 'gap:28px');
+
   // ---------- xử lý sau khi đổ chữ (engine gọi PLS_TPL_HOOKS[mẫu]) ----------
   const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
   root.PLS_TPL_HOOKS = Object.assign(root.PLS_TPL_HOOKS || {}, {
+    // dòng thời gian: vẽ dấu mốc theo loại thì (data.kind) – chấm lặp, dải đang diễn ra, dấu X, mũi tên tới bây giờ…
+    'Slide/Tense Timeline'(rootEl, data) {
+      const tl = rootEl.querySelector('[data-n="tl"]'); if (!tl) return; tl.style.position = 'relative';
+      const P = 'var(--color-primary-fill, var(--color-primary, #406864))', S2 = 'var(--color-primary-soft, rgba(64,104,100,.22))';
+      const add = (n, css, label) => { const d = document.createElement('div'); d.dataset.n = n; d.setAttribute('style', 'box-sizing:border-box;position:absolute;' + css); if (label != null) { d.dataset.text = '1'; d.dataset.fs = '26'; d.textContent = label; } tl.appendChild(d); return d; };
+      const X = (x, lab, dim) => { add('mark', `left:calc(${x}% - 22px);top:109px;width:44px;height:44px;border-radius:50%;background-color:${dim ? 'var(--color-border, #ccc)' : P}`);
+        if (lab) add('mark_l', `left:calc(${x}% - 110px);width:220px;top:184px;text-align:center;font:700 26px var(--ff-font-body, 'Montserrat'), sans-serif;color:${dim ? 'var(--color-text-muted, #6d6d6d)' : 'var(--color-primary-ink, var(--color-primary))'}`, lab); };
+      const band = (a, b, lab, dashed) => { add('band', `left:${a}%;width:${b - a}%;top:116px;height:30px;border-radius:15px;background-color:${dashed ? 'transparent' : S2};${dashed ? `border:4px dashed ${P}` : ''}`);
+        if (lab) add('band_l', `left:${a}%;width:${b - a}%;top:184px;text-align:center;font:700 26px var(--ff-font-body, 'Montserrat'), sans-serif;color:var(--color-primary-ink, var(--color-primary))`, lab); };
+      const k = String(data._kind || '');
+      if (k === 'habit') { [8, 20, 32, 44, 56, 68, 80, 92].forEach(x => add('mark', `left:calc(${x}% - 12px);top:119px;width:24px;height:24px;border-radius:50%;background-color:${P}`)); add('band_l', `left:20%;width:60%;top:184px;text-align:center;font:700 26px var(--ff-font-body, 'Montserrat'), sans-serif;color:var(--color-primary-ink, var(--color-primary))`, 'lặp lại thường xuyên'); }
+      else if (k === 'now') band(40, 60, 'đang diễn ra');
+      else if (k === 'past') X(22, 'đã xong');
+      else if (k === 'pastcont') { band(10, 38, 'đang diễn ra'); X(28, ''); }
+      else if (k === 'perfect') { band(18, 50, 'từ quá khứ → nay'); X(18, ''); }
+      else if (k === 'pastperfect') { X(14, 'xảy ra trước'); X(36, 'xảy ra sau', true); }
+      else if (k === 'going') { band(50, 76, 'đã dự định', true); X(76, 'sẽ xảy ra'); }
+      else if (k === 'future') X(76, 'sẽ xảy ra');
+    },
     // dấu nối ‿ và 2 chữ cái được nối: đậm + màu brand (xuất PPTX thành run riêng)
     'Slide/Pronunciation Linking'(rootEl) {
       rootEl.querySelectorAll('[data-n="word"][data-filled]').forEach(te => { const t = te.textContent; if (!t.includes('‿')) return;
@@ -175,5 +261,5 @@
     // nét nối chỉ nằm trong khe giữa 2 thẻ, căn giữa vòng số: đo lại sau khi slide đã dàn trang (khoảng cách / lề có thể đổi sau hook)
     if (!root.__plsGapLine) { root.__plsGapLine = 1; setInterval(() => document.querySelectorAll('[data-gapline]').forEach(l => { const s = l.parentElement, nx = s && s.nextElementSibling, nbx = s && s.querySelector('[data-n$=".no_box"]'); if (!nbx || !nbx.offsetWidth) return; const L = (nbx.offsetLeft + nbx.offsetWidth / 2 - 2) + 'px'; if (l.style.left !== L) l.style.left = L; if (nx && s.offsetHeight) { const g = nx.offsetTop - s.offsetTop - s.offsetHeight; if (g > 14) { const H = (g - 12) + 'px'; if (l.style.height !== H) l.style.height = H; } } }), 700); }
   };
-  root.PLS_TPL_EXTRA = ['Slide/Pronunciation Linking', 'Slide/Grammar Rule Split', 'Slide/Dialogue Bubbles', 'Slide/Summary Homework', 'Slide/Pronunciation Steps', 'Slide/Focus Question', 'Slide/Vocab Picture', 'Slide/Vocab Map'];
+  root.PLS_TPL_EXTRA = ['Slide/Lead In', 'Slide/CCQ', 'Slide/Tense Timeline', 'Slide/Vocab Card', 'Slide/Gap Fill Bank', 'Slide/Self Check', 'Slide/Pronunciation Linking', 'Slide/Grammar Rule Split', 'Slide/Dialogue Bubbles', 'Slide/Summary Homework', 'Slide/Pronunciation Steps', 'Slide/Focus Question', 'Slide/Vocab Picture', 'Slide/Vocab Map'];
 })(typeof window !== 'undefined' ? window : globalThis);
