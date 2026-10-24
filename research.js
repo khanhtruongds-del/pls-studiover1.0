@@ -660,10 +660,18 @@
       <div class="rs-bar"><span class="rs-tag fact">Đủ ${tot['đủ']}</span><span class="rs-tag warn">Ít ${tot['ít']}</span><span class="rs-tag bad">Thiếu ${tot['thiếu']}</span><span class="rs-tag warn">Bài lạc mục tiêu ${orph}</span></div>
       <div class="rs-tablewrap"><table class="rs-table rs-mtx"><thead><tr><th>Buổi</th><th>Mục tiêu</th><th>Được đo bởi</th><th>Mức</th></tr></thead><tbody>${body}</tbody></table></div>`;
   }
+  // gộp các điểm cùng loại thành 1 dòng (VD: "Soạn theo khung cũ · 12 buổi (1–12)") + 1 nút xử lý cả nhóm
+  function relIss(bl) { const G = new Map(), O = [];
+    bl.forEach(x => { const m = /^Buổi (\d+):? (?:(\d+) )?(.+)$/.exec(x); if (!m) { O.push(x); return; } const g = G.get(m[3]) || { k: m[3], b: [], n: 0 }; g.b.push(+m[1]); g.n += +(m[2] || 1); G.set(m[3], g); });
+    const span = b => { const r = []; b.sort((a, c) => a - c).forEach(x => { const l = r[r.length - 1]; if (l && x === l[1] + 1) l[1] = x; else r.push([x, x]); }); return r.map(([a, c]) => a === c ? a : a + '–' + c).join(', '); };
+    const FIX = { 'soạn theo khung cũ': ['les', 'Soạn lại'], 'chưa soạn': ['les', 'Soạn'], 'chưa Claude soát': ['rev', 'Nhờ Claude soát'] };
+    const rows = O.map(x => `<li><span>${esc(x)}</span></li>`).concat([...G.values()].map(g => { const f = FIX[g.k];
+      return `<li><span><b>${esc(g.k[0].toUpperCase() + g.k.slice(1))}</b> · ${g.b.length} buổi<small class="muted">(${span(g.b)})${g.n > g.b.length ? ' · ' + g.n + ' lỗi' : ''}</small></span>${f ? `<button type="button" class="btn" data-relfix="${f[0]}" data-b="${g.b.join(',')}" ${busy ? 'disabled' : ''}>${f[1]} ${g.b.length} buổi</button>` : '<button type="button" class="btn" data-sub="list">Xem</button>'}</li>`; }));
+    return `<div class="rs-relis"><span class="rs-tag warn">${bl.length} điểm nên xử lý trước</span><ul>${rows.join('')}</ul></div>`; }
   function paneRelease() {
     const R = (P.releases || []).slice().reverse(), bl = blockers();
     return `<div class="rs-relnew"><b>Phát hành bản mới</b><p class="muted">Khóa lại bộ Excel S5 + S6 hiện tại thành 1 bản cố định để giáo viên dùng – sửa tiếp không ảnh hưởng bản đã phát hành.</p>
-        ${bl.length ? `<details class="rs-iss" open><summary><span class="rs-tag warn">${bl.length} điểm nên xử lý trước</span></summary><ul>${bl.slice(0, 12).map(x => `<li class="warn">${esc(x)}</li>`).join('')}${bl.length > 12 ? `<li class="muted">… và ${bl.length - 12} điểm nữa</li>` : ''}</ul></details>` : '<p><span class="rs-tag fact">Sẵn sàng phát hành</span></p>'}
+        ${bl.length ? relIss(bl) : '<p><span class="rs-tag fact">Sẵn sàng phát hành</span></p>'}
         <div class="rs-row"><input id="rsRelNote" placeholder="Ghi chú bản (VD: bản dạy lớp 11/2026)"><button type="button" class="btn primary" id="rsRel" ${Object.keys(P.lessons).length ? '' : 'disabled'}>Phát hành</button></div></div>
       ${R.length ? `<div class="rs-tablewrap"><table class="rs-table"><thead><tr><th>Bản</th><th>Ngày</th><th>Nội dung</th><th></th></tr></thead><tbody>${R.map(r => `<tr><td><b>Bản ${r.no}</b>${r.no === P.curRelease ? ' <span class="rs-tag fact">Đang dùng</span>' : ''}</td><td>${new Date(r.at).toLocaleString('vi-VN')}</td><td>${r.lessons} buổi · khung v${r.outlineVer}${r.note ? ' · ' + esc(r.note) : ''}${r.blockers.length ? `<div class="muted">Phát hành khi còn ${r.blockers.length} điểm chưa xử lý</div>` : ''}</td>
         <td class="rs-acts">${r.no !== P.curRelease ? `<button type="button" class="btn" data-relcur="${r.no}">Dùng bản này</button>` : ''}<button type="button" class="btn" data-relopen="${r.no}">Xem slide</button><button type="button" class="btn" data-relxlsx="${r.no}">Tải Excel</button><button type="button" class="rs-x" data-reldel="${r.no}" aria-label="Xóa bản ${r.no}">×</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Chưa phát hành bản nào.</p>'}`;
@@ -714,6 +722,8 @@
     qa('[data-sub]').forEach(b => b.onclick = () => { lesSub = b.dataset.sub; render(); });
     qa('[data-rev]').forEach(b => b.onclick = () => job('Claude đang soát buổi ' + b.dataset.rev, () => review(+b.dataset.rev)));
     if (q('#rsRevAll')) q('#rsRevAll').onclick = () => job('Claude đang soát', async () => { for (const l of P.outline.lessons) { const L = P.lessons[l.buoi]; if (!L || L.ai) continue; busy = 'Claude đang soát buổi ' + l.buoi; render(); await review(l.buoi).catch(e => { if (!e || !e.queued) throw e; }); save(); } });
+    qa('[data-relfix]').forEach(b => b.onclick = () => { const bs = b.dataset.b.split(',').map(Number), rev = b.dataset.relfix === 'rev';
+      job(rev ? 'Claude đang soát' : 'Đang soạn lại', async () => { for (const n of bs) { busy = (rev ? 'Claude đang soát buổi ' : 'Đang soạn buổi ') + n; render(); await (rev ? review(n) : lesson(n)).catch(e => { if (!e || !e.queued) throw e; }); save(); } }); });
     qa('[data-restore]').forEach(b => b.onclick = () => { const [bu, k] = b.dataset.restore.split('/').map(Number); if (!confirm('Khôi phục buổi ' + bu + ' về bản trước? Bản đang có sẽ được cất vào lịch sử.')) return; restoreLesson(bu, k); render(); });
     if (q('#rsRel')) q('#rsRel').onclick = () => { const bl = blockers(); if (bl.length && !confirm(`Còn ${bl.length} điểm nên xử lý (chưa soạn / còn lỗi / chưa Claude soát). Vẫn phát hành?`)) return; const no = release(q('#rsRelNote').value.trim()); toast('Đã phát hành bản ' + no); };
     const relOf = no => (P.releases || []).find(r => r.no === +no);
