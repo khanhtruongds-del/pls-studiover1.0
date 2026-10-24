@@ -19,7 +19,7 @@
       let w = c.w; if (!w && /h/i.test(z)) { const m = Math.round((c.v % 1) * 1440); w = String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
       if (w) { c.t = 's'; c.v = w; } } }
   // một Mã bài có thể gồm nhiều đoạn (nhiều hội thoại / văn bản, câu số đánh lại từ 1) → tách theo tiêu đề, giữ thứ tự xuất hiện (QC F03/F04)
-  const segs = (rows, tk, sortF) => { const m = new Map(); rows.forEach(r => { const k = S(r[tk]); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }); return [...m.values()].map(g => g.slice().sort(sortF)); };
+  const segs = (rows, tk, sortF) => { const m = new Map(); rows.forEach(r => { const k = S(r['Mã đoạn']) || S(r[tk]); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }); return [...m.values()].map(g => g.slice().sort(sortF)); };
   function readWorkbook(wb, XLSX) {
     const out = {};
     for (const name of wb.SheetNames) {
@@ -83,8 +83,11 @@
     const goals = sentences(info['Mục tiêu bài'] || s5row['Mục tiêu bài']).slice(0, 3);
     const ov = { 'title': 'Mục tiêu và lộ trình buổi học', 'cando.label': 'Sau buổi học, bạn có thể' };
     goals.forEach((g, i) => { ov[`cando_${i + 1}`] = g.replace(/^Học viên (sẽ )?/, ''); ov[`cando_${i + 1}.mark`] = '✓'; });
-    steps.slice(0, 8).forEach((s, i) => { ov[`step_${i + 1}.no`] = String(i + 1); ov[`step_${i + 1}.text`] = s.name; if (s.min != null) ov[`step_${i + 1}.min`] = s.min + "'"; });
-    if (steps.length > 8) warns.push(`Timeline có ${steps.length} bước, slide tổng quan chỉ hiện 8.`);
+    const st8 = steps.map(s => Object.assign({}, s)); while (st8.length > 8) { let k = 0, best = Infinity;   // QC F05: không cắt bỏ bước cuối (Tổng kết, Dặn dò)
+      for (let i = 0; i < st8.length - 1; i++) { const m = (st8[i].min || 0) + (st8[i + 1].min || 0); if (m < best) { best = m; k = i; } }
+      const a = st8[k], b = st8[k + 1]; st8.splice(k, 2, { name: a.name + ' · ' + b.name, min: a.min == null && b.min == null ? null : (a.min || 0) + (b.min || 0) }); }
+    st8.forEach((s, i) => { ov[`step_${i + 1}.no`] = String(i + 1); ov[`step_${i + 1}.text`] = s.name; if (s.min != null) ov[`step_${i + 1}.min`] = s.min + "'"; });
+    if (steps.length > 8) warns.push(`Timeline có ${steps.length} bước – slide tổng quan gộp các bước ngắn kề nhau để hiện đủ trong 8 dòng.`);
     slides.push({ comp: 'Slide/Lesson Overview', data: sec(L.overview, ov), notes: NOTE({ t: s5row['Tự kiểm – tổng phút'] ? `Cả buổi ${S(s5row['Tự kiểm – tổng phút'])} phút` : '', g: ['Đọc mục tiêu, hỏi lớp đã biết gì về chủ đề.', ...sentences(info['Mục tiêu bài'] || s5row['Mục tiêu bài']), 'Lộ trình: ' + steps.map(x => x.name + (x.min != null ? ` (${x.min}')` : '')).join(' → ')], l: [S(s5row['Lưu ý'])] }) });
 
     const vocab = tab(s6, /Từ vựng$/).filter(r => isB(r, buoi) && onPPT(r) && S(r['Từ']));
