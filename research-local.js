@@ -206,7 +206,16 @@
   const Q = { all: () => tx('readonly', s => s.getAll()), get: id => tx('readonly', s => s.get(id)), put: j => tx('readwrite', s => s.put(j)), del: id => tx('readwrite', s => s.delete(id)) };
   const bc = 'BroadcastChannel' in root ? new BroadcastChannel('pls-claude') : null;
   let cache = [];
-  async function refresh() { try { cache = await Q.all(); } catch (e) { cache = []; } paintQ(); enhance(); applyDone(); }
+  // nhiều tab cùng mở 1 dự án: trước khi làm gì, lấy bản mới nhất trong máy để tab cũ không ghi đè tab mới
+  async function syncDb() { const p = P(); if (!p || !p.id) return false;
+    const rec = await new Promise(res => { try { const q = indexedDB.open('pls-research', 1); q.onsuccess = () => { try { const g = q.result.transaction('proj').objectStore('proj').get(p.id); g.onsuccess = () => res(g.result); g.onerror = () => res(null); } catch (e) { res(null); } }; q.onerror = () => res(null); } catch (e) { res(null); } });
+    if (!rec || !(rec.at > (p.at || 0))) return false;
+    Object.keys(p).forEach(k => { if (!(k in rec)) delete p[k]; }); Object.assign(p, rec); return true; }
+  const typing = () => /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '');
+  async function refresh() { try { cache = await Q.all(); } catch (e) { cache = []; }
+    if (document.visibilityState === 'visible' && !typing() && root.PLS_RESEARCH && await syncDb()) root.PLS_RESEARCH.show();
+    paintQ(); enhance(); applyDone(); }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
   const ping = () => { if (bc) bc.postMessage(1); refresh(); };
   if (bc) bc.onmessage = () => refresh();
   window.addEventListener('storage', e => { if (e.key && /^pls\.bridge\./.test(e.key) && e.key !== 'pls.bridge.beat' && !/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '') && root.PLS_RESEARCH) root.PLS_RESEARCH.show(); });
@@ -248,6 +257,7 @@
     const done = mine().filter(j => j.status === 'done' || j.status === 'fail').sort((a, b) => a.at - b.at); if (!done.length) return;
     applying = true;
     try {
+      await syncDb();
       for (const j0 of done) {
         if (!lock(j0.id)) continue;
         const j = await Q.get(j0.id); if (!j || j.status === 'wait') { unlock(j0.id); continue; }
