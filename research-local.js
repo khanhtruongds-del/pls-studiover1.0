@@ -1494,18 +1494,19 @@
     if (/tin[ -]?tuc|blog|news|tu[ -]?hoc|meo|bai[ -]?viet|kinh nghiem|tuyen dung|lien he|contact|gioi thieu|about/.test(t)) s -= 3; return s; }
   const topicOf = () => { const b = (P() || {}).brief || {}; return fold(String(b.lang || b.level || '').toLowerCase()).split(/\s+/).find(w => /toeic|ielts|hsk|jlpt|topik|vstep|sat|cambridge|anh|trung|nhat|han|duc|phap/.test(w)) || ''; };
   let capMsg = '', capBusy = 0;
-  async function crawl(s) { const p = P(); if (!p) return; const r = R(); if (!r || !r.addSource) return; const root0 = rootOf(s.url);
+  // collect: mảng gom nguồn (khi máy đang tự lấp chỗ thiếu) → chưa thêm vào dự án, không vẽ lại giao diện
+  async function crawl(s, collect) { const p = P(); if (!p) return; const r = R(); if (!r || !r.addSource) return; const root0 = rootOf(s.url);
     capBusy++; bgSet('crawl' + s.id, `Lấy trang con của ${s.center || root0}`);
-    try { const md = await jina(s.url, true), L = parseLinks(md), topic = topicOf(), have = new Set(p.sources.map(x => normU(x.url || '')));
+    try { const md = await jina(s.url, true), L = parseLinks(md), topic = topicOf(), have = new Set(p.sources.concat(collect || []).map(x => normU(x.url || '')));
       const subs = L.filter(l => urlOk(l.url) && rootOf(l.url) === root0 && normU(l.url) !== normU(s.url) && !have.has(normU(l.url)))
         .map(l => Object.assign(l, { sc: scoreSub(l, topic) })).filter(l => l.sc >= 3).sort((a, b) => b.sc - a.sc).slice(0, 8);
-      subs.forEach(l => r.addSource({ kind: 'link', name: (l.text || l.url.replace(/^https?:\/\/(www\.)?/, '')).slice(0, 80), url: l.url, center: s.center || '', date: todayS(), note: 'Trang con của ' + s.id, parent: s.id, autoName: !l.text }));
+      subs.forEach(l => (collect ? x => collect.push(Object.assign(x, { _par: s })) : r.addSource)({ kind: 'link', name: (l.text || l.url.replace(/^https?:\/\/(www\.)?/, '')).slice(0, 80), url: l.url, center: s.center || '', date: todayS(), note: 'Trang con của ' + s.id, parent: s.id, autoName: !l.text }));
       // bài tổng hợp: nhiều website khác được nhắc tới → gợi ý thêm
       const ext = {}; L.forEach(l => { const rt = rootOf(l.url); if (!rt || rt === root0 || junkLink(l.url, l.text, root0) || !urlOk(l.url) || l.text.length < 3) return; (ext[rt] = ext[rt] || []).push(l); });
       const men = Object.entries(ext).map(([rt, ls]) => ({ name: (ls.find(x => x.text.length <= 50) || ls[0]).text.slice(0, 50), url: (ls.find(x => { try { return new URL(x.url).pathname.length <= 1; } catch (e) { return false; } }) || ls[0]).url, root: rt }))
         .filter(m => !have.has(normU(m.url)) && !p.sources.some(x => rootOf(x.url || '') === m.root));
       s.deep = 'done'; s.deepN = subs.length; if (men.length >= 3) s.mentions = men.slice(0, 15);
-      await persist(); showSoon(); if (subs.length && !gapBusy) toast(`Đã thêm ${subs.length} trang con của ${s.center || root0}`);
+      if (collect) return; await persist(); showSoon(); if (subs.length && !gapBusy) toast(`Đã thêm ${subs.length} trang con của ${s.center || root0}`);
     } catch (e) { s.deep = 'fail'; await persist(); } finally { capBusy--; bgEnd('crawl' + s.id); paintCap(); } }
   // tìm web (DuckDuckGo qua r.jina.ai) – dùng cho "Tìm rộng hơn"
   const DSC = new Map();
@@ -1633,12 +1634,14 @@
   // gk: chỉ tìm cho một thước đo (nút "Tìm thêm" ở Bảng mốc) · các trung tâm chạy song song · điền bảng ngay khi xong từng trung tâm
   async function gapRun(gk) { const p = P(), r = R(); if (!p || !r || !r.addSource || gapBusy) return; gapBusy = true; gapLog = []; paintGap();
     const topic = topicOf() || fold(String((p.brief || {}).lang || '').toLowerCase()), added = [], scope = gk ? gqOf(gk) : null, t0 = Date.now();
-    const add = (o, c, why) => { const have = new Set(p.sources.map(x => normU(x.url || ''))); if (have.has(normU(o.url))) return null;
-      const s = r.addSource({ kind: 'link', name: (o.title || o.url).slice(0, 80), url: cleanU(o.url), center: c, date: todayS(), note: 'Máy tự tìm cho ô thiếu: ' + why, autoName: !o.title, gap: 1, deep: why === 'website chính chủ' ? 'gaphome' : 'gap' }); added.push(s); return s; };
+    // gom nguồn mới vào 'pend' (chưa thêm vào dự án) → đọc xong hết mới thêm + điền bảng 1 lần → giao diện không giật
+    const pend = [];
+    const add = (o, c, why) => { const have = new Set(p.sources.concat(pend).map(x => normU(x.url || ''))); if (have.has(normU(o.url))) return null;
+      const s = ({ kind: 'link', name: (o.title || o.url).slice(0, 80), url: cleanU(o.url), center: c, date: todayS(), note: 'Máy tự tìm cho ô thiếu: ' + why, autoName: !o.title, gap: 1, deep: why === 'website chính chủ' ? 'gaphome' : 'gap' }); pend.push(s); added.push(s); return s; };
     const grp = gqGrp, want = k => !scope || scope.includes(grp(k));
     try { const cov = coverage(), todo = cov.rows.filter(x => x.miss.some(want)), have0 = cov.have;
       if (!todo.length) { gapSay(scope ? `Các trung tâm đều đã có số “${gk}” – muốn mốc chắc hơn, bấm “Tìm thêm trung tâm”.` : 'Bảng đã đủ ô – không cần tìm thêm.'); if (scope) toast(`Các trung tâm hiện có đều đã có số “${gk}” – cần thêm trung tâm để mốc chắc hơn`); return; }
-      let done = 0, filled = 0;
+      let done = 0;
       const eta = () => { const s = Math.ceil(JQ.length * 3.1 + 6); return s > 90 ? '~' + Math.ceil(s / 60) + ' phút' : '~' + s + ' giây'; };
       const tick = () => gapSay(`${scope ? 'Tìm “' + gk + '”' : 'Tìm chỗ thiếu'}: xong ${done}/${todo.length} trung tâm${done < todo.length ? ' · còn ' + eta() : ''}`);
       tick();
@@ -1649,19 +1652,22 @@
             const hit = rs.find(x => { const st = siteOf(x.url); let hn = ''; try { hn = new URL(x.url).hostname; } catch (e) {} return st && !junkHost(x.url) && !SOCIAL.test(st + '.') && !AGG.test(st + '.') && !HOSTING.test(st + '.') && hasTok(c, hn); });
             if (hit) { site = siteOf(hit.url); p.site = p.site || {}; p.site[c] = site; const s = add({ title: hit.title, url: 'https://' + new URL(hit.url).hostname + '/' }, c, 'website chính chủ'); if (s) mine.push(s); } }
           // 2. tìm cả bảng: lấy trang con của website chính chủ (tìm một thước đo thì bỏ qua – tìm đúng chủ đề nhanh hơn)
-          if (!scope) { const home = site && p.sources.find(s => s.center === c && s.kind === 'link' && siteOf(s.url || '') === site && !s.parent);
-            if (home && !/done|fail|queued/.test(home.deep || '')) { home.deep = 'queued'; await crawl(home); } }
+          if (!scope) { const home = site && p.sources.concat(pend).find(s => s.center === c && s.kind === 'link' && siteOf(s.url || '') === site && !s.parent);
+            if (home && !/done|fail|queued/.test(home.deep || '')) { home.deep = 'queued'; await crawl(home, pend); } }
           // 3. các nhóm ô còn thiếu → tìm cùng lúc
           const groups = [...new Set(row.miss.filter(want).map(grp).filter(Boolean))].slice(0, 3);
           const found = await Promise.all(groups.map(g => dsearch(`${c} ${g} ${topic}`.trim(), 2).catch(() => []).then(rs => [g, rs])));
           found.forEach(([g, rs]) => rs.filter(x => { const st = siteOf(x.url); return st && urlOk(x.url) && !junkHost(x.url) && !SOCIAL.test(st + '.') && (st === site || hasTok(c, x.title + ' ' + x.url)); })
             .sort((a, b) => (siteOf(b.url) === site) - (siteOf(a.url) === site)).slice(0, 2).forEach(x => { const s = add(x, c, g); if (s) mine.push(s); }));
-          // 4. đọc nguồn chưa đọc của trung tâm này (ưu tiên nguồn vừa tìm, tối đa 6) rồi điền ngay
-          const unread = p.sources.filter(s => s.center === c && s.kind === 'link' && s.on !== false && !(s.ex && s.ex.pages) && !(s.exErr && Date.now() - s.exErr < 36e5))
+          // 4. đọc nguồn chưa đọc của trung tâm này (ưu tiên nguồn vừa tìm, tối đa 6) – chưa điền, đợi đọc xong hết
+          const unread = p.sources.concat(pend).filter(s => s.center === c && s.kind === 'link' && s.on !== false && !(s.ex && s.ex.pages) && !(s.exErr && Date.now() - s.exErr < 36e5))
             .sort((a, b) => mine.includes(b) - mine.includes(a)).slice(0, 6);
           await Promise.all(unread.map(s => preRead(s, 2)));
-          const one = () => autoFill(new Set([c])); fillChain = fillChain.then(one, one); const res = await fillChain; filled += (res && res.filled) || 0;
         } catch (e) {} finally { done++; tick(); } }));
+      // 5. thêm toàn bộ nguồn mới (đã đọc sẵn) rồi điền bảng 1 lần
+      gapSay('Điền bảng…'); const made = new Map();
+      for (const o of pend) { const x = Object.assign({}, o), par = o._par && (made.get(o._par) || o._par); delete x._par; if (par) { x.parent = par.id; x.note = 'Trang con của ' + par.id; } made.set(o, r.addSource(x)); }
+      await autoFill(new Set(todo.map(x => x.c)));
       const after = coverage(), sec = Math.round((Date.now() - t0) / 1000), more = Math.max(0, after.have - have0);
       const numMiss = after.rows.reduce((a, r) => a + r.miss.filter(gqGrp).length, 0), qMiss = after.rows.reduce((a, r) => a + r.miss.filter(k => QUAL.test(k)).length, 0);
       gapSay(`Xong (${sec} giây): lấp thêm ${more} ô${numMiss ? ` · ${numMiss} ô số liệu các trung tâm không công bố trên web` : ''}${qMiss ? ` · ${qMiss} ô mô tả chờ Claude đọc` : ''}.`);
@@ -1922,8 +1928,10 @@
         if (e.target.closest && e.target.closest('[data-chg="view"]')) { e.stopPropagation(); e.preventDefault(); revShow(true); return; }
         // chuyển bước / tab khi còn thay đổi lan sang bước khác → hỏi ngay, không đợi
         if (e.target.closest && e.target.closest('[data-ov],[data-gstep],#rsPlsGo,[data-ev="go3"],.rs-ov-s')) setTimeout(() => revMaybe(true), 300); }, true);
-      document.addEventListener('change', e => { if (e.target.closest && e.target.closest('#researchView') && !e.target.closest('#revDlg')) revTick(); }, true);
-      document.addEventListener('focusout', e => { if (e.target.closest && e.target.closest('#researchView .rs-ol,#researchView .rs-bf,#researchView .rs-obt')) revTick(); }, true);
+      // sửa xong một ô (rời ô / Enter) → hiện hộp thay đổi ngay nếu nó kéo theo bước khác
+      const revSoon = () => { chgAt = Date.now(); clearTimeout(revT); revT = setTimeout(() => revMaybe(true), 700); };
+      document.addEventListener('change', e => { if (e.target.closest && e.target.closest('#researchView') && !e.target.closest('#revDlg')) revSoon(); }, true);
+      document.addEventListener('focusout', e => { if (e.target.closest && e.target.closest('#researchView .rs-ol,#researchView .rs-bf,#researchView .rs-obt')) revSoon(); }, true);
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && revOpen) revAct('later'); }); }
     if (revOpen) revShow(true); }
   // ---------- BẢNG ĐIỀU KHIỂN GỌN: 4 đèn tình trạng · 1 việc tiếp theo · thay đổi gần nhất. Chi tiết chạy ngầm, bấm mới mở ----------
