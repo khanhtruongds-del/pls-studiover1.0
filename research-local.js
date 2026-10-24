@@ -375,7 +375,7 @@
     const inp = ([k, l, ph, req, type, opts]) => { const as = m[k] && filled(b, k), v = b[k] == null ? '' : b[k];
       const ctl = type === 'select' ? `<select data-bf="${k}">${opts.map(o => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`
         : `<input data-bf="${k}" type="${type || 'text'}" ${type === 'number' ? 'min="1"' : ''} value="${esc(v)}" placeholder="${esc(ph || '')}">`;
-      return `<label class="${as ? 'as' : ''}">${esc(l)}${req ? ' <span class="req" aria-label="bắt buộc">*</span>' : ''}${ctl}${as ? `<span class="as-n" title="${esc(m[k])}">Claude đoán: ${esc(String(m[k]).slice(0, 80))} <button type="button" class="rs-mini" data-bfok="${k}">Đúng rồi</button></span>` : ''}</label>`; };
+      return `<label class="${as ? 'as' : ''}"><span>${esc(l)}${req ? ' <span class="req" aria-label="bắt buộc">*</span>' : ''}</span>${ctl}${as ? `<span class="as-n" title="${esc(m[k])}">Claude đoán: ${esc(String(m[k]).slice(0, 80))} <button type="button" class="rs-mini" data-bfok="${k}">Đúng rồi</button></span>` : ''}</label>`; };
     const sum = [b.lang, b.level, b.sessions && b.minutes ? `${b.sessions} buổi × ${b.minutes} phút` : '', b.audience, b.entry ? 'đầu vào: ' + b.entry : ''].filter(Boolean).map(esc).join(' · ');
     return `<div class="rs-bf" id="rsBf"><div class="rs-bf-h"><b>Yêu cầu khóa học</b><span class="muted">${esc(status)}</span><button type="button" class="rs-mini" id="rsBfToggle">${open ? 'Thu gọn' : 'Sửa'}</button></div>` +
       (open ? BF.map(([g, fs]) => `<fieldset><legend>${esc(g)}</legend>${fs.map(inp).join('')}</fieldset>`).join('') +
@@ -391,7 +391,7 @@
     const p = P(); if (!p) return; const b = p.brief, todo = BFF.map(f => f[0]).filter(k => !filled(b, k));
     if (!todo.length) { toast('Các ô đã có đủ – sửa trực tiếp nếu cần'); return; }
     const key = p.id + '|brief|[]'; if ((await Q.all()).some(j => j.key === key && j.status === 'wait')) { toast('Việc này đã có trong hàng chờ Claude'); return; }
-    const srcs = (p.sources || []).filter(s => s.on !== false).map(s => `[${s.id}] ${s.name || ''}${s.center ? ' · ' + s.center : ''}\n${String(s.summary || '').slice(0, 700)}`).join('\n\n');
+    const srcs = (p.sources || []).filter(s => s.on !== false).map(s => `[${s.id}] ${s.name || ''}${s.center ? ' · ' + s.center : ''}\n${String(s.summary || (s.ex && s.ex.pages ? s.ex.pages.join(' ') : s.text) || '').replace(/\s+/g, ' ').slice(0, 700)}`).join('\n\n');
     const cmp = Object.entries(p.cells || {}).filter(([, c]) => c && c.v && c.kind !== 'unknown').slice(0, 80).map(([k, c]) => `${k.replace('||', ' – ')}: ${c.v}${c.src ? ' [' + c.src + ']' : ''}`).join('\n');
     const text = `Đề xuất giá trị NHÁP cho các ô còn trống trong yêu cầu khóa học của trung tâm PLS, dựa trên nguồn và bảng so sánh bên dưới.\n` +
       `Ô đã có: ${BFF.map(f => f[0]).filter(k => filled(b, k)).map(k => `${LABEL[k]} = ${b[k]}`).join('; ') || '(chưa có)'}\n` +
