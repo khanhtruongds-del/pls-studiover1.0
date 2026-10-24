@@ -56,7 +56,7 @@
     if (spec.comp === 'Slide/Answer Key' && spec.layout === 'flow') ansFlow(rootEl, data);
     // đổ nội dung
     for (const [k, v] of Object.entries(data)) {
-      if (k.startsWith('img:')) continue;
+      if (k.startsWith('img:') || k.startsWith('_')) continue;   // khoá "_…" = tham số cho hook mẫu, không phải ô chữ
       const el = find(rootEl, k); const te = textEl(el);
       const sp = TY() && el ? TY().special(el, te, v, host) : null;   // ruby / khối công thức (typo.js)
       if (sp) { show(sp, host); sp.dataset.filled = k; filled.push(sp); continue; }
@@ -294,7 +294,7 @@
 
   // ---------- PHÂN CẤP CHỮ (chuẩn v2.0 "Cỡ chữ theo cấp": tiêu đề > nội dung chính 40px > dịch nghĩa/phiên âm ≥ 28px, tỉ lệ ~1,35 như sách 11,5/8,5 pt) ----------
   // Mẫu Figma để tiêu đề 48 / nội dung 40,5 / dịch 36 → nhìn đều nhau. Chỉ đổi cỡ, không đổi khung; fitText vẫn co lại nếu tràn.
-  const SECONDARY = /^(vi|ipa|romaji|roma|pinyin|hanviet|meaning|min|note|sub|cap(_\d+)?|time|trans)$/i;
+  const SECONDARY = /^(vi|exvi|ipa|romaji|roma|pinyin|hanviet|meaning|min|note|sub|cap(_\d+)?|time|trans)$/i;
   const HIER = { title: 1.36, ratio: 1.33, minSec: 28, maxTitle: 64.5, fixedTitle: 52 };
   const slotOf = el => (el.closest('[data-n]') || el);
   const leaf = el => String(slotOf(el).dataset.n || '').split('.').pop();
@@ -432,7 +432,7 @@
   // Mỗi loại chữ (câu hỏi, đáp án, nội dung, dịch nghĩa…) đo cỡ LỚN NHẤT còn vừa khung ở từng slide → lấy TRUNG VỊ cả bài làm cỡ chuẩn.
   // Slide thưa phóng lên đúng cỡ chuẩn (không vượt), slide dày giữ cỡ lớn nhất vừa được; slide to hơn chuẩn thì hạ về chuẩn → cả bài đồng bộ.
   // Tiêu đề (52 cố định), hướng dẫn, số thứ tự, chữ trưng bày (> 56px), Cover / Section / End giữ luật riêng.
-  const DECK_SKIP = /^(title|instruction|header|no|key|label|tag|section|topic|unit|total_q|total_min|mark|who|deadline|count|time|hint|pair|sound|point|track|situation|logo|text_box)$/;
+  const DECK_SKIP = /^(title|instruction|header|no|key|label|tag|section|topic|unit|total_q|total_min|mark|who|deadline|count|time|hint|pair|sound|point|track|situation|logo|text_box|pos|l_past|l_now|l_fut|band_l|mark_l|v|scale|val|kicker|word|mean)$/;
   const DECK_CAP = { main: 40.5, sec: 36 };   // nội dung ≤ 40,5 (chuẩn v2.0 "nội dung chính 40px") – luôn nhỏ hơn hướng dẫn 48 và tiêu đề 52
   function deckRoles(r) {
     if (/^Slide\/(Cover|End|Section|Section Character)$/.test(r.host.dataset.comp)) return {};
