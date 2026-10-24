@@ -258,7 +258,7 @@
     if (!Array.isArray(d.lessons) || !d.lessons.length) throw new Error('AI chưa trả khung khóa – thử lại');
     const ver = ((P.outline && P.outline.ver) || 0) + 1;
     P.outline = { ver, at: Date.now(), locked: null, course: d.course || {}, lessons: d.lessons.map((l, i) => ({ buoi: +l.buoi || i + 1, name: l.name || '', type: l.type || 'Buổi học', goals: l.goals || '', topics: l.topics || '', vocab: Array.isArray(l.vocab) ? l.vocab.join(', ') : (l.vocab || ''), grammar: Array.isArray(l.grammar) ? l.grammar.join('; ') : (l.grammar || ''), skills: l.skills || '', basis: l.basis === 'fact' ? 'fact' : 'inference', why: l.why || '' })) };
-    log('Khung khóa v' + ver);
+    log('Khung khóa v' + ver); if (root.PLS_BRIDGE) root.PLS_BRIDGE.request('dir');
   }
   // sheet AI được soạn cho một buổi học (S6-Bảng chữ, Hán tự… chỉ khi cần → để AI tự bỏ nếu không hợp ngôn ngữ)
   const LES_S6 = ['S6-Từ vựng', 'S6-Ngữ pháp', 'S6-Câu hỏi ngữ pháp', 'S6-Mẫu câu & giao tiếp', 'S6-Bảng chữ - Phát âm', 'S6-Hán tự', 'S6-Nghe', 'S6-Nghe câu hỏi', 'S6-Đọc', 'S6-Đọc câu hỏi', 'S6-BTVN', 'S6-Ngoài kiến thức'];
@@ -282,7 +282,7 @@
     const r = await AI.call({ sys: SYS.replace('Chỉ dùng thông tin trong các NGUỒN được gửi kèm (và trang web trong link nguồn).', 'Nguồn gửi kèm để tham khảo cách các trung tâm khác dạy; nội dung bài do bạn soạn mới.'),
       contents: [{ role: 'user', parts: parts.concat({ text: prompt }) }], json: true, tools, maxTokens: 32768, tier: 'best' });
     if (r.cut) throw new Error('Bài quá dài, AI bị cắt giữa chừng – thử lại (hoặc giảm bớt nguồn)');
-    const d = AI.parse(r.text); mergeLesson(buoi, d); log('Soạn buổi ' + buoi);
+    const d = AI.parse(r.text); mergeLesson(buoi, d); log('Soạn buổi ' + buoi); if (root.PLS_BRIDGE) root.PLS_BRIDGE.request('les', buoi);
   }
   // gộp kết quả 1 buổi vào bộ Excel của dự án: bỏ dòng cũ của buổi đó, giữ đúng cột mẫu, soát lỗi
   // LỊCH SỬ BUỔI: trước khi ghi đè 1 buổi, cất bản cũ (giữ 3 bản gần nhất) để khôi phục được
@@ -359,6 +359,7 @@
   // PHÁT HÀNH (đặc tả §14): khóa 1 bộ S5 + S6 tương thích để giáo viên dùng; xem lại / mở / tải lại bản đã phát hành
   function blockers() {
     const O = P.outline, out = []; if (!O) return ['Chưa có khung khóa'];
+    if (root.PLS_BRIDGE) out.push(...root.PLS_BRIDGE.blockers());
     O.lessons.forEach(l => { const L = P.lessons[l.buoi]; if (!L) { out.push(`Buổi ${l.buoi} chưa soạn`); return; }
       if (L.ver !== O.ver) out.push(`Buổi ${l.buoi} soạn theo khung cũ`);
       const bad = L.issues.filter(x => x.lv === 'bad').length; if (bad) out.push(`Buổi ${l.buoi}: ${bad} lỗi máy soát`);
