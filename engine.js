@@ -62,7 +62,10 @@
       if (sp) { show(sp, host); sp.dataset.filled = k; filled.push(sp); continue; }
       if (!te) { if (spec.data && k in spec.data && String(v).trim() !== '') missing.push(k); continue; }
       if (String(v).trim() === '') { let t = el && el !== rootEl ? el : te; if (t && t.parentElement && t.parentElement.dataset.n === t.dataset.n + '_box') t = t.parentElement; if (t) hide(t); continue; }   // dữ liệu rỗng có chủ ý (vd instruction.vi) → ẩn ô, không để lộ chữ mẫu
-      setText(te, String(v)); if (TY()) TY().emph(te, v); show(te, host); te.dataset.filled = k; filled.push(te);
+      let tv = String(v);
+      // CHỐNG CHỮ MỒ CÔI: câu ≥ 4 từ → 2 từ cuối dính nhau (khoảng trắng không ngắt), dòng cuối không còn trơ 1 từ
+      if (/(^|\.)(title|question|text|de|vi|use|rule|note|point|task|cando|line|meaning)(_\d+)?$/.test(k) && typeof v === 'string' && !/\n/.test(v)) { const m = v.trim().match(/^(.*\S)\s+(\S+\s+\S+)$/); if (m && v.trim().split(/\s+/).length >= 4 && m[2].length <= 18) tv = m[1] + ' ' + m[2].replace(/\s+/, '\u00a0'); }
+      setText(te, tv); if (TY()) TY().emph(te, tv); show(te, host); te.dataset.filled = k; filled.push(te);
     }
     // nhãn khung ảnh = nghĩa tiếng Việt cùng thẻ
     host.querySelectorAll('.pls-imgslot').forEach(e => { const vi = e.parentElement && [...e.parentElement.querySelectorAll('[data-filled]')].find(x => /(^|\.)vi$/.test(x.dataset.filled) && x.closest('[data-n]') && e.parentElement.contains(x)); const same = vi && vi.dataset.filled.split('.')[0] === (e.parentElement.dataset.n || '').split('.')[0]; e.dataset.imgLabel = same ? 'Ảnh: ' + vi.textContent : 'Ảnh minh hoạ'; });
@@ -466,6 +469,8 @@
         const nx = LADDER.find(v => v < want[pick] - 0.01); if (!nx) break; want[pick] = nx; set(); }
       if (deckBad(r, all)) keep.forEach(([e, v]) => { e.style.fontSize = v; });   // vẫn tràn → trả lại như cũ
       else log.push(i + 1);
+      // câu hỏi dài ≥ 3 dòng mà in đậm cả khối → khó đọc: để chữ thường (đáp án vẫn nằm trong ô riêng nên vẫn tách bạch)
+      (m.question || []).els && m.question.els.forEach(e => { const lh = parseFloat(getComputedStyle(e).lineHeight) || fontPx(e) * 1.3; if (e.getBoundingClientRect().height / scaleOf(r.host) > lh * 2.5) e.style.fontWeight = '400'; });
       r.issues = audit(r); r.score = score(r.issues, r.fitLog); });
     return { target: tgt, slides: log.length };
   }
