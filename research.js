@@ -259,7 +259,7 @@
     const d = AI.parse(r.text);
     if (!Array.isArray(d.lessons) || !d.lessons.length) throw new Error('Claude chưa trả khung khóa – thử lại');
     const ver = ((P.outline && P.outline.ver) || 0) + 1;
-    P.outline = { ver, at: Date.now(), locked: null, course: d.course || {}, lessons: d.lessons.map((l, i) => ({ buoi: +l.buoi || i + 1, name: l.name || '', type: l.type || 'Buổi học', goals: l.goals || '', topics: l.topics || '', vocab: Array.isArray(l.vocab) ? l.vocab.join(', ') : (l.vocab || ''), grammar: Array.isArray(l.grammar) ? l.grammar.join('; ') : (l.grammar || ''), skills: l.skills || '', basis: l.basis === 'fact' ? 'fact' : 'inference', why: l.why || '' })) };
+    P.outline = { ver, at: Date.now(), locked: null, course: d.course || {}, lessons: d.lessons.map((l, i) => ({ buoi: +l.buoi || i + 1, name: l.name || '', type: l.type || 'Buổi học', goals: l.goals || '', topics: l.topics || '', vocab: Array.isArray(l.vocab) ? l.vocab.join(', ') : (l.vocab || ''), grammar: Array.isArray(l.grammar) ? l.grammar.join('; ') : (l.grammar || ''), skills: l.skills || '', basis: l.basis === 'fact' ? 'fact' : 'inference', why: l.why || '', obj: Array.isArray(l.obj) ? l.obj.map(x => String(x).toUpperCase()).filter(Boolean) : [] })) };
     log('Khung khóa v' + ver); if (root.PLS_BRIDGE) root.PLS_BRIDGE.request('dir');
   }
   // sheet AI được soạn cho một buổi học (S6-Bảng chữ, Hán tự… chỉ khi cần → để AI tự bỏ nếu không hợp ngôn ngữ)
@@ -273,7 +273,7 @@
     const prev = O.lessons.filter(l => l.buoi < buoi).map(l => `Buổi ${l.buoi}: ${l.name} – từ vựng: ${l.vocab}; ngữ pháp: ${l.grammar}`).join('\n');
     const { parts, tools } = await sourceParts();
     const prompt = `SOẠN BÀI buổi ${buoi} cho khóa "${O.course.name || P.name}" (${O.course.level || P.brief.level}), dạy ${P.brief.lang || 'ngoại ngữ'} cho người Việt; ${P.brief.minutes} phút/buổi.\n` +
-      `Buổi ${buoi}: ${L.name} (${L.type}). Mục tiêu: ${L.goals}. Chủ đề: ${L.topics}. Từ vựng: ${L.vocab}. Ngữ pháp: ${L.grammar}. Kỹ năng: ${L.skills}.\n` +
+      `Buổi ${buoi}: ${L.name} (${L.type}). Mục tiêu: ${L.goals}.${root.PLS_LOCAL && root.PLS_LOCAL.objText ? root.PLS_LOCAL.objText(buoi) : ''} Chủ đề: ${L.topics}. Từ vựng: ${L.vocab}. Ngữ pháp: ${L.grammar}. Kỹ năng: ${L.skills}.\n` +
       (prev ? 'Các buổi trước (không lặp lại từ / ngữ pháp đã dạy):\n' + prev + '\n' : '') +
       'Viết nội dung đầy đủ để dạy thật, theo ĐÚNG CỘT Excel dưới đây. Trả JSON: {"s6":{"<tên sheet>":[{<cột>:<giá trị>}]},"s5":{"<tên sheet>":[...]}}\n' +
       'Sheet S6 (bỏ sheet không hợp ngôn ngữ / buổi này, ví dụ Hán tự cho tiếng Anh):\n' + LES_S6.map(s => spec('s6', s)).filter(Boolean).join('\n') + '\n' +
