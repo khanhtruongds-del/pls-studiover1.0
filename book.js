@@ -234,6 +234,7 @@
     if (typeof document === 'undefined' || document.getElementById('plsBookCss')) return; const st = document.createElement('style'); st.id = 'plsBookCss';
     // ép một font cho mọi chữ trong trang sách (mẫu Figma gắn font riêng từng ô: heading / body / native / doc)
     st.textContent = '.pls-book-page, .pls-book-page *{font-family:var(--book-font) !important;font-synthesis:none}'
+      + '.pls-book-page [data-comp="Block/Sub Heading"] *,.pls-book-page [data-n="Block/Sub Heading"] *{white-space:pre-wrap !important;max-width:100%;min-width:0;overflow-wrap:break-word}'   // QC 24/10: tiêu đề ngữ pháp dài bị cắt ở lề phải (23 chỗ) → xuống dòng
       + '.pls-book-page [data-text]{font-kerning:normal;font-variant-ligatures:common-ligatures;text-rendering:optimizeLegibility}';
     document.head.appendChild(st);
   }
