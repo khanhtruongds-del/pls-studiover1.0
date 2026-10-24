@@ -993,12 +993,13 @@
   function mocSrc(k) { const p = P(); if (k === FPH) return 'tính: học phí ÷ tổng giờ · ' + [critOf(/học phí|chi phí/i)].filter(Boolean).map(c => plsVal(c).from || 'chưa có').join('');
     if (k === HRS) return 'tính: số buổi × phút ÷ 60 · ' + [critOf(/số buổi/i), critOf(/phút|thời lượng/i)].filter(Boolean).map(c => esc(c) + ': ' + (plsVal(c).from || 'chưa có')).join(', ');
     return plsVal(k).from || 'chưa có'; }
+  const mocMiss = k => { try { const g = gqOf(k), cv = coverage(); return !!cv && cv.rows.some(r => r.miss.some(m => g.includes(gqGrp(m)))); } catch (e) { return true; } };
   function plsChart(C) { C = fcent(C); const p = P(), pos = p.pos || '', K = mocKeys(), plan = mocPlan(pos, C); if (!K.length) return '';
     const rows = K.map(([k, lb]) => { const st = mocStats(C, k), me = metric('PLS', k), cur = me ? me.v : null, out = k === outKey();
       const tg = out ? null : plan[k] || null, conf = !st ? ['thiếu', 'chưa có nơi nào'] : st.n >= 3 ? ['đủ', st.n + ' nơi'] : ['yếu', st.n + ' nơi – nên ≥ 3'];
       const mk = out ? (cur != null ? `<b>${esc(fmtV(k, cur))}</b> <small class="muted">bạn đặt (Yêu cầu khóa)</small>` : '<span class="muted">chưa đặt</span>')
         : tg ? `<b>${esc(fmtV(k, tg[0]))}</b> <small class="muted">${esc(tg[1])}</small>${cur != null && rnd(k, cur) === tg[0] ? ' <span class="moc-ok">✓ khớp</span>' : cur != null ? ` <span class="moc-dev">${tg[0] > cur ? '▲' : '▼'} ${esc(fmtV(k, Math.abs(tg[0] - cur)))}</span>` : ''}` : st ? '<span class="muted">chọn định vị</span>' : '<span class="muted">—</span>';
-      return `<tr class="c-${conf[0]}"><th>${esc(lb)}</th><td>${st ? `${esc(fmtV(k, st.min))} · <b>${esc(fmtV(k, st.med))}</b> · ${esc(fmtV(k, st.max))}<small>thấp · trung vị · cao</small>` : '<span class="muted">chưa có số</span>'}</td><td><span class="moc-conf" title="${esc(conf[1])}">${conf[0]}</span>${conf[0] !== 'đủ' ? ` <button type="button" class="rs-mini" data-gap="run" data-gk="${esc(k)}"${gapBusy ? ' disabled' : ''}>${gapBusy ? 'Đang tìm…' : 'Tìm thêm'}</button>` : ''}</td><td>${cur != null ? `<b>${esc(fmtV(k, cur))}</b>${me.est ? ' <small class="muted">(ước tính)</small>' : ''}` : '<span class="muted">chưa có</span>'}<small>${mocSrc(k)}</small></td><td>${mk}</td></tr>`; }).join('');
+      return `<tr class="c-${conf[0]}"><th>${esc(lb)}</th><td>${st ? `${esc(fmtV(k, st.min))} · <b>${esc(fmtV(k, st.med))}</b> · ${esc(fmtV(k, st.max))}<small>thấp · trung vị · cao</small>` : '<span class="muted">chưa có số</span>'}</td><td><span class="moc-conf" title="${esc(conf[1])}">${conf[0]}</span>${conf[0] === 'đủ' ? '' : gapBusy ? ' <small class="muted">máy đang tìm…</small>' : mocMiss(k) ? ` <button type="button" class="rs-mini" data-gap="run" data-gk="${esc(k)}">Tìm lại</button>` : ' <button type="button" class="rs-mini" data-gap="rivals">Thêm trung tâm</button>'}</td><td>${cur != null ? `<b>${esc(fmtV(k, cur))}</b>${me.est ? ' <small class="muted">(ước tính)</small>' : ''}` : '<span class="muted">chưa có</span>'}<small>${mocSrc(k)}</small></td><td>${mk}</td></tr>`; }).join('');
     const anyT = Object.keys(plan).length > 0;
     return `<div class="moc-pos"><span>Định vị PLS:</span>${Object.entries(POS).map(([v, [t, d]]) => `<button type="button" class="rs-map-fb${pos === v ? ' on' : ''}" data-pos="${v}" title="${esc(d)}">${t}</button>`).join('')}${pos ? `<small class="muted">${esc(POS[pos][1])}</small>` : '<small class="muted">chọn để máy đề xuất mốc</small>'}</div>` +
       `<table class="moc-t"><thead><tr><th>Thước đo</th><th>Thị trường (${esc(scopeLabel())})</th><th>Cơ sở</th><th>PLS hiện tại</th><th>Mốc PLS</th></tr></thead><tbody>${rows}</tbody></table>` +
@@ -1626,6 +1627,7 @@
     if (exIn.has(s)) { try { await exIn.get(s); } catch (e) {} return; }
     const run = (async () => { const ex = await readLink(s.url, pri); ex.at = Date.now(); s.ex = ex; return ex; })().finally(() => exIn.delete(s)); exIn.set(s, run);
     try { await run; } catch (e) { s.exErr = Date.now(); } }
+  const gqGrp = k => (GQ.find(g => g[0].test(k)) || [])[1];
   const gqOf = k => k === FPH ? ['học phí', 'lộ trình số buổi'] : k === HRS ? ['lộ trình số buổi'] : [(GQ.find(g => g[0].test(k)) || [])[1]].filter(Boolean);
   let fillChain = Promise.resolve();
   // gk: chỉ tìm cho một thước đo (nút "Tìm thêm" ở Bảng mốc) · các trung tâm chạy song song · điền bảng ngay khi xong từng trung tâm
@@ -1633,8 +1635,8 @@
     const topic = topicOf() || fold(String((p.brief || {}).lang || '').toLowerCase()), added = [], scope = gk ? gqOf(gk) : null, t0 = Date.now();
     const add = (o, c, why) => { const have = new Set(p.sources.map(x => normU(x.url || ''))); if (have.has(normU(o.url))) return null;
       const s = r.addSource({ kind: 'link', name: (o.title || o.url).slice(0, 80), url: cleanU(o.url), center: c, date: todayS(), note: 'Máy tự tìm cho ô thiếu: ' + why, autoName: !o.title, gap: 1, deep: why === 'website chính chủ' ? 'gaphome' : 'gap' }); added.push(s); return s; };
-    const grp = k => (GQ.find(g => g[0].test(k)) || [])[1], want = k => !scope || scope.includes(grp(k));
-    try { const cov = coverage(), todo = cov.rows.filter(x => x.miss.some(want));
+    const grp = gqGrp, want = k => !scope || scope.includes(grp(k));
+    try { const cov = coverage(), todo = cov.rows.filter(x => x.miss.some(want)), have0 = cov.have;
       if (!todo.length) { gapSay(scope ? `Các trung tâm đều đã có số “${gk}” – muốn mốc chắc hơn, bấm “Tìm thêm trung tâm”.` : 'Bảng đã đủ ô – không cần tìm thêm.'); if (scope) toast(`Các trung tâm hiện có đều đã có số “${gk}” – cần thêm trung tâm để mốc chắc hơn`); return; }
       let done = 0, filled = 0;
       const eta = () => { const s = Math.ceil(JQ.length * 3.1 + 6); return s > 90 ? '~' + Math.ceil(s / 60) + ' phút' : '~' + s + ' giây'; };
@@ -1660,10 +1662,11 @@
           await Promise.all(unread.map(s => preRead(s, 2)));
           const one = () => autoFill(new Set([c])); fillChain = fillChain.then(one, one); const res = await fillChain; filled += (res && res.filled) || 0;
         } catch (e) {} finally { done++; tick(); } }));
-      const after = coverage(), sec = Math.round((Date.now() - t0) / 1000);
-      gapSay(`Xong sau ${sec} giây: thêm ${added.length} nguồn · điền ${filled} ô · bảng có ${after.have}/${after.tot} ô.`);
-      toast(`Xong sau ${sec} giây: thêm ${added.length} nguồn, điền ${filled} ô – các ô vàng cần bạn kiểm`);
-    } catch (e) { gapSay('Lỗi: ' + e.message); } finally { gapBusy = false; bgEnd('gap'); await persist(); paintGap(); root.PLS_RESEARCH.show(); } }
+      const after = coverage(), sec = Math.round((Date.now() - t0) / 1000), more = Math.max(0, after.have - have0);
+      const numMiss = after.rows.reduce((a, r) => a + r.miss.filter(gqGrp).length, 0), qMiss = after.rows.reduce((a, r) => a + r.miss.filter(k => QUAL.test(k)).length, 0);
+      gapSay(`Xong (${sec} giây): lấp thêm ${more} ô${numMiss ? ` · ${numMiss} ô số liệu các trung tâm không công bố trên web` : ''}${qMiss ? ` · ${qMiss} ô mô tả chờ Claude đọc` : ''}.`);
+      if (more) toast(`Máy đã lấp thêm ${more} ô – ô vàng cần bạn kiểm`);
+    } catch (e) { gapSay('Lỗi: ' + e.message); } finally { gapBusy = false; bgEnd('gap'); try { p.gapSig = gapSig(); } catch (e) {} await persist(); paintGap(); root.PLS_RESEARCH.show(); } }
   // tìm thêm trung tâm cạnh tranh theo yêu cầu khóa học
   async function rivals(btn) { const p = P(); if (!p) return; const b = p.brief || {}, lang = b.lang || '', lv = b.level || '', topic = topicOf();
     const qs = [`khóa học ${topic || lang} ${lv} trung tâm`, `trung tâm ${topic || lang} học phí lộ trình ${lv}`, `${topic || lang} ${b.audience || ''} khóa học uy tín`].map(q => q.replace(/\s+/g, ' ').trim());
@@ -1690,7 +1693,14 @@
   function gapEnhance() { if (!gapWired) { gapWired = true;
       const st = document.createElement('style'); st.textContent = '.gap-box{border:1px solid var(--ui-line);border-radius:6px;padding:10px 12px;margin:0 0 12px;background:var(--ui-panel);font-size:12px}.gap-h{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.gap-h b{font-size:13px}.gap-h .btn{min-height:30px;padding:4px 12px;font-size:12px}.gap-sub{margin:6px 0 0}.gap-meter{display:inline-block;width:60px;height:6px;border-radius:3px;background:var(--ui-line);vertical-align:middle;overflow:hidden}.gap-meter.big{width:120px}.gap-meter i{display:block;height:100%;background:#2e7d32}.gap-log{margin:6px 0 0;padding-left:18px;color:#b85c3e}.gap-d{margin-top:8px}.gap-d summary{cursor:pointer;color:var(--ui-muted)}.gap-t{width:100%;border-collapse:collapse;margin-top:6px}.gap-t th,.gap-t td{text-align:left;vertical-align:top;padding:5px 6px;border-top:1px solid var(--ui-line)}.gap-t th{font-weight:600;min-width:120px}.gap-t th small{display:block;font-weight:400;color:var(--ui-muted)}.gap-t th small.no{color:#b85c3e}.gap-t td:nth-child(2){white-space:nowrap}.gap-miss{display:inline-block;border:1px dashed var(--ui-muted);border-radius:999px;padding:0 6px;margin:0 4px 3px 0;color:var(--ui-muted)}.gap-miss.q{border-color:#7a5bd1;color:#7a5bd1}.gap-ok{color:#2e7d32;font-weight:600}.gap-chk{color:#a06d00}.gap-old{color:#b85c3e}.gap-q{color:var(--ui-muted)}@media(max-width:700px){.gap-t td:nth-child(4){display:none}}'; document.head.appendChild(st);
       document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-gap]'); if (!t) return; if (t.dataset.gap === 'run') gapRun(t.dataset.gk || ''); if (t.dataset.gap === 'rivals') rivals(t); }); }
-    paintGap(); }
+    paintGap(); gapAuto(); }
+  // tự lấp chỗ thiếu: có trung tâm mới / ô số liệu còn trống → 6 giây sau máy tự tìm và điền ở nền, không cần bấm.
+  // Chỉ chạy lại khi tập ô thiếu đổi so với lần trước (không lặp vô hạn).
+  let gapAutoT = 0, gapAutoS = '';
+  const gapSig = () => { const cv = coverage(); return cv ? cv.rows.map(r => r.c + ':' + r.miss.filter(gqGrp).join('|')).filter(x => !/:$/.test(x)).join(';') : ''; };
+  function gapAuto() { const p = P(); if (!p || gapBusy || !(p.centers || []).length) return; const sig = gapSig();
+    if (!sig || sig === p.gapSig || (gapAutoT && gapAutoS === sig)) return; clearTimeout(gapAutoT); gapAutoS = sig;
+    gapAutoT = setTimeout(() => { gapAutoT = 0; const q = P(); if (q !== p || gapBusy || gapSig() !== sig) return; gapRun(); }, 6000); }
   // ---------- KHO CHỮ TRANG RIÊNG ----------
   // Trước: mỗi lần lưu ghi lại cả dự án kèm chữ mọi trang đã đọc (vài MB) → giật. Giờ: dự án lưu nhẹ (số liệu, ô, ghi chú),
   // chữ trang nằm kho 'pls-pages', chỉ ghi khi trang mới đọc / đổi. Mở khóa → máy nạp lại chữ trang vào bộ nhớ.
