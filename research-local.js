@@ -1437,6 +1437,22 @@
     const r = R(); if (!r || !r.addSource) return; const tx = String(d.text || '').trim(); if (tx.length < 40) { toast('Trang gửi về gần như trống – thử cuộn hết trang rồi bấm lại', true); return; }
     r.addSource({ kind: 'text', name: String(d.title || url).slice(0, 80), url, text: tx, center: '', date: todayS(), note: 'Gửi từ trình duyệt (đúng nội dung bạn đang xem)', autoName: !d.title });
     root.PLS_RESEARCH.show(); toast('Đã nhận trang “' + String(d.title || url).slice(0, 50) + '” – máy đang đọc'); }
+  // DÁN TRANG ĐÃ CHÉP: mở trang bất kỳ → Ctrl/⌘+A, Ctrl/⌘+C → về PLS bấm "Dán trang đã chép" (hoặc Ctrl/⌘+V trong hộp Thêm nguồn)
+  function onPasteHtml(html, plain) { const doc = html ? new DOMParser().parseFromString(html, 'text/html') : null;
+    const text = String(plain || (doc && doc.body ? doc.body.innerText || doc.body.textContent : '') || '').trim();
+    const links = doc ? [...doc.querySelectorAll('a[href]')].map(a => [a.getAttribute('href') || '', (a.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 140)]).filter(([u]) => /^https?:\/\//.test(u)) : [];
+    const seen = new Set(), items = [];
+    links.forEach(([u, t]) => { try { const h = new URL(u).hostname; if (SEARCH_HOST.test(h) || SOCIAL.test(h + '.') || /webcache|translate\.|accounts\.|support\./.test(h) || !urlOk(u) || !t || t.length < 8) return; const k = normU(u); if (seen.has(k)) return; seen.add(k); items.push({ title: t.slice(0, 110), url: cleanU(u) }); } catch (e) {} });
+    const sites = new Set(items.map(x => siteOf(x.url))).size, title = (text.split('\n').map(x => x.trim()).find(x => x.length > 8) || 'Trang đã dán').slice(0, 80);
+    const asText = () => { const r = R(); if (!r || !r.addSource) return; if (text.length < 40) { toast('Nội dung dán vào gần như trống – mở trang, bấm Ctrl/⌘+A rồi Ctrl/⌘+C và thử lại', true); return; }
+      const dl = document.getElementById('rsAddDlg'), u0 = dl && (dl.querySelector('#aQ') || {}).value || ''; const url = /^https?:\/\//.test(u0.trim()) ? u0.trim() : '';
+      r.addSource({ kind: 'text', name: title, url, text: text.slice(0, 200000), center: '', date: todayS(), note: 'Dán từ trình duyệt (đúng nội dung bạn đang xem)', autoName: true });
+      if (dl) dl.remove(); root.PLS_RESEARCH.show(); toast('Đã thêm nội dung trang “' + title.slice(0, 40) + '” – máy đang đọc'); };
+    if (sites >= 5) { const all = [{ title: '★ Lưu cả nội dung trang này làm 1 nguồn', url: 'pls:self', on: !/google|bing|duckduckgo|cốc cốc/i.test(text.slice(0, 400)) }].concat(items.slice(0, 40));
+      const dl = document.getElementById('rsAddDlg'); if (dl) dl.remove();
+      pickDlg('Trang vừa dán có nhiều link', `${items.length} link tới ${sites} website (ví dụ trang kết quả Google hay bài tổng hợp). Bỏ chọn link không cần – máy sẽ đọc hết phần còn lại${deepOn() ? ' và lấy thêm trang con của từng website' : ''}.`, all, 'Thêm nguồn đã chọn',
+        sel => { if (sel.some(x => x.url === 'pls:self')) asText(); addLinks(sel.filter(x => x.url !== 'pls:self')); }); return; }
+    asText(); }
   // nhận trang gửi về (luôn lắng nghe; mỗi lần gửi có mã riêng, chỉ nhận 1 lần)
   const capDone = new Set(); let capQ = Promise.resolve();
   window.addEventListener('message', e => { const d = e.data; if (!d || d.type !== 'pls-capture' || !d.id) return; try { e.source && e.source.postMessage('pls-got:' + d.id, '*'); } catch (er) {}
@@ -1462,8 +1478,10 @@
   function capEnhance() { const p = P();
     if (!capWired) { capWired = true;
       const st = document.createElement('style'); st.textContent = '.cap-bar{font-size:12px;border:1px solid var(--ui-line);background:var(--ui-beige);border-radius:6px;padding:6px 10px;margin:6px 0 10px}.cap-bar p{margin:3px 0}.cap-bar .rs-mini{margin-left:6px}.cap-run{color:#b85c3e}.cap-box{border-top:1px solid var(--ui-line);margin-top:10px;padding-top:10px;font-size:12px;display:flex;flex-direction:column;gap:8px}.cap-box label{display:flex;gap:6px;align-items:flex-start}.cap-bm{display:inline-block;padding:4px 10px;border:1.5px dashed #d97757;border-radius:6px;color:#b85c3e;font-weight:600;text-decoration:none;cursor:grab;margin-right:6px}#capMore li small{display:block}'; document.head.appendChild(st);
-      document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-cap],#aOk,.cap-bm'); if (!t) return;
-        if (t.classList.contains('cap-bm')) { e.preventDefault(); toast('Kéo nút này lên thanh dấu trang (không bấm ở đây). Sau đó mở trang cần lấy rồi bấm nút trên thanh dấu trang.'); return; }
+      document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-cap],#aOk'); if (!t) return;
+        if (t.dataset && t.dataset.cap === 'paste') { e.preventDefault();
+          (async () => { try { if (navigator.clipboard && navigator.clipboard.read) { const its = await navigator.clipboard.read(); for (const it of its) { if (it.types.includes('text/html')) { onPasteHtml(await (await it.getType('text/html')).text(), it.types.includes('text/plain') ? await (await it.getType('text/plain')).text() : ''); return; } if (it.types.includes('text/plain')) { onPasteHtml('', await (await it.getType('text/plain')).text()); return; } } }
+            onPasteHtml('', await navigator.clipboard.readText()); } catch (er) { toast('Trình duyệt chưa cho đọc bộ nhớ tạm – bấm Ctrl/⌘ + V ngay trong hộp này', true); } })(); return; }
         if (t.id === 'aOk') { const more = [...document.querySelectorAll('#capMore [data-mi]:checked')].map(c => ({ title: c.dataset.t, url: c.dataset.u })); if (more.length) setTimeout(() => addLinks(more), 400); return; }
         const p = P(); if (!p) return; const a = t.dataset.cap;
         if (a === 'deepall') { p.sources.filter(s => s.kind === 'link' && !s.parent && !s.deep && s.on !== false).forEach(s => { s.deep = 'queued'; crawl(s); }); persist(); paintCap(); }
@@ -1476,18 +1494,20 @@
             rs.flat().forEach(x => { const k = normU(x.url); if (seen.has(k) || have.has(k) || shown.has(x.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))) return; seen.add(k); all.push(x); });
             ul.innerHTML = all.length ? all.map((x, i) => `<li><label><input type="checkbox" data-mi="${i}" data-t="${esc(x.title)}" data-u="${esc(x.url)}" checked><span><b>${esc(x.title)}</b><small>${esc(x.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 70))}</small></span></label></li>`).join('') : '<li class="muted">Không thấy thêm kết quả mới.</li>';
             t.disabled = false; t.textContent = 'Tìm rộng hơn'; }); } }, true);
+      document.addEventListener('paste', e => { const dl = document.getElementById('rsAddDlg'); if (!dl || !e.clipboardData) return; const cd = e.clipboardData;
+        if ([...cd.items].some(i => i.kind === 'file')) return; if (e.target && e.target.id === 'aQ') return;   // dán link vào ô tìm: để nguyên
+        const html = cd.getData('text/html'), plain = cd.getData('text/plain'); if (!html && (plain || '').length < 200) return; e.preventDefault(); e.stopPropagation(); onPasteHtml(html, plain); }, true);
       document.addEventListener('change', e => { if (e.target && e.target.id === 'capDeep') { try { localStorage.setItem(DEEPK, e.target.checked ? '1' : '0'); } catch (er) {} } }); }
     // hộp Thêm nguồn: lấy sâu · tìm rộng · nút Gửi về PLS
     const dlg = document.getElementById('rsAddDlg'), find = dlg && dlg.querySelector('.rs-find');
     if (find && !dlg.querySelector('.cap-box')) { const b = document.createElement('div'); b.className = 'cap-box';
       b.innerHTML = `<div><button type="button" class="btn" data-cap="more">Tìm rộng hơn</button> <span class="muted">thêm 3 lượt tìm: học phí, lộ trình, đánh giá</span></div><ul class="rs-found" id="capMore"></ul>` +
         `<label><input type="checkbox" id="capDeep"${deepOn() ? ' checked' : ''}><span>Lấy thêm trang con liên quan của mỗi website (học phí, khóa học, lộ trình, khai giảng, PDF…) – tối đa 8 trang/website</span></label>` +
-        `<div><a class="cap-bm" href="${BM_HREF}" title="Kéo lên thanh dấu trang">⇪ Gửi về PLS</a><span class="muted">Kéo nút này lên thanh dấu trang một lần. Gặp trang máy không đọc được (Facebook, trang cần đăng nhập) hoặc trang kết quả Google: mở trang đó rồi bấm nút – PLS nhận đúng nội dung bạn đang xem.</span></div>`;
+        `<div><button type="button" class="btn" data-cap="paste">📋 Dán trang đã chép</button> <span class="muted">Trang máy không đọc được (Facebook, trang cần đăng nhập) hoặc trang kết quả Google: mở trang đó, bấm <b>Ctrl/⌘ + A</b> rồi <b>Ctrl/⌘ + C</b>, quay lại đây bấm nút này (hoặc <b>Ctrl/⌘ + V</b>).</span></div>`;
       find.after(b); }
     // tự lấy sâu các link vừa thêm
     if (p && deepOn()) p.sources.filter(s => s.kind === 'link' && !s.parent && !s.deep && s.added && Date.now() - s.added < 10 * 60000).forEach(s => { s.deep = 'queued'; crawl(s); });
     paintCap(); }
-
   function aiInfo() { const b = document.querySelector('#rsBridge'); if (!b) return; b.scrollIntoView({ behavior: 'smooth', block: 'start' }); b.style.transition = 'box-shadow .3s'; b.style.boxShadow = '0 0 0 3px #d97757'; setTimeout(() => { b.style.boxShadow = ''; }, 1600); }
   const toast = (t, bad) => { const el = document.createElement('div'); el.setAttribute('role', 'status'); el.textContent = t; el.style.cssText = `position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1002;background:${bad ? '#8a2a1b' : '#1f1f1f'};color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;max-width:90vw`; document.body.appendChild(el); setTimeout(() => el.remove(), 4200); };
   function enhance() {
