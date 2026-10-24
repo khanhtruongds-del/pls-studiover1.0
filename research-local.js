@@ -202,9 +202,12 @@
     Object.entries(byC).forEach(([c, ss]) => { const off = site(c);
       p.criteria.forEach(k => { const key = c + '||' + k, cur = p.cells[key]; if (cur && cur.kind === 'fact' && (!cur.auto || cur.ok)) return;
         if (QUAL.test(k)) return; const rule = RULES.find(r => r[0].test(k)); if (!rule) return; const bad = (BADCTX.find(b => b[0].test(k)) || [])[1]; let best = null, alt = 0;
-        ss.forEach(s => { const pages = s.ex && s.ex.pages ? s.ex.pages : [s.text || ''], trust = s.kind !== 'link' ? 4 : off && siteOf(s.url || '') === off ? 2 : 0;
+        ss.forEach(s => { if (offTopic(s) || otherProg(s.name + ' ' + (s.url || ''))) return;
+          const pages = s.ex && s.ex.pages ? s.ex.pages : [s.text || ''], trust = s.kind !== 'link' ? 4 : off && siteOf(s.url || '') === off ? 2 : 0;
           pages.forEach((pg, i) => { const pr = Math.min(4, relOf(pg.slice(0, 4000), T)); sentences(pg, 8).forEach((x, j) => { if (isNav(x)) return;
-            if (bad && bad.test(x)) return; if (/phút|thời lượng buổi/i.test(k) && !/buổi|ca học|tiết học|session|lesson|class/i.test(x)) return; const v = rule[1](x); if (!v || !okVal(v, k, x)) return; alt++;
+            if (bad && bad.test(x)) return; if (otherProg(x)) return;
+            if (/đầu ra|cam kết/i.test(k) && !/cam kết|đầu ra|đảm bảo|bảo đảm|mục tiêu|target|guarantee/i.test(x)) return;
+            if (/phút|thời lượng buổi/i.test(k) && !/buổi|ca học|tiết học|session|lesson|class/i.test(x)) return; const v = rule[1](x); if (!v || !okVal(v, k, x)) return; alt++;
             const sc = trust + pr + relOf(x, T) * 2 + (/học phí|chi phí/i.test(k) && /khóa|trọn gói|toàn khóa|lộ trình/i.test(x) ? 1 : 0) - j / 2000;
             if (!best || sc > best.sc) best = { sc, v: String(v), q: x.slice(0, 220), src: s.id, page: pages.length > 1 ? String(i + 1) : '' }; }); }); });
         if (best) { p.cells[key] = { v: best.v, q: best.q, src: best.src, page: best.page, kind: 'fact', auto: true, alt }; n++; } else missing++; }); });
@@ -371,7 +374,10 @@
     const cands = [...new Set([root, root.replace(/(edu|english|toeic|ielts|speak|online|academy|center|centre)$/, '')])].filter(x => x.length >= 2);
     const key = w => fold(w).toLowerCase().replace(/[^a-z0-9]/g, '');
     const t = (ex.title || s.name || '').match(/\s[-|–]\s([^-|–]{2,40})$/);
-    if (t && validCenter(t[1].trim()) && cands.some(c => key(t[1]).includes(c) || c.includes(key(t[1])))) return t[1].trim();
+    if (t && validCenter(t[1].trim()) && cands.some(c => key(t[1]).includes(c) || c.includes(key(t[1])))) {
+      const w = t[1].trim().split(/\s+/);   // "900+ Tại MrH TOEIC" → "MrH TOEIC": lấy cụm từ cuối ngắn nhất còn chứa tên miền
+      for (let i = w.length - 1; i >= 0; i--) { const v = w.slice(i).join(' '); if (cands.some(c => key(v).includes(c) || (c.includes(key(v)) && key(v).length >= 3 && i === 0))) return v; }
+      return t[1].trim(); }
     const toks = [ex.title || '', ...(ex.pages || []).slice(0, 2)].join('\n').slice(0, 30000).match(/[\p{L}\d][\p{L}\d’'.&-]*/gu) || [], count = {};
     for (let i = 0; i < toks.length; i++) for (let n = 1; n <= 4 && i + n <= toks.length; n++) {
       const seq = toks.slice(i, i + n), k = key(seq.join('')); if (!cands.includes(k)) continue;
@@ -1463,7 +1469,7 @@
 
   // ---------- LẤY NGUỒN TRIỆT ĐỂ (máy làm, 0 token): lấy cả website · tìm rộng · nhặt link từ bài tổng hợp · nút "Gửi về PLS" ----------
   const PLS_URL = location.origin + location.pathname.replace(/[^/]*$/, '');
-  const DEEPK = 'pls.deep', deepOn = () => { try { return localStorage.getItem(DEEPK) !== '0'; } catch (e) { return true; } };
+  const DEEPK = 'pls.deep', deepOn = () => { try { return localStorage.getItem(DEEPK) === '1'; } catch (e) { return false; } };   // mặc định TẮT (chạy thử 24/10: 3 trang → 30 nguồn, lẫn IELTS/SAT/HSK)
   const todayS = () => new Date().toISOString().slice(0, 10);
   // hàng chờ đọc trang qua r.jina.ai (giới hạn ~20 trang/phút) → giãn 3,2 giây/lần
   // không chờ trang trước xong mới gọi trang sau: chỉ giãn nhịp bắt đầu (≤ 19 trang/phút), tối đa 6 trang chạy cùng lúc, việc người dùng bấm được ưu tiên
@@ -1493,12 +1499,19 @@
     if (/\.pdf(\?|$)/i.test(l.url)) s += 3; if (topic && t.includes(topic)) s += 2;
     if (/tin[ -]?tuc|blog|news|tu[ -]?hoc|meo|bai[ -]?viet|kinh nghiem|tuyen dung|lien he|contact|gioi thieu|about/.test(t)) s -= 3; return s; }
   const topicOf = () => { const b = (P() || {}).brief || {}; return fold(String(b.lang || b.level || '').toLowerCase()).split(/\s+/).find(w => /toeic|ielts|hsk|jlpt|topik|vstep|sat|cambridge|anh|trung|nhat|han|duc|phap/.test(w)) || ''; };
+  // trang / câu nói về kỳ thi hay đối tượng khác với yêu cầu khóa (VD khóa TOEIC mà trang là IELTS, SAT, trẻ em) → bỏ
+  const OTHERP = ['toeic', 'ielts', 'toefl', 'vstep', 'hsk', 'jlpt', 'topik', 'delf', 'pte', 'starters', 'movers', 'flyers', 'junior', 'kids', 'tre em', 'thieu nhi'];
+  function otherProg(t) { const mine = myExam(); if (!mine.length) return false; let raw = String(t || ''); try { raw = decodeURIComponent(raw); } catch (e) {}
+    const f = ' ' + fold(raw.toLowerCase()).replace(/[^a-z0-9]+/g, ' ') + ' ';
+    if (mine.some(e => f.includes(' ' + e + ' '))) return false;
+    return OTHERP.filter(e => !mine.includes(e)).some(e => f.includes(' ' + e + ' ')) || /\bSAT\b|\/sat[\/-]|khoa-hoc-sat/.test(raw); }   // SAT: chỉ chữ in hoa / trong link (tránh "sát đề")
   let capMsg = '', capBusy = 0;
   // collect: mảng gom nguồn (khi máy đang tự lấp chỗ thiếu) → chưa thêm vào dự án, không vẽ lại giao diện
   async function crawl(s, collect) { const p = P(); if (!p) return; const r = R(); if (!r || !r.addSource) return; const root0 = rootOf(s.url);
     capBusy++; bgSet('crawl' + s.id, `Lấy trang con của ${s.center || root0}`);
     try { const md = await jina(s.url, true), L = parseLinks(md), topic = topicOf(), have = new Set(p.sources.concat(collect || []).map(x => normU(x.url || '')));
       const subs = L.filter(l => urlOk(l.url) && rootOf(l.url) === root0 && normU(l.url) !== normU(s.url) && !have.has(normU(l.url)))
+        .filter(l => !otherProg(l.text + ' ' + l.url))
         .map(l => Object.assign(l, { sc: scoreSub(l, topic) })).filter(l => l.sc >= 3).sort((a, b) => b.sc - a.sc).slice(0, 8);
       subs.forEach(l => (collect ? x => collect.push(Object.assign(x, { _par: s })) : r.addSource)({ kind: 'link', name: (l.text || l.url.replace(/^https?:\/\/(www\.)?/, '')).slice(0, 80), url: l.url, center: s.center || '', date: todayS(), note: 'Trang con của ' + s.id, parent: s.id, autoName: !l.text }));
       // bài tổng hợp: nhiều website khác được nhắc tới → gợi ý thêm
