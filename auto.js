@@ -106,7 +106,7 @@
     for (const r of rows) {
       const kind = KIND(S(r['Dạng câu'])); if (!kind) continue;
       let q = S(r['Câu hỏi']).replace(/^\[[^\]]{1,80}\]\s*/, ''); let ins = S(r['Hướng dẫn làm bài']) || defIns || '';
-      const m = q.match(/^([^:：]{6,70})[:：]\s*(.+)$/), INS = /^(chọn|điền|nối|sắp xếp|hoàn thành|viết|dịch|đọc|nghe|gạch|khoanh|tìm|chia|trả lời|đánh dấu|choose|fill|complete|match|write|translate|read|listen|circle|underline|order|rewrite|select)/i;
+      const m = q.match(/^([^:：]{6,70})[:：]\s*(.+)$/), INS = /^(chọn|điền|nối|sắp xếp|hoàn thành|viết|dịch|đọc|nghe|gạch|khoanh|tìm|chia|trả lời|đánh dấu|thu âm|ghi âm|nói|nhìn|thêm|sửa|quan sát|xem|luyện|part\s*\d|choose|fill|complete|match|write|translate|read|listen|circle|underline|order|rewrite|select|record|say|look)/i;
       if (m && INS.test(m[1].trim())) { ins = ins || m[1]; q = m[2]; }   // QC F02: ngữ cảnh ("Bạn cầm hai quả cam trong tay: ___ are oranges.") phải ở lại trong câu
       const ctx = S(r['Đoạn văn / ngữ cảnh']); if (ctx && ctx.length <= 140 && kind === 'mc' && !q.includes(ctx)) q = ctx + ' – ' + q;   // ngữ cảnh ngắn mới ghép vào câu; đoạn dài (bài đọc) để nguyên chỗ khác
       const part = S(r['Phần']) + '|' + kind + '|' + ins;
