@@ -181,9 +181,9 @@
           const exv = exs.filter(e => e.vi);
           if (exv.length >= 2 && root.PLS_TPL && root.PLS_TPL.slides['Slide/CCQ']) {
             const short = tn.replace(/\s*\(.*\)$/, ''), d = { title: 'Đúng hay sai? – ' + (short.length > 40 ? short.slice(0, 40).replace(/\s+\S*$/, '') + '…' : short) }, why = [];
-            for (let i = 1; i <= 4; i++) { const e = exv[i - 1]; if (!e) { ['no', 'text', 'ans.val'].forEach(k => { d[`q_${i}.${k}`] = ''; }); continue; }
+            for (let i = 1; i <= 4; i++) { const e = exv[i - 1]; if (!e) { ['no', 'text', 'ans.val'].forEach(k => { d[`c_${i}.${k}`] = ''; }); continue; }
               const wrong = i === 2 ? exv.find(x => x !== e && x.vi !== e.vi) : null;
-              d[`q_${i}.no`] = String(i); d[`q_${i}.text`] = `“${e.de}” nghĩa là: ${(wrong || e).vi.replace(/[.!?]$/, '')}?`; d[`q_${i}.ans.val`] = wrong ? 'Sai' : 'Đúng'; why.push(`${i}. ${wrong ? 'Sai – đúng là: ' + e.vi : 'Đúng'}`); }
+              d[`c_${i}.no`] = String(i); d[`c_${i}.text`] = `“${e.de}” nghĩa là: ${(wrong || e).vi.replace(/[.!?]$/, '')}?`; d[`c_${i}.ans.val`] = wrong ? 'Sai' : 'Đúng'; why.push(`${i}. ${wrong ? 'Sai – đúng là: ' + e.vi : 'Đúng'}`); }
             slides.push({ comp: 'Slide/CCQ', data: sec(L.grammar, d), notes: NOTE({ g: ['Đọc từng câu, cả lớp giơ tay Đúng / Sai rồi mới bấm hiện đáp án.', 'Hỏi thêm: dấu hiệu nào trong câu cho em biết?', ...why] }) });
           }
           let qs = gq.filter(r => S(r['Mã ngữ pháp']) && S(r['Mã ngữ pháp']) === S(g['Mã mục']) && isB(r, buoi));
