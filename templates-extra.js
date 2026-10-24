@@ -171,7 +171,9 @@
     Object.assign(box.style, { justifyContent: 'flex-start', gap: '28px', rowGap: '28px' });
     for (let i = 1; i <= n; i++) { const st = rootEl.querySelector(`[data-n="step_${i}"]`); if (!st) continue; st.style.alignItems = 'flex-start'; st.style.position = 'relative';
       const nb = st.querySelector(`[data-n="step_${i}.no_box"]`); if (nb) { nb.style.position = 'relative'; nb.style.zIndex = '1'; }
-      if (i < n) st.insertAdjacentHTML('afterbegin', `<div data-n="step_${i}.line" style="${BOX}position:absolute;left:42px;top:71px;width:4px;height:calc(100% - 28px);background-color:${C.primary};z-index:0"></div>`); }
+      if (i < n) { const pl = parseFloat(st.style.paddingLeft) || 24, w = nb ? (parseFloat(nb.style.minWidth || nb.style.width) || 56) : 56; st.insertAdjacentHTML('beforeend', `<div data-n="step_${i}.line" data-gapline="1" style="${BOX}position:absolute;left:${pl + w / 2 - 2}px;top:calc(100% + 6px);width:4px;height:16px;background-color:${C.primary};border-radius:2px;z-index:0"></div>`); } }
+    // nét nối chỉ nằm trong khe giữa 2 thẻ, căn giữa vòng số: đo lại sau khi slide đã dàn trang (khoảng cách / lề có thể đổi sau hook)
+    if (!root.__plsGapLine) { root.__plsGapLine = 1; setInterval(() => document.querySelectorAll('[data-gapline]').forEach(l => { const s = l.parentElement, nx = s && s.nextElementSibling, nbx = s && s.querySelector('[data-n$=".no_box"]'); if (!nbx || !nbx.offsetWidth) return; const L = (nbx.offsetLeft + nbx.offsetWidth / 2 - 2) + 'px'; if (l.style.left !== L) l.style.left = L; if (nx && s.offsetHeight) { const g = nx.offsetTop - s.offsetTop - s.offsetHeight; if (g > 14) { const H = (g - 12) + 'px'; if (l.style.height !== H) l.style.height = H; } } }), 700); }
   };
   root.PLS_TPL_EXTRA = ['Slide/Pronunciation Linking', 'Slide/Grammar Rule Split', 'Slide/Dialogue Bubbles', 'Slide/Summary Homework', 'Slide/Pronunciation Steps', 'Slide/Focus Question', 'Slide/Vocab Picture', 'Slide/Vocab Map'];
 })(typeof window !== 'undefined' ? window : globalThis);
