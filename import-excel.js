@@ -13,9 +13,17 @@
   const LANG = { 'Creative English': 'en', 'Betreux': 'de', 'Créatis': 'fr', 'Saechang': 'ko', 'Sakumi': 'ja', 'Đắc Nhân': 'zh' };
 
   // ---------- đọc workbook (SheetJS) → { tab: [ {cột: giá trị} ] }, dòng tiêu đề = dòng đầu có ≥ 3 ô ----------
+  // QC 24/10 (F01): ô định dạng giờ/ngày (h:mm, dd/mm/yyyy…) đọc thô ra 0.375 → dùng đúng chữ Excel hiển thị. Chỉ xét ô có định dạng giờ/ngày, không đụng số thường.
+  function timeCells(ws) { for (const k in ws) { if (k[0] === '!') continue; const c = ws[k]; if (!c || c.t !== 'n' || !c.z || c.z === 'General') continue;
+      const z = String(c.z).replace(/"[^"]*"|\[[^\]]*\]/g, ''); if (!/[hs]|[dy]|mmm/i.test(z) || /[0#]/.test(z)) continue;
+      let w = c.w; if (!w && /h/i.test(z)) { const m = Math.round((c.v % 1) * 1440); w = String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
+      if (w) { c.t = 's'; c.v = w; } } }
+  // một Mã bài có thể gồm nhiều đoạn (nhiều hội thoại / văn bản, câu số đánh lại từ 1) → tách theo tiêu đề, giữ thứ tự xuất hiện (QC F03/F04)
+  const segs = (rows, tk, sortF) => { const m = new Map(); rows.forEach(r => { const k = S(r[tk]); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }); return [...m.values()].map(g => g.slice().sort(sortF)); };
   function readWorkbook(wb, XLSX) {
     const out = {};
     for (const name of wb.SheetNames) {
+      timeCells(wb.Sheets[name]);
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null, raw: true }).filter(r => r.some(c => c !== null && c !== ''));
       const hi = rows.findIndex(r => r.filter(c => c !== null && c !== '').length >= 2);   // tab 2 cột (Mục / Nội dung) cũng có tiêu đề
       if (hi < 0) { out[name] = []; continue; }
@@ -218,8 +226,9 @@
           const r0 = ls[0] || {}; const title = [S(r0['Tiêu đề bài nghe']), S(r0['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || c;
           if (q.length) { const d = { track: title, task: 'Nghe và trả lời câu hỏi.', 'task.vi': '' }; let tot = 0; q.map(x => S(x['Câu hỏi']).replace(/^\[[^\]]{1,80}\]\s*/, '')).filter((t, i) => i < 4 && (i === 0 || (tot += t.length) <= 260) && (i > 0 || (tot = t.length))).forEach((t, i) => { d[`q_${i + 1}.no`] = String(i + 1); d[`q_${i + 1}.text`] = t; }); /* câu hỏi trước khi nghe: tối đa 4 câu, ≤ 260 ký tự cho khỏi co chữ */ slides.push({ comp: 'Slide/Listening', data: sec(L.listen || L.speak, d) }); }
           if (q.length) { const ex = A.exercises(q, L.listen || L.speak, no, 'Nghe đoạn ghi âm rồi chọn đáp án đúng.'); no = ex.next; slides.push(...ex.groups); keys.push(...ex.keys); }
-          if (ls.length) slides.push({ auto: 'dlg', section: L.listen || L.speak, situation: 'Lời bài nghe: ' + title, lines: ls.map(r => ({ sp: S(r['Vai / nhân vật']) || '–', de: S(r['Câu']), vi: S(r['Nghĩa']) })),
-            notes: NOTE({ g: ['Chỉ mở lời bài sau khi HV đã nghe và trả lời câu hỏi.', 'Nghe lại từng đoạn, dừng ở câu chứa đáp án.', S(r0['File audio']) ? 'Audio: ' + S(r0['File audio']) : ''], l: ls.filter(r => S(r['Mốc thời gian'])).slice(0, 8).map(r => `${S(r['Mốc thời gian'])} – ${S(r['Câu'])}`) }) });
+          for (const g of segs(ls, 'Tiêu đề bài nghe', (a, b) => (+a['Câu số'] || 0) - (+b['Câu số'] || 0))) { const r1 = g[0] || {}, t1 = [S(r1['Tiêu đề bài nghe']), S(r1['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || title;
+            slides.push({ auto: 'dlg', section: L.listen || L.speak, situation: 'Lời bài nghe: ' + t1, lines: g.map(r => ({ sp: S(r['Vai / nhân vật']) || '–', de: S(r['Câu']), vi: S(r['Nghĩa']) })),
+            notes: NOTE({ g: ['Chỉ mở lời bài sau khi HV đã nghe và trả lời câu hỏi.', 'Nghe lại từng đoạn, dừng ở câu chứa đáp án.', S(r1['File audio']) ? 'Audio: ' + S(r1['File audio']) : ''], l: g.filter(r => S(r['Mốc thời gian'])).slice(0, 8).map(r => `${S(r['Mốc thời gian'])} – ${S(r['Câu'])}`) }) }); }
         }
         if (keys.length) slides.push(...A.answerSlides(keys, L.answers || L.listen, 'Đáp án bài nghe'));
       } else if (/^đọc/.test(n) && !used.has('read') && root.PLS_AUTO) {
@@ -232,8 +241,9 @@
         for (const c of codes) {
           const ls = lines.filter(r => S(r['Mã bài']) === c).sort((a, b) => ((+a['Đoạn'] || 0) - (+b['Đoạn'] || 0)) || ((+a['Câu số'] || 0) - (+b['Câu số'] || 0))), q = qs.filter(r => S(r['Mã bài']) === c);
           const r0 = ls[0] || {}; const title = [S(r0['Tiêu đề bài đọc']), S(r0['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || c;
+          for (const g of segs(ls, 'Tiêu đề bài đọc', (a, b) => ((+a['Đoạn'] || 0) - (+b['Đoạn'] || 0)) || ((+a['Câu số'] || 0) - (+b['Câu số'] || 0)))) { const r1 = g[0] || {}, title = [S(r1['Tiêu đề bài đọc']), S(r1['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || c, ls = g;
           const paras = []; let cur = null; for (const r of ls) { const p = String(r['Đoạn'] || 1); if (!cur || cur.p !== p) { cur = { p, t: [] }; paras.push(cur); } cur.t.push(S(r['Câu'])); }
-          if (paras.length) slides.push({ auto: 'read', section: L.read || L.speak, tag: 'Reading', title, paras: paras.map(x => x.t.join(' ')), notes: NOTE({ t: T, g: [`Bài đọc: ${title}.`, 'Cho HV đọc thầm 2–3 phút, gạch chân từ mới; sau đó đọc mẫu từng đoạn.', ...ls.slice(0, 12).map(r => `${S(r['Câu'])} – ${S(r['Nghĩa'])}`)], l: ['Hỏi ý chính từng đoạn trước khi chuyển sang câu hỏi.'] }) });
+          if (paras.length) slides.push({ auto: 'read', section: L.read || L.speak, tag: 'Reading', title, paras: paras.map(x => x.t.join(' ')), notes: NOTE({ t: T, g: [`Bài đọc: ${title}.`, 'Cho HV đọc thầm 2–3 phút, gạch chân từ mới; sau đó đọc mẫu từng đoạn.', ...ls.slice(0, 12).map(r => `${S(r['Câu'])} – ${S(r['Nghĩa'])}`)], l: ['Hỏi ý chính từng đoạn trước khi chuyển sang câu hỏi.'] }) }); }
           if (q.length) { const ex = A.exercises(q, L.read || L.speak, no, 'Đọc bài rồi chọn đáp án đúng.'); no = ex.next; slides.push(...ex.groups); keys.push(...ex.keys); }
         }
         if (keys.length) slides.push(...A.answerSlides(keys, L.answers || L.read, 'Đáp án bài đọc'));
