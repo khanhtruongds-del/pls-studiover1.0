@@ -59,7 +59,7 @@
     if (speak.length) { SEC('Mẫu câu giao tiếp');
       for (const [pi, part] of chunkEven(speak, 8).entries()) { const d = { 'row_0.c1': 'Câu', 'row_0.c2': 'Nghĩa' }; part.forEach((r, i) => { d[`row_${i + 1}.c1`] = S(r['Câu']); d[`row_${i + 1}.c2`] = S(r['Nghĩa']); }); B('Block/Table N', d); if (pi) out[out.length - 1].cont = true; } }
 
-    const segs = (rows, tk) => { const m = new Map(); rows.forEach(r => { const x = S(r[tk]); if (!m.has(x)) m.set(x, []); m.get(x).push(r); }); return [...m.values()]; };   // QC F03/F04: tách đoạn theo tiêu đề
+    const segs = (rows, tk) => { const m = new Map(); rows.forEach(r => { const x = S(r['Mã đoạn']) || S(r[tk]); if (!m.has(x)) m.set(x, []); m.get(x).push(r); }); return [...m.values()]; };   // QC F03/F04: tách đoạn theo tiêu đề
     const lis = tab(s6, /^S6-Nghe$/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Câu'])), lq = tab(s6, /Nghe câu hỏi/).filter(r => isB(r, buoi) && onPDF(r));
     if (lis.length || lq.length) { SEC('Nghe');
       for (const c of [...new Set(lis.map(r => S(r['Mã bài'])).concat(lq.map(r => S(r['Mã bài']))))].filter(Boolean)) {
