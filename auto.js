@@ -108,7 +108,7 @@
       let q = S(r['Câu hỏi']).replace(/^\[[^\]]{1,80}\]\s*/, ''); let ins = S(r['Hướng dẫn làm bài']) || defIns || '';
       const m = q.match(/^([^:：]{6,70})[:：]\s*(.+)$/), INS = /^(chọn|điền|nối|sắp xếp|hoàn thành|viết|dịch|đọc|nghe|gạch|khoanh|tìm|chia|trả lời|đánh dấu|choose|fill|complete|match|write|translate|read|listen|circle|underline|order|rewrite|select)/i;
       if (m && INS.test(m[1].trim())) { ins = ins || m[1]; q = m[2]; }   // QC F02: ngữ cảnh ("Bạn cầm hai quả cam trong tay: ___ are oranges.") phải ở lại trong câu
-      const ctx = S(r['Đoạn văn / ngữ cảnh']); if (ctx && kind === 'mc' && !q.includes(ctx)) q = ctx + ' – ' + q;
+      const ctx = S(r['Đoạn văn / ngữ cảnh']); if (ctx && ctx.length <= 140 && kind === 'mc' && !q.includes(ctx)) q = ctx + ' – ' + q;   // ngữ cảnh ngắn mới ghép vào câu; đoạn dài (bài đọc) để nguyên chỗ khác
       const part = S(r['Phần']) + '|' + kind + '|' + ins;
       if (!cur || cur.part !== part) { cur = { auto: 'ex', kind, instruction: ins, section: sec, items: [], part }; groups.push(cur); }
       const x = { no: no++, q, why: S(r['Giải thích']) };
