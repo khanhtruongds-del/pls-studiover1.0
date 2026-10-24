@@ -248,7 +248,7 @@
     P.cmpSuggest = (d.suggest || []).filter(x => x && !P.criteria.includes(x)).slice(0, 6); P.cmpSummary = d.summary || ''; P.cmpAt = Date.now();
     log('So sánh ' + (d.cells || []).length + ' ô');
   }
-  function cmpText() { return P.centers.map(c => c + ': ' + P.criteria.map(k => { const x = P.cells[c + '||' + k]; return k + ' = ' + (x ? x.v : 'chưa rõ'); }).join('; ')).join('\n'); }
+  function cmpText() { return P.centers.map(c => c + ': ' + P.criteria.map(k => { const x = P.cells[c + '||' + k]; return k + ' = ' + (x ? x.v + (x.auto && !x.ok ? ' (máy đọc, chưa kiểm – có thể sai, đối chiếu nguồn ' + (x.src || '') + ')' : '') : 'chưa rõ'); }).join('; ')).join('\n'); }
   async function outline() { AI.ctx = { kind: 'outline', args: [] };
     const b = P.brief, { parts, tools } = await sourceParts();
     const prompt = `ĐỊNH HƯỚNG KHUNG KHÓA HỌC cho trung tâm PLS.\nYêu cầu: ngôn ngữ dạy: ${b.lang || '?'}; cấp độ đầu ra: ${b.level || '?'}; đối tượng: ${b.audience || '?'}; số buổi: ${b.sessions}; phút/buổi: ${b.minutes}; ghi chú: ${b.extra || 'không'}.\n` + (root.PLS_LOCAL && root.PLS_LOCAL.briefText ? root.PLS_LOCAL.briefText() : '') +
@@ -458,8 +458,8 @@
       const h = blk.match(/^\[([^\]]+)\]\(([^)\s]+)/); if (!h || /duckduckgo\.com\/y\.js|ad_domain|ad_provider/.test(h[2])) continue;   // bỏ quảng cáo
       const url = real(h[2]); if (!/^https?:\/\//.test(url) || seen.has(url)) continue; seen.add(url);
       const sn = (blk.split('\n').map(x => x.trim()).filter(x => /^\[[^!]/.test(x) && x.length > 80).pop() || '').replace(/^\[/, '').replace(/\]\([^)]*\)\s*$/, '').replace(/\*\*/g, '');
-      const title = h[1].replace(/\*\*/g, ''), cm = title.match(/\s[-|–]\s([^-|–]{2,40})$/);
-      out.push({ title, url, center: cm ? cm[1].trim() : '', snippet: sn === title ? '' : sn.slice(0, 160) });
+      const title = h[1].replace(/\*\*/g, '');   // trung tâm: để máy đoán theo tên miền (đuôi tiêu đề hay dính chữ, VD "900+ Tại MrH TOEIC")
+      out.push({ title, url, center: '', snippet: sn === title ? '' : sn.slice(0, 160) });
       if (out.length >= 10) break;
     }
     return out;
