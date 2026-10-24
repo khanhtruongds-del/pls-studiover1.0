@@ -83,6 +83,11 @@
 
     const hw = tab(s6, /BTVN/).filter(r => isB(r, buoi) && onPDF(r));
     if (hw.length) { SEC('Bài tập về nhà'); exercises(hw, ''); }
+    // TỰ ĐÁNH GIÁ cuối bài (như Cambridge "Review your progress"): mỗi mục tiêu khoanh 3 / 2 / 1
+    if (objs.length >= 2) { SEC('Tự đánh giá'); const d = { 'row_0.c1': 'Sau bài học, mình có thể…', 'row_0.c2': '3', 'row_0.c3': '2', 'row_0.c4': '1' };
+      objs.forEach((t, i) => { d[`row_${i + 1}.c1`] = t.replace(/^học viên\s+(sẽ\s+)?/i, '').replace(/^./, c => c.toUpperCase()); d[`row_${i + 1}.c2`] = '○'; d[`row_${i + 1}.c3`] = '○'; d[`row_${i + 1}.c4`] = '○'; });
+      B('Block/Table N', d); out[out.length - 1].role = 'self';
+      B('Block/Paragraph', { text: '3 = làm tốt · 2 = tạm được · 1 = cần ôn thêm. Mục nào chọn 1: xem lại phần đó trong sách trước buổi sau.' }); }
 
     if (keys.length) { SEC('Đáp án');
       // ĐÁP ÁN THEO MỤC → THEO BÀI (người dùng chốt 23/10: như sách giáo trình – không dồn 1 khối chữ chạy liền):
@@ -194,7 +199,7 @@
       el.querySelectorAll('[data-n$="_cell"]').forEach(c => { Object.assign(c.style, { justifyContent: 'flex-start', padding: '5px 8px' }); const t = c.querySelector('[data-text]'); if (t) t.style.textAlign = 'left'; });
       el.querySelectorAll('[data-n^="row_"]').forEach(r => { if (!/^row_\d+$/.test(r.dataset.n)) return; r.style.height = 'auto'; const c1 = r.querySelector('[data-n="c1"]'); if (c1 && r.dataset.n !== 'row_0') c1.style.fontWeight = '600'; });
       // bảng đáp án: cột số câu hẹp, căn giữa, màu brand; giải thích chiếm phần lớn bề ngang
-      const AW = b && { ans3: { c1: 9, c2: 28, c3: 63 }, ans2: { c1: 10, c2: 90 }, ansgrid: { c1: 7, c2: 18, c3: 7, c4: 18, c5: 7, c6: 18, c7: 7, c8: 18 } }[b.role];
+      const AW = b && { ans3: { c1: 9, c2: 28, c3: 63 }, ans2: { c1: 10, c2: 90 }, ansgrid: { c1: 7, c2: 18, c3: 7, c4: 18, c5: 7, c6: 18, c7: 7, c8: 18 }, self: { c1: 76, c2: 8, c3: 8, c4: 8 } }[b.role];
       if (AW) el.querySelectorAll('[data-n$="_cell"]').forEach(c => { const k = c.dataset.n.replace('_cell', ''); if (!AW[k]) return; c.style.flex = `${AW[k]} 1 0px`;
         const num = AW[k] <= 10; if (num) { c.style.justifyContent = 'center'; c.style.padding = '5px 4px'; const t = c.querySelector('[data-text]'); if (t) { t.style.textAlign = 'center'; t.style.fontWeight = '700'; t.style.color = 'var(--color-primary-ink, var(--color-primary, #406864))'; } }
         else if (b.role === 'ans3' && k === 'c3') { const t = c.querySelector('[data-text]'); if (t) t.style.fontWeight = '400'; } });
