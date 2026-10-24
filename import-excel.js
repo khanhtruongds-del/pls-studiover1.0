@@ -177,7 +177,10 @@
       } else if (/nói/.test(n) && !used.has('speak')) {
         used.add('speak'); divider(st.name, mins);
         const groups = {}; speak.forEach(r => { const k = S(r['Chủ đề / tình huống']) || S(r['Mã bài']); (groups[k] = groups[k] || []).push(r); });
-        for (const [title, all] of Object.entries(groups)) {
+        for (const [full, all] of Object.entries(groups)) {
+          // tình huống dài kiểu "Trả lời theo lịch tour cho sẵn: Monday 8:00 …" → tiêu đề = phần trước dấu hai chấm; phần thông tin lên 1 slide Key Point riêng (không để tiêu đề 3 dòng)
+          const cm = full.length > 60 && full.match(/^([^:]{4,60}):\s*(.+)$/), title = cm ? cm[1].trim() : full;
+          if (cm) slides.push({ comp: 'Slide/Key Point', data: sec(L.speak, Object.assign({ title, point: cm[2].trim(), note: '' }, Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map(i => ['chip_' + i, ''])))), notes: NOTE({ g: ['Cho HV đọc thông tin trước khi luyện nói: ' + cm[2].trim()] }) });
           // HỘI THOẠI (Loại = Hội thoại): 2 vai, ≤ 6 câu, câu ngắn → bong bóng (mẫu bổ sung); dài hơn → máy chọn Dialogue / Dialogue Long
           const dl = all.filter(r => /hội thoại/i.test(S(r['Loại']))), rows = all.filter(r => !/hội thoại/i.test(S(r['Loại'])));
           // CÂU HỎI TRỌNG TÂM (mẫu bổ sung): mẫu câu hỏi đầu tiên có ≥ 2 từ thay thế → câu hỏi lớn giữa slide + chip từ thay thế, trước danh sách mẫu câu
