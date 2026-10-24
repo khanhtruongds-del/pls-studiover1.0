@@ -242,7 +242,7 @@
     const title = ctx.kind === 'ask' ? 'Hỏi: ' + String(ctx.args[0] || '').replace(/\s+/g, ' ').slice(0, 80) : (KINDS[ctx.kind] || 'Yêu cầu') + (ctx.args[0] != null ? ' ' + ctx.args[0] : '');
     const id = 'C' + Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 4);
     await Q.put({ id, key, proj: p && p.id, projName: p && p.name, kind: ctx.kind, args: ctx.args, title, sys: o.sys || '', json: !!o.json, maxTokens: o.maxTokens || 8192, text: await flatten(o), at: Date.now(), status: 'wait' });
-    ping();
+    ping(); sentNote(title);
     throw queued(`Đã gửi Claude: ${title}. Kết quả tự vào khi Claude làm xong – bạn cứ làm việc khác.`);
   }
 
@@ -302,6 +302,16 @@
 
   // ---------- giao diện ----------
   let bar = null;
+  const PHRASE = 'xử lý hàng chờ PLS';
+  async function copyPhrase(btn) { let ok = false; try { await navigator.clipboard.writeText(PHRASE); ok = true; } catch (e) {
+      try { const t = document.createElement('textarea'); t.value = PHRASE; document.body.appendChild(t); t.select(); ok = document.execCommand('copy'); t.remove(); } catch (e2) {} }
+    if (btn) { const o = btn.textContent; btn.textContent = ok ? '✓ Đã chép' : 'Chép tay: ' + PHRASE; setTimeout(() => { btn.textContent = o; }, 2500); } }
+  function sentNote(title) { let el = document.getElementById('plsSent'); if (el) el.remove(); el = document.createElement('div'); el.id = 'plsSent'; el.setAttribute('role', 'status');
+    el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1003;background:#1f1f1f;color:#fff;padding:12px 14px;border-radius:10px;font-size:13px;line-height:1.5;max-width:min(520px,calc(100vw - 32px));box-shadow:0 8px 28px rgba(0,0,0,.3)';
+    el.innerHTML = `<b>✓ Đã gửi cho Claude:</b> ${esc(title)}<br>Việc chỉ chạy khi bạn mở Claude và nhắn: <b>“${PHRASE}”</b>` +
+      '<div style="display:flex;gap:8px;margin-top:8px"><button type="button" data-copyq style="border:0;background:#d97757;color:#fff;border-radius:6px;padding:5px 12px;font:inherit;cursor:pointer">Chép câu nhắn</button><button type="button" data-closeq style="border:1px solid #666;background:none;color:#fff;border-radius:6px;padding:5px 12px;font:inherit;cursor:pointer">Đóng</button></div>';
+    document.body.appendChild(el); el.querySelector('[data-copyq]').onclick = e => copyPhrase(e.currentTarget); el.querySelector('[data-closeq]').onclick = () => el.remove();
+    setTimeout(() => { if (el.isConnected && !el.contains(document.activeElement)) el.remove(); }, 15000); }
   function paintQ() {
     if (!document.body) return;
     if (!bar) { bar = document.createElement('div'); bar.id = 'plsAiQ'; bar.setAttribute('role', 'status'); bar.setAttribute('aria-live', 'polite');
@@ -309,10 +319,11 @@
       document.body.appendChild(bar); }
     const l = mine().filter(j => j.status === 'wait');
     bar.hidden = !l.length || isClaudeTab(); if (bar.hidden) return;
-    bar.innerHTML = `<b style="color:#b85c3e">${online() ? '● Claude đang xử lý' : '⏳ ' + l.length + ' việc chờ Claude'}</b>
-      <div style="margin:3px 0 6px;color:#555">${online() ? 'Kết quả tự vào đúng chỗ khi xong.' : 'Nhắn Claude: <b>“xử lý hàng chờ PLS”</b>. Bạn cứ làm việc khác, tải lại trang cũng không mất.'}</div>` +
+    bar.innerHTML = `<b style="color:#b85c3e">${online() ? '● Claude đang xử lý' : '⏳ Đã gửi ' + l.length + ' việc – Claude chưa nhận'}</b>
+      <div style="margin:3px 0 6px;color:#555">${online() ? 'Kết quả tự vào đúng chỗ khi xong.' : `Mở Claude và nhắn: <b>“${PHRASE}”</b>. Tải lại trang cũng không mất việc.`}</div>` +
+      (online() ? '' : '<button type="button" data-copyq style="border:0;background:#d97757;color:#fff;border-radius:6px;padding:5px 12px;font:inherit;font-size:12px;cursor:pointer;margin-bottom:4px">Chép câu nhắn</button>') +
       l.map(j => `<div style="display:flex;gap:8px;align-items:center;border-top:1px solid #eee;padding-top:5px;margin-top:5px"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.title)}">${esc(j.title)}</span><span style="color:#888">${ago(j.at)}</span><button type="button" data-aiq="${j.id}" style="border:1px solid #ccc;background:#fff;border-radius:6px;padding:2px 8px;cursor:pointer">Hủy</button></div>`).join('');
-    bar.querySelectorAll('[data-aiq]').forEach(b => b.onclick = () => cancel(b.dataset.aiq));
+    bar.querySelectorAll('[data-aiq]').forEach(b => b.onclick = () => cancel(b.dataset.aiq)); const cq = bar.querySelector('[data-copyq]'); if (cq) cq.onclick = () => copyPhrase(cq);
   }
   const ago = t => { const s = Math.round((Date.now() - t) / 1000); return s < 60 ? 'vừa gửi' : s < 3600 ? Math.round(s / 60) + ' phút' : Math.round(s / 3600) + ' giờ'; };
   // ---------- BƯỚC 0: làm sạch nguồn web · sửa tên trung tâm · bỏ ô tự điền sai ----------
@@ -418,7 +429,7 @@
       `Ô cần đề xuất: ${todo.map(k => `${k} (${LABEL[k]})`).join(', ')}\n\nNGUỒN (tóm tắt máy trích):\n${srcs || '(chưa có nguồn)'}\n\nBẢNG SO SÁNH:\n${cmp || '(chưa có)'}\n\n` +
       'Trả đúng 1 JSON: {"fields":{"<khóa ô>":{"value":"<giá trị ngắn>","why":"<căn cứ [S..] hoặc (suy luận) – 1 câu>"}}}. Chỉ các ô trong danh sách cần đề xuất; không đủ căn cứ thì bỏ qua ô đó. sessions, minutes là số nguyên.';
     await Q.put({ id: 'C' + Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 4), key, proj: p.id, projName: p.name, kind: 'brief', args: [], title: 'Điền nháp yêu cầu khóa học', sys: 'Bạn là chuyên gia thiết kế chương trình ngoại ngữ ở Việt Nam. Giá trị đề xuất là GIẢ ĐỊNH để người dùng xác nhận; luôn ghi căn cứ.', json: true, maxTokens: 2048, text, at: Date.now(), status: 'wait' });
-    ping(); toast('Đã gửi Claude: điền nháp yêu cầu khóa học. Bạn cứ làm việc khác.');
+    ping(); sentNote('Điền nháp yêu cầu khóa học');
   }
   LOCALK.brief = async j => {
     const p = P(), b = p.brief; b._m = b._m || {};
@@ -490,7 +501,7 @@
     const p = P(); if (!p) return; const key = p.id + '|' + kind + '|[]';
     if ((await Q.all()).some(j => j.key === key && j.status === 'wait')) { toast('Việc này đã có trong hàng chờ Claude'); return; }
     await Q.put({ id: 'C' + Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 4), key, proj: p.id, projName: p.name, kind, args: [], title, sys, json: true, maxTokens: maxTokens || 4096, text, at: Date.now(), status: 'wait' });
-    ping(); toast(`Đã gửi Claude: ${title}. Bạn cứ làm việc khác.`);
+    ping(); sentNote(title);
   }
   const parseAns = j => JSON.parse(String(j.answer).trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, ''));
   async function objDraft() {
