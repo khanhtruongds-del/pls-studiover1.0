@@ -540,7 +540,7 @@
       p.appendChild(rf);
       if (window.PLS_REVIEW) window.PLS_REVIEW.panel(p, () => build());   // ảnh người dùng gửi lên chờ duyệt → Duyệt vào kho / Bỏ
       if (!imgs.length) { p.insertAdjacentHTML('beforeend', '<p class="muted">Slide này không có ô ảnh nội dung.</p>'); return; }
-      const HOW = { exact: 'Khớp đúng', variant: 'Biến thể', synonym: 'Đồng nghĩa', user: 'Người chọn', none: 'Thiếu hình', removed: 'Đã bỏ ảnh', empty: 'Để trống (gõ từ để thêm ảnh)' };
+      const HOW = { near: 'Gần nghĩa chủ đề – nên soát', exact: 'Khớp đúng', variant: 'Biến thể', synonym: 'Đồng nghĩa', user: 'Người chọn', none: 'Thiếu hình', removed: 'Đã bỏ ảnh', empty: 'Để trống (gõ từ để thêm ảnh)' };
       imgs.forEach(im => {
         const d = document.createElement('div'); d.className = 'issue' + (state.focusImg === im.key ? ' focus' : ''); d.dataset.key = im.key;
         const lv = im.type === 'none' ? 'vang' : '';
