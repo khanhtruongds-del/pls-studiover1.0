@@ -63,7 +63,8 @@
     return { type: 'none', hit: [] };
   }
   function search(q, src, n) {   // gần nghĩa theo âm tiết (Dice) – chỉ GỢI Ý
-    const ix = index(src); const qt = toks(q); if (!qt.length) return [];
+    const ix = index(src); const STOP = /^(và|điều|đang|xảy|ra|của|những|các|một|cho|với|ở|trong|là|có|được|về|the|a|an|and|of|to|in)$/;   // từ nối không mang nghĩa hình → bỏ khi chấm gần nghĩa
+    let qt = toks(q); const qk = qt.filter(x => !STOP.test(x)); if (qk.length) qt = qk; if (!qt.length) return [];
     const res = [];
     for (const [k, v] of ix.map) {
       const kt = toks(k); const inter = kt.filter(x => qt.includes(x)).length; if (!inter) continue;
@@ -151,7 +152,11 @@
       const pn0 = el.parentElement && el.parentElement.dataset.n;
       const inItem = pn0 && /_(\d+|[A-H])$/.test(pn0);
       // Luật ảnh ngữ cảnh (fit 4.4): ô ảnh trong mục đánh số (thẻ từ vựng…) tự tìm theo nghĩa; ảnh lớn của slide (bìa, hội thoại, đọc…) chỉ có khi spec ghi img:<ô>
-      const word = inItem ? wordFor(el) : '';
+      // ẢNH CHỦ ĐỀ (người dùng 25/10): bìa / khởi động / mục mở đầu không ghi img: → tự tìm theo CHỦ ĐỀ bài (tiêu đề slide); thẻ từ 1 từ → theo nghĩa của thẻ
+      const comp = host.dataset.comp || '', topicSlot = !inItem && /^Slide\/(Cover|Lead In|Section|Section Character|Agenda|Lesson Overview)$/.test(comp);
+      const oneVi = !inItem && !topicSlot ? [...host.querySelectorAll('[data-filled]')].filter(x => /(^|\.)(vi|mean)$/.test(x.dataset.filled) && x.offsetParent !== null) : [];
+      const topicQ = topicSlot ? String(data['title.de'] || data.title || data.topic || data.lesson_title || '').replace(/^(khởi động|warm[- ]?up|lead[- ]?in|mở đầu)\s*:\s*/i, '').replace(/\s*…$/, '').trim() : '';
+      const word = inItem ? wordFor(el) : oneVi.length === 1 ? oneVi[0].textContent.trim() : topicQ;
       const pn = el.parentElement && el.parentElement.dataset.n;
       let res = { slot: name, key: pn && /_(\d+|[A-H])$/.test(pn) ? pn + '.' + name : name, word, type: 'none', cands: [] };
       if (ov === '-') { res.type = 'removed'; }
@@ -159,17 +164,20 @@
       else if (ov && ov.startsWith('id:')) { setImg(el, ov.slice(3), 'user', ''); res.type = 'user'; res.id = ov.slice(3); deck.count[res.id] = (deck.count[res.id] || 0) + 1; }
       else {
         const q = ov || word;
-        const c = cons(q);
-        if (q && !(c.sentence && !ov)) {   // câu → không tự khớp, để người chọn
-          const m = match(q, src); const why = [];
+        const c = cons(q), topic = !!topicQ;   // ô ảnh chủ đề (bìa / khởi động…): ghi sẵn từ khoá mà kho không có → vẫn tìm theo chủ đề
+        if (q && (topic || !(c.sentence && !ov))) {   // câu → không tự khớp, để người chọn (chủ đề bài: vẫn tự tìm)
+          let m = match(q, src); const why = [];
+          if (!m.hit.length && ov && word && word !== ov) { const mw = match(word, src); if (mw.hit.length) m = Object.assign(mw, { via: word }); }   // từ ghi sẵn (vd tiếng Anh "closed") không có trong kho → tìm theo nghĩa tiếng Việt của thẻ
+          if (topic && !m.hit.length) for (const part of [topicQ].concat(topicQ.split(/\s*(?:\bvà\b|\bhoặc\b|[,;:–—\-&+/])\s*/).map(x => x.trim()).filter(x => x.length > 1))) { const mm = match(part, src); if (mm.hit.length) { m = Object.assign(mm, { via: part }); break; } }
+          if (topic && !m.hit.length) { const best = (search(q, src, 6).length ? search(q, src, 6) : search(topicQ, src, 6)).concat(search(topicQ, src, 6)).find(x => x.score >= 0.3 && !used.has(x.id)); if (best) m = { type: 'near', via: 'gần nghĩa chủ đề', hit: [{ id: best.id, label: best.label }] }; }
           const okHits = m.hit.filter(h => { const w = whoOk(h.id, c); if (!w.ok) why.push(w.why); return w.ok; });
-          const hit = okHits.find(h => !used.has(h.id) && (deck.count[h.id] || 0) < 2);
+          const hit = okHits.find(h => !used.has(h.id) && (topic || (deck.count[h.id] || 0) < 2));   // ảnh chủ đề: bìa + khởi động dùng chung được
           if (!hit && okHits.length) why.push('ảnh "' + okHits[0].label + '" đã dùng ở 2 slide');
           if (hit) { const w = whoOk(hit.id, c); setImg(el, hit.id, m.type, hit.label); used.add(hit.id); deck.count[hit.id] = (deck.count[hit.id] || 0) + 1; res = Object.assign(res, { type: m.type, id: hit.id, label: hit.label, via: m.via, soat: w.soat }); }
           else if (why.length) res.why = why[0];
         } else if (q) res.why = 'câu / cụm dài – không tự chọn ảnh';
-        if (res.type === 'none' && q) {
-          res.cands = search(q, src, 6);
+        if ((res.type === 'none' || topic) && q) {   // chủ đề bài: dù đã tự gắn vẫn có 6 ảnh gần nghĩa để đổi
+          res.cands = search(q, src, 6); if (res.cands.length < 6 && word && word !== q) res.cands = res.cands.concat(search(word, src, 6).filter(x => !res.cands.some(y => y.id === x.id))).slice(0, 6);
           const prev = ((root.PLS_IMG_PREV || {})[src + '|' + norm(q)] || []).map(f => byFile(src, f)).filter(Boolean);   // ảnh từng chọn trên Figma → gợi ý đầu
           if (prev.length) res.cands = prev.map(p => Object.assign({ prev: true }, p)).concat(res.cands.filter(c => !prev.some(p => p.id === c.id))).slice(0, 6);
         }
