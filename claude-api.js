@@ -23,9 +23,11 @@
   function snap() { undo.push(JSON.stringify({ spec: S.spec, overrides: S.overrides, imgOv: S.imgOv, choice: S.choice, brand: S.brand })); if (undo.length > 30) undo.shift(); }
   function refresh() { const t = document.querySelector('[role=tab][aria-selected=true]'); if (t && t.dataset.tab === 'claude') I.redraw(); }
 
+  // người dùng 25/10: bấm "Xuất bài" / đổi buổi… là thao tác của NGƯỜI DÙNG → không hiện huy hiệu "Claude: …" (chỉ hiện khi Claude điều khiển qua lệnh)
+  const userAct = () => !!(navigator.userActivation && navigator.userActivation.isActive) || !!(window.event && window.event.isTrusted);
   // bọc các lệnh có sẵn: ghi nhật ký; lệnh sửa → chụp trạng thái để hoàn tác
   const MUT = ['load', 'loadExcelBooks', 'set', 'choose', 'brand', 'setImage', 'device', 'fontMode', 'hier'];
-  for (const k of MUT.concat(['build', 'exportPptx'])) { const f = P[k]; if (typeof f !== 'function') continue; P[k] = function (...a) { if (MUT.includes(k)) snap(); log(k, a); return f.apply(this, a); }; }
+  for (const k of MUT.concat(['build', 'exportPptx'])) { const f = P[k]; if (typeof f !== 'function') continue; P[k] = function (...a) { if (MUT.includes(k)) snap(); if (!userAct()) log(k, a); return f.apply(this, a); }; }
 
   const issuesOf = r => (r.issues || []).filter(x => x.lv === 'do' || x.lv === 'vang');
   Object.assign(P, {
