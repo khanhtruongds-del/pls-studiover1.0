@@ -68,6 +68,7 @@
     const size = B.SIZES[S.view] ? S.view : 'A4';
     let pp = null;
     try { say('Đang xuất PPTX…'); pp = await P.exportPptx(); } catch (e) { say('Xuất PPTX lỗi: ' + e.message); return { pptx: null, pdf: false, error: e.message }; }
+    if (!B.SIZES[S.view]) return { pptx: pp, pdf: false };   // người dùng 25/10: đang ở tab Slide → "Xuất bài" chỉ tải PPTX về máy, không mở hộp thoại in sách
     const bk = await makeBook(size);
     if (!bk) { say(`Đã tải ${pp && pp.name || 'PPTX'} · chưa có Excel S5 + S6 nên chưa dựng được sách PDF`); return { pptx: pp, pdf: false }; }
     say(`Đã tải ${pp && pp.name || 'PPTX'} · hộp thoại in sách ${B.SIZES[size].label} (${bk.pages.length} trang): chọn "Lưu dưới dạng PDF" rồi bấm Lưu`);
