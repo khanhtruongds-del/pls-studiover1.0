@@ -273,6 +273,14 @@
       else { cell.style.backgroundColor = C.soft; const t = cell.querySelector('[data-text]'); if (t) t.style.fontWeight = '700'; } });
   };
   // Mục tiêu & lộ trình: ≤ 5 bước → dòng thời gian dọc (số tròn nối bằng đường kẻ), các bước xếp sát từ trên xuống
+  // NỐI CỘT (người dùng 25/10: "bài nối là phải nối"): vế ngắn → thu hẹp 2 cột, nới khe giữa để dây nối thoáng, không chụm thành chữ X
+  root.PLS_TPL_HOOKS['Slide/Exercise Match'] = function (rootEl, data) {
+    const L = Object.keys(data).filter(k => /^[lr]_\d+(\.text)?$/.test(k) && String(data[k] || '').trim()).map(k => String(data[k]).length); if (!L.length) return;
+    const mx = Math.max(...L), w = mx <= 22 ? 600 : mx <= 34 ? 680 : 0; if (!w) return;
+    const cols = rootEl.querySelector('[data-n="columns"]'); if (!cols) return;
+    const g0 = parseFloat(cols.style.gap) || 120, w0 = 756; cols.style.gap = (g0 + 2 * (w0 - w)) + 'px';
+    rootEl.querySelectorAll('[data-n]').forEach(e => { if (/^[lr]_\d+$/.test(e.dataset.n) && e.style.width) e.style.width = w + 'px'; });
+  };
   root.PLS_TPL_HOOKS['Slide/Lesson Overview'] = function (rootEl, data) {
     const n = Object.keys(data).filter(k => /^step_\d+\.text$/.test(k) && String(data[k]).trim()).length; if (!n || n > 5) return;
     const box = rootEl.querySelector('[data-n="steps"]'); if (!box) return;
