@@ -626,6 +626,10 @@
               if (nd.nodeType === 1) { const c2 = getComputedStyle(nd); segs.push(Object.assign({}, seg0, { t: tt, st: STYLE(parseFloat(c2.fontWeight)), c: toRGB(c2.color) || c })); }
               else segs.push(Object.assign({}, seg0, { t: tt })); }
           }
+          // CHỮ TRONG VÒNG TRÒN (a b c d / số thứ tự – QC 25/10: tải về chữ xộc xệch): hộp chữ = đúng vòng tròn, căn giữa cả ngang lẫn dọc, dòng 100% → PowerPoint tự canh tâm như web
+          { const round = e => { if (!e) return false; const q = R(e), r0 = parseFloat(getComputedStyle(e).borderTopLeftRadius) || 0, rr = getComputedStyle(e).borderTopLeftRadius; return q.height > 0 && Math.abs(q.width - q.height) < 2 && (/%$/.test(rr) ? parseFloat(rr) >= 50 : r0 * s >= q.height / 2 - 1); };
+            const cc = el.closest('[data-circle]') || (round(el) ? el : round(el.parentElement) ? el.parentElement : null);
+            if (cc && t.trim().length <= 3) { const cb = box(cc); segs.forEach(sg => { sg.lh = null; }); items.push({ k: 'text', id: el.dataset.filled || ('n' + uid++), name: el.dataset.n, x: cb.x, y: cb.y, w: cb.w, h: cb.h, op, ah: 'CENTER', av: 'CENTER', auto: 'NONE', segs }); return; } }
           items.push({ k: 'text', id: el.dataset.filled || ('n' + uid++), name: el.dataset.n, x: b.x, y: span ? tb.y : b.y, w: b.w, h: span ? tb.h : b.h, op, ah: { left: 'LEFT', center: 'CENTER', right: 'RIGHT', justify: 'JUSTIFIED', start: 'LEFT' }[cs.textAlign] || 'LEFT', av: 'TOP', auto: cs.whiteSpace === 'pre' ? 'WIDTH_AND_HEIGHT' : 'HEIGHT', segs });
           return;
         }
