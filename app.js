@@ -337,8 +337,11 @@
   function openImageTab(key) {
     document.querySelectorAll('[role=tab]').forEach(x => x.setAttribute('aria-selected', x.dataset.tab === 'images'));
     state.focusImg = key; drawPanel();
-    const box = document.querySelector(`#panel [data-key="${CSS.escape(key)}"]`);
-    if (box) { box.scrollIntoView({ block: 'center', behavior: 'smooth' }); box.classList.add('focus'); const q = box.querySelector('input[type=search]'); if (q) q.focus({ preventScroll: true }); }
+    // cuộn khung bên phải tới đúng ô ảnh (đặt scrollTop trực tiếp – panel có thể vẽ lại ngay sau đó nên thử lại vài nhịp)
+    const go = () => { if (state.focusImg !== key) return; const pn = document.querySelector('#panel'), box = document.querySelector(`#panel [data-key="${CSS.escape(key)}"]`); if (!pn || !box) return;
+      box.classList.add('focus'); const a = box.getBoundingClientRect(), b = pn.getBoundingClientRect(); pn.scrollTop += a.top - b.top - Math.max(8, (b.height - a.height) / 2);
+      const q = box.querySelector('input[type=search]'); if (q && document.activeElement !== q) q.focus({ preventScroll: true }); };
+    go(); requestAnimationFrame(go); setTimeout(go, 200); setTimeout(go, 700);
   }
   // ghi 1 ô của slide đang hiện (r): slide tự chia (từ vựng) ghi vào danh sách mục nguồn, slide thường ghi đè theo slide nguồn
   function setSlot(r, slot, v) {
@@ -534,7 +537,7 @@
     } else if (tab === 'images') {
       const r = state.slides[state.sel]; const imgs = (r && r.images) || [];
       const st = window.PLS_IMAGES ? window.PLS_IMAGES.stats() : {};
-      p.insertAdjacentHTML('beforeend', `<p class="muted">Kho: Châu Âu ${st.eu ? st.eu.count : '?'} ảnh · Châu Á ${st.as ? st.as.count : '?'} ảnh (${st.eu ? st.eu.from : ''}). Tự gắn khi khớp đúng nghĩa, biến thể hoặc từ đồng nghĩa đã duyệt; không tự gắn ảnh gần nghĩa.</p>`);
+      /* người dùng 25/10: bỏ dòng giới thiệu kho ảnh */
       const rf = document.createElement('button'); rf.type = 'button'; rf.className = 'btn'; rf.textContent = 'Cập nhật danh sách ảnh từ Drive';
       rf.onclick = async () => { rf.disabled = true; rf.textContent = 'Đang cập nhật…'; try { const o = await window.PLS_IMAGES.refresh(); rf.textContent = 'Đã cập nhật: ' + Object.entries(o).map(([k, v]) => k + ' ' + v).join(', '); build(); } catch (e) { rf.textContent = 'Lỗi: ' + e.message; } };
       p.appendChild(rf);
