@@ -17,8 +17,9 @@
         { id: 'mc-opts', label: 'Bấm hiện lựa chọn → khoanh đáp án', desc: 'Bấm 1: hiện cả 4 lựa chọn · bấm 2: khoanh đáp án đúng' },
         { id: 'mc-seq', label: 'Từng lựa chọn → khoanh đáp án', desc: 'Mỗi lựa chọn 1 lần bấm, cuối cùng khoanh đáp án đúng' }); }
     else if (ans && ans.kind === 'match' && ans.pairs.length) { type = 'match'; label = 'Nối cột';
-      P.push({ id: 'match-key', label: 'Hiện chữ đáp án (1 – c)', desc: 'Mỗi lần bấm hiện chữ cái đáp án cạnh câu trái – gọn, không dây chéo' },
-        { id: 'match-each', label: 'Nối dây từng cặp', desc: 'Mỗi lần bấm 1 dây nối câu trái → đáp án phải' },
+      // người dùng 25/10: "bài nối là phải nối" → mặc định NỐI DÂY từng cặp; hiện chữ đáp án là tuỳ chọn
+      P.push({ id: 'match-each', label: 'Nối dây từng cặp', desc: 'Mỗi lần bấm 1 dây nối câu trái → đáp án phải' },
+        { id: 'match-key', label: 'Hiện chữ đáp án (1 – c)', desc: 'Mỗi lần bấm hiện chữ cái đáp án cạnh câu trái – gọn, không dây chéo' },
         { id: 'match-all', label: 'Nối dây cùng lúc', desc: '1 lần bấm hiện tất cả dây nối' }); }
     else if (ans && ans.kind === 'text' && ans.items.some(x => x.text)) { type = 'text'; label = /Order/.test(comp) ? 'Sắp xếp câu' : 'Điền / viết';
       if (/Order/.test(comp)) P.push({ id: 'order-move', label: 'Từ tự trượt về đúng thứ tự', desc: 'Mỗi lần bấm: các từ của 1 câu trượt về đúng vị trí (PowerPoint: Motion Path)' });
