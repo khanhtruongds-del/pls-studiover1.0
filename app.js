@@ -651,9 +651,9 @@
     setStatus(`Đang xuất PPTX (${device.tag})…`);
     const all = exportView(device.font ? device : null, aud), keep = all.map((x, i) => i).filter(i => !stu || state.slides[i].spec.comp !== 'Slide/Answer Key');   // bản học viên: bỏ slide đáp án
     const xs = keep.map(i => all[i]);
-    // QC F06 (người dùng chốt 24/10): bắt buộc đủ hình mới cho xuất – còn ô "Thiếu hình" là dừng, báo đúng slide
-    const noImg = keep.map(i => [i + 1, ((state.slides[i] || {}).images || []).filter(x => x && (x.type === 'none' || x.type === 'empty'))]).filter(([, x]) => x.length);   // theo danh sách hình từng slide (ô chưa có hình: none / empty)
-    if (noImg.length) { $('#xstage').innerHTML = ''; const msg = `Chưa xuất được: còn ${noImg.reduce((a, [, x]) => a + x.length, 0)} ô thiếu hình ở ${noImg.length} slide (${noImg.slice(0, 6).map(([n, x]) => 'slide ' + n + ': ' + x.map(y => y.word || y.key).join(', ')).join('; ')}${noImg.length > 6 ? '…' : ''}). Thêm đủ hình rồi xuất lại.`; setStatus(msg); throw new Error(msg); }
+    // QC F06 → người dùng 25/10: thiếu hình KHÔNG chặn xuất nữa (vẫn tải PPTX về, ô thiếu hình giữ khung trống) – chỉ báo đúng slide để bổ sung sau
+    const noImg = keep.map(i => [i + 1, ((state.slides[i] || {}).images || []).filter(x => x && (x.type === 'none' || x.type === 'empty'))]).filter(([, x]) => x.length);
+    const imgWarn = noImg.length ? ` · còn ${noImg.reduce((a, [, x]) => a + x.length, 0)} ô thiếu hình (${noImg.slice(0, 4).map(([n]) => 'slide ' + n).join(', ')}${noImg.length > 4 ? '…' : ''})` : '';
     const bad = xs.flatMap(x => x.issues.filter(i => i.lv === 'do').map(i => `slide ${x.slide}: ${i.msg}`));
     const model = await E.toModel(xs.map(x => x.host), { transition: state.tr });
     if (!stu) model.slides.forEach((m, k) => { const i = keep[k]; if (state.slides[i]) m.notes = notesOf(state.slides[i]); });   // ghi chú giảng (có đáp án) chỉ ở bản giáo viên   // ghi chú giảng → Notes của từng slide
@@ -677,7 +677,7 @@
     let saved = false;
     /* người dùng 25/10: xuất bài = tải file về máy bình thường (không đi qua Claude) */
     if (!saved) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
-    setStatus(`Đã xuất ${name} (${Math.round(bytes.length / 1024)} KB)` + (bad.length ? ` · ${bad.length} lỗi sau khi đổi font – xem tab Soát lỗi` : ''));
+    setStatus(`Đã xuất ${name} (${Math.round(bytes.length / 1024)} KB)` + imgWarn + (bad.length ? ` · ${bad.length} lỗi sau khi đổi font – xem tab Soát lỗi` : ''));
     drawPanel();
     return { name, bytes: bytes.length, device: device.tag, issues: bad };
   }
