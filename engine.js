@@ -190,7 +190,17 @@
       el.dataset.icon = name; el.style.color = color;
       el.innerHTML = (ICONS[name] || '').replace('<svg ', '<svg style="display:block" ');
     });
+    markIcons(host);
   }
+  // DẤU ✓ (can-do…): người dùng 25/10 – không dùng ký tự ✓ của font (mỗi máy một kiểu, nét mảnh) → icon "check" Lucide nét dày, cùng màu + cỡ chữ.
+  // Gọi lại được (sau khi chuẩn cỡ chữ cả bài) → icon đo lại theo cỡ chữ mới.
+  function markIcons(host) { const ICONS = root.PLS_ICONS || {}; if (!ICONS['check-bold'] && ICONS.check) ICONS['check-bold'] = ICONS.check.replace(/stroke-width="2"/g, 'stroke-width="3"'); if (!ICONS['check-bold']) return;
+    host.querySelectorAll('[data-n$=".mark"], [data-n="mark"]').forEach(el => { const t = el.dataset.text ? el : el.querySelector('[data-text]');
+      if (!t || !/^[✓✔]$/.test((t.textContent || '').trim())) return;
+      let ic = el.previousElementSibling; if (!ic || ic.dataset.icon !== 'check-bold') { ic = document.createElement('div'); ic.dataset.n = el.dataset.n.replace(/mark$/, 'markicon'); ic.dataset.icon = 'check-bold';
+        ic.innerHTML = ICONS['check-bold'].replace('<svg ', '<svg style="display:block" width="100%" height="100%" '); el.parentNode.insertBefore(ic, el); }
+      el.style.display = ''; const cs = getComputedStyle(t), row = [...el.parentElement.querySelectorAll('[data-text]')].find(x => x !== t && !el.contains(x) && x.textContent.trim()), rs = row ? getComputedStyle(row) : cs, fz = parseFloat(rs.fontSize) || 40, lh = parseFloat(rs.lineHeight) || fz * 1.4, sz = Math.round(fz * 0.9), col = cs.color; el.style.display = 'none'; el.dataset.ico = '1'; if (t !== el) t.dataset.ico = '1';
+      Object.assign(ic.style, { boxSizing: 'border-box', flex: '0 0 auto', width: sz + 'px', height: sz + 'px', alignSelf: 'flex-start', marginTop: Math.max(0, Math.round((lh - sz) / 2)) + 'px', color: col }); }); }
   const TY = () => root.PLS_TYPO;
   // TRANG ĐÁP ÁN GỌN: thay 4 hàng × 3 ô cố định của mẫu bằng một lưới chảy (flex-wrap) đủ số ô, xếp trái → phải, trên → dưới.
   // Số cột chọn theo độ dài đáp án (đa số ngắn → 4 cột; câu dài → 2 / 1 cột); đáp án dài hơn ô thì chiếm 2+ cột, vẫn đúng thứ tự câu.
@@ -362,12 +372,13 @@
       const LI = /^(item|step|cando|q|ex|line|u|f|task|guide|part|point|tip|rule|note|use|s)_\d+$/, s0 = scaleOf(r.host), done = new Set();
       r.host.querySelectorAll('[data-n]').forEach(e => { const L = e.parentElement; if (!LI.test(e.dataset.n) || !L || done.has(L) || L.style.flexDirection !== 'column') return; done.add(L);
         const kids = [...L.children].filter(k => LI.test(k.dataset.n || '') && k.offsetParent); if (kids.length < 3) return;
-        const free = (R(L).bottom - R(kids[kids.length - 1]).bottom) / s0; if (free < 40) return;
+        const pb = parseFloat(getComputedStyle(L).paddingBottom) || 0, inner = () => R(L).bottom - pb * s0;   // QC 25/10: chừa đệm dưới của khung (không dàn chạm đáy)
+        const free = (inner() - R(kids[kids.length - 1]).bottom) / s0; if (free < 40) return;
         const g0 = parseFloat(L.style.rowGap || L.style.gap) || 0, addG = Math.min(16, Math.floor(free * 0.45 / (kids.length - 1))), addP = Math.min(8, Math.floor(free * 0.2 / kids.length / 2));
         const keep = kids.map(k => [k.style.paddingTop, k.style.paddingBottom, k.style.paddingLeft, k.style.paddingRight]), keepG = L.style.rowGap;
         L.style.rowGap = (g0 + addG) + 'px';
         kids.forEach(k => { const cs = getComputedStyle(k); k.style.paddingTop = (parseFloat(cs.paddingTop) + addP) + 'px'; k.style.paddingBottom = (parseFloat(cs.paddingBottom) + addP) + 'px'; if (cs.boxShadow !== 'none' || cs.backgroundColor !== 'rgba(0, 0, 0, 0)') { if (parseFloat(cs.paddingLeft) < 24) k.style.paddingLeft = '24px'; if (parseFloat(cs.paddingRight) < 24) k.style.paddingRight = '24px'; } });
-        if (kids.some(k => R(k).bottom > R(L).bottom + 1) || r.filled.some(el => overflowPx(el, r.host) > 0.5)) { L.style.rowGap = keepG; kids.forEach((k, i) => { [k.style.paddingTop, k.style.paddingBottom, k.style.paddingLeft, k.style.paddingRight] = keep[i]; }); }
+        if (kids.some(k => R(k).bottom > inner() + 1) || r.filled.some(el => overflowPx(el, r.host) > 0.5)) { L.style.rowGap = keepG; kids.forEach((k, i) => { [k.style.paddingTop, k.style.paddingBottom, k.style.paddingLeft, k.style.paddingRight] = keep[i]; }); }
       });
     }
     // CĂN TRÊN-TRÁI LINH HOẠT (người dùng chốt 23/10): cột nội dung đang căn giữa dọc mà nội dung chiếm > 45% chiều cao cột → đẩy lên trên
@@ -445,7 +456,9 @@
       (out[lf] = out[lf] || []).push(el); }
     return out;
   }
-  function deckBad(r, els) { return r.filled.some(el => el.offsetParent && overflowPx(el, r.host) > 0.5) || els.some(el => overlapsOther(el, r.filled)); }
+  function padOver(r) { const card = r.host.querySelector('[data-n="card"]'); if (!card) return false; const s = scaleOf(r.host), pb = (parseFloat(getComputedStyle(card).paddingBottom) || 0) * s, lim = R(card).bottom - pb + 1;
+    return [...card.children].some(k => k.offsetParent && getComputedStyle(k).position !== 'absolute' && R(k).bottom > lim); }
+  function deckBad(r, els) { return padOver(r) || r.filled.some(el => el.offsetParent && overflowPx(el, r.host) > 0.5) || els.some(el => overlapsOther(el, r.filled)); }
   function deckNormalize(rs) {
     const meas = rs.map(r => { const roles = deckRoles(r), m = {};
       for (const [lf, els] of Object.entries(roles)) {
@@ -473,6 +486,9 @@
       else log.push(i + 1);
       // câu hỏi dài ≥ 3 dòng mà in đậm cả khối → khó đọc: để chữ thường (đáp án vẫn nằm trong ô riêng nên vẫn tách bạch)
       (m.question || []).els && m.question.els.forEach(e => { const lh = parseFloat(getComputedStyle(e).lineHeight) || fontPx(e) * 1.3; if (e.getBoundingClientRect().height / scaleOf(r.host) > lh * 2.5) e.style.fontWeight = '400'; });
+      // NHÃN ĐẦU MỤC (Từ vựng / Ngữ pháp / Phát âm… trên dòng nội dung – người dùng 25/10): là tiêu đề của mục → không được nhỏ hơn chữ nội dung bên dưới
+      r.host.querySelectorAll('[data-n="label"]').forEach(lb => { const tx = lb.nextElementSibling; if (!tx || tx.dataset.n !== 'text' || !lb.offsetParent) return;
+        const a = fontPx(lb), b = fontPx(tx); if (b <= a + 0.5) return; lb.style.fontSize = b + 'px'; if (deckBad(r, [lb])) lb.style.fontSize = a + 'px'; });
       r.issues = audit(r); r.score = score(r.issues, r.fitLog); });
     return { target: tgt, slides: log.length };
   }
@@ -482,6 +498,7 @@
     const { host, filled } = r; const s = scaleOf(host); const out = [];
     const H = R(host);
     for (const el of filled) {
+      if (el.dataset.ico) continue;   // dấu ✓ đã thay bằng icon (markIcons) – ô chữ gốc ẩn
       const ov = overflowPx(el, host);
       if (ov > 0.5) out.push({ lv: 'do', code: 'spill', slot: el.dataset.filled, msg: `Chữ tràn ${Math.round(ov)}px ở ô ${el.dataset.filled}`, src: 'Mẫu' });
       const fs = fontPx(el);
@@ -690,5 +707,5 @@
   }
   const fxSteps = fx => fx.filter(a => a.when === 'click').length;
 
-  root.PLS_ENGINE = { deckNormalize, render, fitText, audit, score, expand, toModel, find, LADDER, STD, devicesOf, applyExportFonts, PPTX_CFG, planFx, fxSteps, roleOfName, hierarchy, typoLayout, typoSpread };
+  root.PLS_ENGINE = { deckNormalize, markIcons, render, fitText, audit, score, expand, toModel, find, LADDER, STD, devicesOf, applyExportFonts, PPTX_CFG, planFx, fxSteps, roleOfName, hierarchy, typoLayout, typoSpread };
 })(window);
