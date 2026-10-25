@@ -567,7 +567,7 @@
         const kids = items.splice(start); if (!kids.length) return;
         const id = 'fx' + (uid++); const b0 = box(el);
         items.push({ k: 'group', id, name: el.dataset.n + ' (hiệu ứng)', ...b0, kids });
-        anims.push({ id, fx: el.dataset.fx, when: el.dataset.fxWhen, order: +el.dataset.fxOrder, dir: el.dataset.fxDir || '', dur: +el.dataset.fxDur || 0 });
+        anims.push({ id, fx: el.dataset.fx, when: el.dataset.fxWhen, order: +el.dataset.fxOrder, dir: el.dataset.fxDir || '', dur: +el.dataset.fxDur || 0, dx: +el.dataset.fxDx || 0, dy: +el.dataset.fxDy || 0 });
       };
       const inner = async el => {
         const cs = getComputedStyle(el);
@@ -667,7 +667,7 @@
   const roleOfName = nm => { nm = String(nm || '').replace(/\s+[@#].*$/, ''); for (const [re, r] of ROLE_RULES) if (re.test(nm)) return r; return null; };
   function planFx(r, opt) {
     opt = opt || {}; const host = r.host;
-    host.querySelectorAll('[data-fx]').forEach(e => { delete e.dataset.fx; delete e.dataset.fxWhen; delete e.dataset.fxOrder; });
+    host.querySelectorAll('[data-fx]').forEach(e => { delete e.dataset.fx; delete e.dataset.fxWhen; delete e.dataset.fxOrder; delete e.dataset.fxDx; delete e.dataset.fxDy; });
     if (opt.on === false) return (r.fx = []);
     const maxSteps = opt.pace === 'nhanh' ? 3 : opt.pace === 'chậm' ? 8 : 6;
     const units = [];
