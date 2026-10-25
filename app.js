@@ -177,7 +177,7 @@
       if (o.fx === 'none') { if (ord) { r.fx = r.fx.filter(a => String(a.order) !== String(ord)); delete el.dataset.fx; delete el.dataset.fxWhen; delete el.dataset.fxOrder; } continue; }
       el.querySelectorAll('[data-fx-order]').forEach(c => { if (/^fx\./.test(c.dataset.n || '')) return; r.fx = r.fx.filter(a => String(a.order) !== c.dataset.fxOrder); delete c.dataset.fx; delete c.dataset.fxWhen; delete c.dataset.fxOrder; });   // khối cha nhận hiệu ứng → con không chạy riêng (trừ khung đáp án fx.*)
       const setD = () => { el.dataset.fx = o.fx; el.dataset.fxWhen = o.when; if (o.dir) el.dataset.fxDir = o.dir; if (o.dur) el.dataset.fxDur = o.dur; };
-      if (ord) { const a = r.fx.find(x => String(x.order) === String(ord)); setD(); if (a) { a.fx = o.fx; a.when = o.when; } }
+      if (ord) { const a = r.fx.find(x => String(x.order) === String(ord)); setD(); if (a) { a.fx = o.fx; a.when = o.when; a.dur = o.dur; } }
       else {   // khối mới: chen vào đúng chỗ theo vị trí trên slide (trên → dưới), không dồn xuống cuối
         const after = [...r.host.querySelectorAll('[data-fx-order]')].filter(x => el.compareDocumentPosition(x) & Node.DOCUMENT_POSITION_FOLLOWING && !el.contains(x)).map(x => +x.dataset.fxOrder);
         const order = after.length ? Math.min(...after) - 0.5 : Math.max(0, ...r.fx.map(a => +a.order || 0)) + 1;
@@ -298,8 +298,8 @@
     }
     // xem thử hiệu ứng: ẩn các khối có thứ tự lần bấm > bước đang xem
     if (state.fxStep != null) {
-      const clickOf = {}; let c = 0; (r.fx || []).forEach(a => { if (a.when === 'click') c++; clickOf[a.order] = c; });
-      clone.querySelectorAll('[data-fx-order]').forEach(el => { const k = clickOf[el.dataset.fxOrder]; if (k > state.fxStep) el.style.visibility = 'hidden'; else if (k === state.fxStep && state.fxStep > 0) { el.classList.add('fxa-' + (el.dataset.fx || 'fade') + '-' + (el.dataset.fxDir || 'bottom')); el.style.animationDuration = ((+el.dataset.fxDur || 500) / 1000) + 's'; } });
+      const clickOf = {}, delayOf = {}; let c = 0, t = 0, prev = 0; (r.fx || []).forEach(a => { if (a.when === 'click') { c++; t = 0; prev = 0; } else if (a.when === 'after') t += prev; clickOf[a.order] = c; delayOf[a.order] = t; prev = a.dur || 500; });   // 'Sau' chạy nối tiếp, 'Cùng' chạy cùng lúc
+      clone.querySelectorAll('[data-fx-order]').forEach(el => { const k = clickOf[el.dataset.fxOrder]; if (k > state.fxStep) el.style.visibility = 'hidden'; else if (k === state.fxStep && state.fxStep > 0) { el.classList.add('fxa-' + (el.dataset.fx || 'fade') + '-' + (el.dataset.fxDir || 'bottom')); el.style.animationDuration = ((+el.dataset.fxDur || 500) / 1000) + 's'; el.style.animationDelay = ((delayOf[el.dataset.fxOrder] || 0) / 1000) + 's'; } });
     }
     // tô ô có lỗi
     r.issues.filter(i => i.slot).forEach(i => { const el = clone.querySelector(`[data-filled="${CSS.escape(i.slot)}"]`); if (el) el.classList.add(i.lv === 'do' ? 'bad' : 'warn'); });
@@ -426,26 +426,49 @@
         if (r && fx.length) { const ol = document.createElement('ol'); ol.className = 'fxord';
           const els = fx.map(a => [...r.host.querySelectorAll('[data-fx-order]')].find(x => String(x.dataset.fxOrder) === String(a.order))).filter(Boolean);
           const paths = els.map(e => pathOf(e, r.host));
-          const move = (i, d) => { const j = i + d; if (j < 0 || j >= paths.length) return; const arr = paths.slice(); [arr[i], arr[j]] = [arr[j], arr[i]]; state.fxOrd[pk] = arr; stopFx(); refx(state.sel); };
-          els.forEach((e, i) => { const a = fx[i]; const li = document.createElement('li'); const nm = fxName(e);
-            li.innerHTML = `<b>${i + 1}</b> <span class="fxw">${a.when === 'click' ? 'Bấm' : a.when === 'after' ? 'Sau' : 'Cùng'}</span> <span class="fxn">${nm.replace(/[<>&]/g, '')}</span> <small class="muted">${({ appear: 'hiện', fade: 'hiện dần', fly: 'bay', zoom: 'phóng', wipe: 'quét' })[a.fx] || a.fx}</small>`;
-            if (paths[i] === state.fxSel) li.classList.add('on'); li.onclick = () => { state.fxSel = paths[i]; state.fxDemo = paths[i]; drawMain(); drawPanel(); };
+          const ovOf = (path, e) => Object.assign({ fx: e.dataset.fx || 'fade', when: e.dataset.fxWhen || 'click', dir: e.dataset.fxDir || 'bottom', dur: +e.dataset.fxDur || 500 }, (state.fxObj[pk] || {})[path] || {});
+          const setOv = (path, e, patch) => { (state.fxObj[pk] = state.fxObj[pk] || {})[path] = Object.assign(ovOf(path, e), patch); };
+          const multi = state.fxMulti && state.fxMulti.pk === pk ? state.fxMulti.set : (state.fxMulti = { pk, set: [] }).set;
+          let step = 0;
+          els.forEach((e, i) => { const a = fx[i]; const li = document.createElement('li'); const nm = fxName(e); const path = paths[i];
+            const sub = a.when !== 'click' && i > 0; if (!sub) step++;
+            if (sub) li.classList.add('sub'); if (path === state.fxSel) li.classList.add('on'); if (multi.includes(path)) li.classList.add('pick');
+            const W = { click: ['Bấm', 'Chạy khi bấm'], with: ['Cùng', 'Chạy CÙNG LÚC với khối trên'], after: ['Sau', 'Chạy ngay SAU khối trên, không cần bấm'] }[a.when] || ['Bấm', ''];
+            li.innerHTML = `<b>${sub ? '' : step}</b><button type="button" class="fxw" title="${W[1]} – bấm để đổi">${W[0]}</button><span class="fxn">${nm.replace(/[<>&]/g, '')}</span>`;
+            // BẤM → CÙNG → SAU: đổi cách chạy ngay trên dòng (dòng đầu chỉ có Bấm / Sau)
+            li.querySelector('.fxw').onclick = ev => { ev.stopPropagation(); const nx = { click: i > 0 ? 'with' : 'after', with: 'after', after: 'click' }[a.when] || 'click'; setOv(path, e, { when: nx }); stopFx(); refx(state.sel); };
             const bt = document.createElement('span'); bt.className = 'fxmv';
-            [['▲', -1], ['▼', 1]].forEach(([t, d]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.title = d < 0 ? 'Lên trước' : 'Xuống sau'; b.onclick = ev => { ev.stopPropagation(); move(i, d); }; bt.appendChild(b); });
-            li.appendChild(bt); ol.appendChild(li);
-            // KÉO THẢ để sắp thứ tự (chuột + cảm ứng qua pointer events)
-            li.draggable = true; li.dataset.i = i;
+            const pl = document.createElement('button'); pl.type = 'button'; pl.textContent = '▶'; pl.title = 'Chạy thử khối này'; pl.onclick = ev => { ev.stopPropagation(); state.fxDemo = path; drawMain(); };
+            const del = document.createElement('button'); del.type = 'button'; del.textContent = '✕'; del.title = 'Bỏ hiệu ứng khối này'; del.onclick = ev => { ev.stopPropagation(); setOv(path, e, { fx: 'none' }); if (state.fxSel === path) state.fxSel = null; stopFx(); refx(state.sel); };
+            bt.append(pl, del); li.appendChild(bt); ol.appendChild(li);
+            // bấm dòng = chọn khối; Ctrl / ⌘ / Shift + bấm = chọn nhiều dòng để gộp chạy cùng lúc
+            li.onclick = ev => { if (ev.ctrlKey || ev.metaKey || ev.shiftKey) { const k = multi.indexOf(path); if (k >= 0) multi.splice(k, 1); else multi.push(path); drawPanel(); return; }
+              multi.length = 0; state.fxSel = path; state.fxDemo = path; drawMain(); drawPanel(); };
+            // KÉO THẢ: thả vào MÉP TRÊN dòng = chèn trước; thả vào GIỮA dòng = gộp, chạy cùng lúc với dòng đó
+            li.draggable = true;
             li.addEventListener('dragstart', ev => { ev.dataTransfer.setData('text/plain', String(i)); ev.dataTransfer.effectAllowed = 'move'; li.classList.add('drag'); });
-            li.addEventListener('dragend', () => { li.classList.remove('drag'); ol.querySelectorAll('.over').forEach(x => x.classList.remove('over')); });
-            li.addEventListener('dragover', ev => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; ol.querySelectorAll('.over').forEach(x => x.classList.remove('over')); li.classList.add('over'); });
-            li.addEventListener('drop', ev => { ev.preventDefault(); const from = +ev.dataTransfer.getData('text/plain'), to = i; if (isNaN(from) || from === to) return;
-              const arr = paths.slice(); const [m] = arr.splice(from, 1); arr.splice(to, 0, m); state.fxOrd[pk] = arr; stopFx(); refx(state.sel); }); });
+            li.addEventListener('dragend', () => { li.classList.remove('drag'); ol.querySelectorAll('.over,.join').forEach(x => x.classList.remove('over', 'join')); });
+            const zone = ev => { const b = li.getBoundingClientRect(); return ev.clientY - b.top < b.height * 0.35 ? 'over' : 'join'; };
+            li.addEventListener('dragover', ev => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; ol.querySelectorAll('.over,.join').forEach(x => x.classList.remove('over', 'join')); li.classList.add(zone(ev)); });
+            li.addEventListener('drop', ev => { ev.preventDefault(); const from = +ev.dataTransfer.getData('text/plain'), z = zone(ev); if (isNaN(from) || from === i) return;
+              const arr = paths.slice(); const [m] = arr.splice(from, 1); const to = arr.indexOf(path); arr.splice(z === 'join' ? to + 1 : to, 0, m); state.fxOrd[pk] = arr;
+              if (z === 'join') setOv(m, els[from], { when: 'with' }); else if (ovOf(m, els[from]).when !== 'click') setOv(m, els[from], { when: 'click' });
+              stopFx(); refx(state.sel); }); });
+          if (multi.length >= 2) { const gb = document.createElement('div'); gb.className = 'row fxgroup';
+            const g = document.createElement('button'); g.type = 'button'; g.className = 'btn sm primary'; g.textContent = `⇉ Chạy cùng lúc (${multi.length})`;
+            g.onclick = () => { const sel = paths.filter(x => multi.includes(x)); const first = sel[0]; const arr = paths.filter(x => !sel.includes(x) || x === first); arr.splice(arr.indexOf(first) + 1, 0, ...sel.slice(1)); state.fxOrd[pk] = arr;
+              sel.slice(1).forEach(x => setOv(x, els[paths.indexOf(x)], { when: 'with' })); multi.length = 0; stopFx(); refx(state.sel); setTimeout(playFx, 50); };
+            const u = document.createElement('button'); u.type = 'button'; u.className = 'btn sm'; u.textContent = 'Tách: mỗi khối 1 lần bấm';
+            u.onclick = () => { paths.filter(x => multi.includes(x)).forEach(x => setOv(x, els[paths.indexOf(x)], { when: 'click' })); multi.length = 0; stopFx(); refx(state.sel); };
+            const c = document.createElement('button'); c.type = 'button'; c.className = 'btn sm'; c.textContent = '✕'; c.title = 'Bỏ chọn'; c.onclick = () => { multi.length = 0; drawPanel(); };
+            gb.append(g, u, c); body.appendChild(gb); }
           const rowO = document.createElement('div'); rowO.className = 'row';
           const auto = document.createElement('button'); auto.type = 'button'; auto.className = 'btn'; auto.textContent = '↕ Tự xếp'; auto.title = 'Xếp theo bố cục: cột trái trước, trong cột từ trên xuống; đáp án sau nhóm lựa chọn';
           auto.onclick = () => { const arr = smartOrder(r, els).map(e => pathOf(e, r.host)); state.fxOrd[pk] = arr; stopFx(); refx(state.sel); };
           rowO.appendChild(auto);
           if (state.fxOrd[pk]) { const rs0 = document.createElement('button'); rs0.type = 'button'; rs0.className = 'btn'; rs0.textContent = 'Thứ tự mặc định'; rs0.onclick = () => { delete state.fxOrd[pk]; stopFx(); refx(state.sel); }; rowO.appendChild(rs0); }
-          body.appendChild(rowO); body.appendChild(ol); }
+          body.appendChild(rowO); body.appendChild(ol);
+          body.insertAdjacentHTML('beforeend', '<p class="muted fxhint">Kéo vào <b>giữa</b> một dòng để chạy cùng lúc · Ctrl/⌘ + bấm để chọn nhiều dòng · bấm chữ Bấm/Cùng/Sau để đổi.</p>'); }
         const el = r && state.fxSel ? byPath(r.host, state.fxSel) : null;
         if (!el) body.insertAdjacentHTML('beforeend', '<p class="muted">Bấm vào một khối trên slide (câu hỏi, lựa chọn, ô từ, hình…) để gắn hiệu ứng riêng. Hiệu ứng sẽ chạy thử ngay trên slide, lặp 3 lần.</p>');
         else { const ov = (state.fxObj[pk] || {})[state.fxSel]; const cur = ov || { fx: el.dataset.fx || 'none', when: el.dataset.fxWhen || 'click', dir: el.dataset.fxDir || 'bottom', dur: +el.dataset.fxDur || 500 };
