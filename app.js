@@ -136,7 +136,7 @@
     }
     state.deckSize = E.deckNormalize ? E.deckNormalize(out) : null;   // cỡ chữ chuẩn cả bài (trung vị, mỗi slide ±1 bậc)
     // QC 25/10: khung đáp án / dây nối / độ trượt đo TRƯỚC khi chuẩn cỡ chữ cả bài → lệch khi chữ đổi cỡ (khung khoanh nhầm sang ô B) → đo lại sau cùng
-    out.forEach(r => { try { fxBuild(r); } catch (e) { } });
+    out.forEach(r => { try { if (E.markIcons) E.markIcons(r.host); fxBuild(r); } catch (e) { } });
     state.slides = out;
     // kiểm chuẩn v2.0 cả bài (29 luật) – lỗi theo slide gộp vào danh sách lỗi của slide
     if (window.PLS_STD) {
@@ -308,23 +308,7 @@
       { const clickOf = {}; let c = 0; (r.fx || []).forEach(a => { if (a.when === 'click') c++; clickOf[a.order] = c; });   // số lần bấm hiện cạnh khối (như PowerPoint)
         const shown = new Set(); clone.querySelectorAll('[data-fx-order]').forEach(el => { const kk = clickOf[el.dataset.fxOrder]; const fa = (r.fx || []).find(a => String(a.order) === el.dataset.fxOrder); if (fa && fa.when !== 'click' && shown.has(kk)) return; shown.add(kk); const b = document.createElement('span'); b.className = 'fxbadge'; b.textContent = clickOf[el.dataset.fxOrder] || ''; const sc = parseFloat((clone.style.transform.match(/scale\(([\d.]+)\)/) || [])[1]) || 1; b.style.fontSize = (13 / sc) + 'px'; const cr0 = clone.getBoundingClientRect(), q = el.getBoundingClientRect(), fxL = /^fx\./.test(el.dataset.n || '');   /* gắn ở lớp trên cùng của slide → không bị khung đáp án đè; khung đáp án: số ở góc phải */
           b.style.zIndex = 60; b.style.top = ((q.top - cr0.top) / sc - 8 / sc) + 'px'; b.style.left = ((fxL ? q.right : q.left) - cr0.left) / sc - (fxL ? 30 : 8) / sc + 'px'; clone.appendChild(b); });
-        // GỘP NHANH (người dùng 25/10): rê chuột vào KHE giữa 2 khối kề nhau → con trỏ đổi thành icon nối; bấm = khối sau hiện CÙNG LẦN BẤM với khối trước (bấm lại = tách ra)
-        const sc = parseFloat((clone.style.transform.match(/scale\(([\d.]+)\)/) || [])[1]) || 1, cr = clone.getBoundingClientRect();
-        const box = e => { const q = e.getBoundingClientRect(); return { x: (q.left - cr.left) / sc, y: (q.top - cr.top) / sc, w: q.width / sc, h: q.height / sc }; };
-        const fxs = (r.fx || []).slice().sort((a, b) => a.order - b.order), elOf = {}, spots = []; clone.querySelectorAll('[data-fx-order]').forEach(e => { elOf[e.dataset.fxOrder] = e; });
-        for (let i = 1; i < fxs.length; i++) { const A = elOf[fxs[i - 1].order], B = elOf[fxs[i].order]; if (!A || !B || A.offsetParent === null || B.offsetParent === null || A.contains(B) || B.contains(A)) continue;
-          if (fxs[i].fx === 'move' && fxs[i].when !== 'click') continue;
-          const a = box(A), b = box(B); let h = null;
-          const ovY = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y), ovX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
-          if (ovY > Math.min(a.h, b.h) * .5) { const L = a.x < b.x ? a : b, R = a.x < b.x ? b : a, g = R.x - (L.x + L.w); if (g > -6 && g < 90) h = { x: L.x + L.w + g / 2 - 13, y: Math.max(a.y, b.y), w: 26, h: ovY }; }
-          else if (ovX > Math.min(a.w, b.w) * .5) { const T = a.y < b.y ? a : b, D = a.y < b.y ? b : a, g = D.y - (T.y + T.h); if (g > -6 && g < 90) h = { x: Math.max(a.x, b.x), y: T.y + T.h + g / 2 - 13, w: ovX, h: 26 }; }
-          if (!h || spots.some(q => h.x < q.x + q.w && q.x < h.x + h.w && h.y < q.y + q.h && q.y < h.y + h.h)) continue; spots.push(h); const joined = fxs[i].when !== 'click';
-          const j = document.createElement('div'); j.className = 'fxjoin' + (joined ? ' on' : ''); j.style.cssText = `left:${h.x}px;top:${h.y}px;width:${h.w}px;height:${h.h}px`;
-          j.title = joined ? 'Đang hiện cùng lần bấm với khối trước · bấm để tách ra lần bấm riêng' : 'Bấm để hiện CÙNG LÚC với khối trước (bớt 1 lần bấm)';
-          const ic = document.createElement('span'); ic.style.fontSize = (12 / sc) + 'px'; ic.textContent = joined ? '⛓' : '+'; j.appendChild(ic);
-          j.addEventListener('click', ev => { ev.stopPropagation(); ev.preventDefault(); const path = pathOf(B, clone); const k2 = r.src + '/' + r.part, o = (state.fxObj[k2] = state.fxObj[k2] || {});
-            o[path] = Object.assign({ fx: B.dataset.fx || 'fade', dir: B.dataset.fxDir || 'bottom', dur: +B.dataset.fxDur || 500 }, o[path] || {}, { when: joined ? 'click' : 'with' }); stopFx(); refx(state.sel); });
-          clone.appendChild(j); } }
+        }
       // CHẠY THỬ KHỐI: gắn xong là chạy ngay trên slide, lặp 3 lần để thấy hiệu ứng như lúc trình chiếu
       if (state.fxDemo) { const d = byPath(clone, state.fxDemo); if (d && d.dataset.fx === 'move' && d.animate) { const to = `translate(${+d.dataset.fxDx || 0}px, ${+d.dataset.fxDy || 0}px)`; d.animate([{ transform: 'none' }, { transform: 'none', offset: .25 }, { transform: to, offset: .85 }, { transform: to }], { duration: 2200, iterations: 3 }); }
         else if (d && d.dataset.fx && d.dataset.fx !== 'none') { d.style.animation = `fxd-${d.dataset.fx}-${d.dataset.fxDir || 'bottom'} ${((+d.dataset.fxDur || 500) + 900) / 1000}s ease-out 3`; d.style.animationFillMode = 'both'; } state.fxDemo = null; }
@@ -484,6 +468,12 @@
             const pl = document.createElement('button'); pl.type = 'button'; pl.textContent = '▶'; pl.title = 'Chạy thử khối này'; pl.onclick = ev => { ev.stopPropagation(); state.fxDemo = path; drawMain(); };
             const del = document.createElement('button'); del.type = 'button'; del.textContent = '✕'; del.title = 'Bỏ hiệu ứng khối này'; del.onclick = ev => { ev.stopPropagation(); setOv(path, e, { fx: 'none' }); if (state.fxSel === path) state.fxSel = null; stopFx(); refx(state.sel); };
             bt.append(pl, del); li.appendChild(bt); ol.appendChild(li);
+            // NỐI NHANH (người dùng 25/10): rê chuột vào KHE giữa 2 dòng → hiện nút nối; bấm = dòng dưới chạy CÙNG LÚC với dòng trên (bấm lại = tách ra lần bấm riêng)
+            if (i > 0) { const lk = document.createElement('span'); lk.className = 'fxlk' + (a.when === 'with' ? ' on' : ''); const on = a.when === 'with';
+              lk.title = on ? 'Đang chạy cùng lúc với dòng trên · bấm để tách ra lần bấm riêng' : 'Bấm để chạy CÙNG LÚC với dòng trên (bớt 1 lần bấm)';
+              lk.innerHTML = `<i>${on ? '⛓ Cùng lúc · tách' : '🔗 Chạy cùng lúc'}</i>`;
+              lk.onclick = ev => { ev.stopPropagation(); setOv(path, e, { when: on ? 'click' : 'with' }); stopFx(); refx(state.sel); };
+              lk.draggable = false; li.appendChild(lk); }
             // bấm dòng = chọn khối; Ctrl / ⌘ / Shift + bấm = chọn nhiều dòng để gộp chạy cùng lúc
             li.onclick = ev => { if (ev.ctrlKey || ev.metaKey || ev.shiftKey) { const k = multi.indexOf(path); if (k >= 0) multi.splice(k, 1); else multi.push(path); drawPanel(); return; }
               multi.length = 0; state.fxSel = path; state.fxDemo = path; drawMain(); drawPanel(); };
@@ -685,7 +675,7 @@
     }
     state.exportWarns = bad;
     let saved = false;
-    try { const dl = window.claude && await window.claude.use('downloads'); if (dl) { await dl.save({ filename: name, data: new Blob([bytes]) }); saved = true; } } catch (e) { console.warn('[PLS] downloads:', e && e.code); }
+    /* người dùng 25/10: xuất bài = tải file về máy bình thường (không đi qua Claude) */
     if (!saved) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
     setStatus(`Đã xuất ${name} (${Math.round(bytes.length / 1024)} KB)` + (bad.length ? ` · ${bad.length} lỗi sau khi đổi font – xem tab Soát lỗi` : ''));
     drawPanel();
