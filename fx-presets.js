@@ -21,6 +21,7 @@
         { id: 'match-each', label: 'Nối dây từng cặp', desc: 'Mỗi lần bấm 1 dây nối câu trái → đáp án phải' },
         { id: 'match-all', label: 'Nối dây cùng lúc', desc: '1 lần bấm hiện tất cả dây nối' }); }
     else if (ans && ans.kind === 'text' && ans.items.some(x => x.text)) { type = 'text'; label = /Order/.test(comp) ? 'Sắp xếp câu' : 'Điền / viết';
+      if (/Order/.test(comp)) P.push({ id: 'order-move', label: 'Từ tự trượt về đúng thứ tự', desc: 'Mỗi lần bấm: các từ của 1 câu trượt về đúng vị trí (PowerPoint: Motion Path)' });
       P.push({ id: 'text-each', label: 'Hiện đáp án từng câu', desc: 'Mỗi lần bấm hiện đáp án 1 câu (chữ màu brand)' },
         { id: 'text-all', label: 'Hiện đáp án cùng lúc', desc: '1 lần bấm hiện đáp án cả slide' }); }
     else if (/^Slide\/(Vocab Grid \d|Vocab Trio|Vocab Picture)/.test(comp)) { type = 'vocab'; label = 'Từ vựng có hình';
@@ -92,7 +93,7 @@
   function apply(r, id) {
     const rt = rootOf(r); if (!rt) return [];
     rt.querySelectorAll(':scope > [data-n="fx.layer"]').forEach(x => x.remove());
-    r.host.querySelectorAll('[data-fx]').forEach(e => { delete e.dataset.fx; delete e.dataset.fxWhen; delete e.dataset.fxOrder; });
+    r.host.querySelectorAll('[data-fx]').forEach(e => { delete e.dataset.fx; delete e.dataset.fxWhen; delete e.dataset.fxOrder; delete e.dataset.fxDx; delete e.dataset.fxDy; });
     if (id === 'auto') return E().planFx(r, (root.PLS && root.PLS._int && root.PLS._int.state.fx) || {});
     const out = []; let order = 0;
     // QC 24/10 (người dùng): có chuyển động nhẹ, không chỉ "bật hiện" – khung / ✓ / nhãn đáp án: Zoom · lựa chọn: Fly từ dưới · dây, chữ, từ – nghĩa: Fade
@@ -114,6 +115,22 @@
         else add(line(r, a, b, `fx.line_${i + 1}`), 'line', id === 'match-all' && i ? 'with' : 'click'); });
     } else if (/^text-/.test(id)) {
       ans.items.forEach((x, i) => { const it = find(x.at); if (!it || !x.text || it.offsetParent === null) return; add(answerText(r, it, x.text, `fx.ans_${i + 1}`), 'answer', id === 'text-all' && out.length ? 'with' : 'click'); });
+    } else if (id === 'order-move') {
+      // SẮP XẾP TỪ (người dùng 25/10): không hiện câu đáp án bên cạnh mà cho CÁC Ô TỪ TRƯỢT về đúng thứ tự ngay trên hàng.
+      // Mỗi ô: hiệu ứng 'move' + độ dời dx/dy (toạ độ slide 1920) → web: trượt; PowerPoint: Motion Path (đường thẳng).
+      const norm = w => (w || '').toLowerCase().replace(/[’`]/g, "'").replace(/^[^\w']+|[^\w']+$/g, '');
+      ans.items.forEach((x, i) => { const it = find(x.at); if (!it || !x.text || it.offsetParent === null) return;
+        const boxes = []; for (let k = 1; k <= 12; k++) { const b = find(`${x.at}.w${k}_box`); if (b && b.offsetParent !== null) boxes.push(b); }
+        const toks = x.text.split(/\s+/).map(norm).filter(Boolean), used = new Set(), g = geo(r);
+        const pos = boxes.map(b => { const w = norm(b.textContent); for (let j = 0; j < toks.length; j++) if (!used.has(j) && toks[j] === w) { used.add(j); return j; } return -1; });
+        const G = boxes.map(g), oneRow = G.every(q => Math.abs(q.y - G[0].y) < 4);
+        if (boxes.length < 2 || pos.includes(-1) || !oneRow) { add(answerText(r, it, x.text, `fx.ans_${i + 1}`), 'answer', 'click'); return; }   // không khớp / ô xuống dòng → hiện câu đáp án như cũ
+        const gap = G.length > 1 ? Math.max(4, G[1].x - (G[0].x + G[0].w)) : 12, x0 = Math.min(...G.map(q => q.x));
+        const ordIdx = boxes.map((_, k) => k).sort((a, b) => pos[a] - pos[b]); let cx = x0; const tx = {};
+        ordIdx.forEach(k => { tx[k] = cx; cx += G[k].w + gap; });
+        let first = true; boxes.forEach((b, k) => { const dx = Math.round(tx[k] - G[k].x); if (Math.abs(dx) < 2) return;
+          order++; b.dataset.fx = 'move'; b.dataset.fxWhen = first ? 'click' : 'with'; b.dataset.fxOrder = order; b.dataset.fxDx = dx; b.dataset.fxDy = 0; b.dataset.fxDur = 700;
+          out.push({ n: b.dataset.n, role: 'answer', fx: 'move', when: first ? 'click' : 'with', order, dur: 700, dx, dy: 0 }); first = false; }); });
     } else if (/^vocab-(each|all)$/.test(id)) {
       for (let i = 1; i <= 8; i++) { const v = find(`vocab_${i}`); if (!v || v.offsetParent === null) continue; const t = find(`vocab_${i}.txt`) || v.querySelector('[data-n="txt"]');   // Grid 4: khung txt (từ + nghĩa); Grid 6/8: từ và nghĩa nằm rời
         const parts = t ? [t] : ['de', 'vi'].map(k => find(`vocab_${i}.${k}`)).filter(x => x && x.offsetParent !== null);
