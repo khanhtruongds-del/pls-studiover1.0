@@ -612,19 +612,25 @@
   // BẢN HỌC VIÊN (đặc tả §31.2, người dùng chốt 23/10): bỏ hẳn đáp án khỏi file – không dựa vào ẩn / hiệu ứng
   const isStudent = aud => (aud || state.aud) === 'student';
   function exportView(device, aud) {
-    const xs = $('#xstage'); xs.innerHTML = '';
-    return state.slides.map((r, i) => {
+    const xs = $('#xstage'); xs.innerHTML = ''; const dk = { count: {} };
+    const out = state.slides.map((r, i) => {
       const x = E.render(r.spec, state.brand); xs.appendChild(x.host);
       if (isStudent(aud)) x.host.querySelectorAll('[data-n]').forEach(el => { if (E.roleOfName(el.dataset.n) === 'answer') el.remove(); });
-      if (window.PLS_IMAGES) window.PLS_IMAGES.fill(x.host, state.brand, r.spec.data);
+      if (window.PLS_IMAGES) window.PLS_IMAGES.fill(x.host, state.brand, r.spec.data, dk);   // bộ đếm ảnh chung cả bài như trên web
       E.applyExportFonts(x.host, state.brand, device);
       if (state.hier) E.hierarchy(x);
       E.typoLayout(x);
       x.fitLog = E.fitText(x); E.typoSpread(x); x.issues = E.audit(x).filter(i => i.code !== 'noImage'); x.slide = i + 1;
-      E.planFx(x, state.fx);
-      x.spec = r.spec; { const pk = r.src + '/' + r.part; if (state.fxp[pk] && window.PLS_FXP && !isStudent(aud)) window.PLS_FXP.apply(x, state.fxp[pk]); }   // bộ hiệu ứng nhanh khoanh / nối đáp án → không có ở bản học viên   // bộ hiệu ứng nhanh cũng vào file xuất
+      x.spec = r.spec; x.src = r.src; x.part = r.part;
       return x;
     });
+    // QC 25/10 (người dùng: "tải về hiệu ứng lạ, không khớp web"): bản xuất phải đi ĐÚNG đường như trên web –
+    // chuẩn cỡ chữ cả bài → dấu ✓ icon → hiệu ứng (bộ mặc định khoanh / nối / trượt + chỉnh tay từng khối + thứ tự kéo thả)
+    if (E.deckNormalize) try { E.deckNormalize(out); } catch (e) { console.warn('[PLS] export normalize', e); }
+    out.forEach(x => { try { if (E.markIcons) E.markIcons(x.host); const pk = x.src + '/' + x.part; E.planFx(x, state.fx);
+      if (window.PLS_FXP && state.fx.on && !isStudent(aud)) { const pid = state.fxp[pk] || (state.fx.hideAnswer ? defPreset(x) : null); if (pid && pid !== 'auto') window.PLS_FXP.apply(x, pid); }   // bản học viên: không khoanh / nối đáp án
+      applyObjFx(x, pk); } catch (e) { console.warn('[PLS] export fx', e); } });
+    return out;
   }
   // GHI CHÚ GIẢNG (Notes dưới slide): máy soạn từ Excel (import-excel.js / auto.js), người dùng sửa được; bản sửa giữ theo slide (nguồn/phần)
   const notesKey = r => r.src + '/' + r.part;
