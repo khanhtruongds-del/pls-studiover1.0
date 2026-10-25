@@ -1352,7 +1352,7 @@
   function pSteps(i) { const s = pst(), sl = pSlides()[i]; if (!s || !sl || !(s.fx || {}).on) return [];
     const L = (sl.fx || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0)), G = [];
     L.forEach(a => { if (!G.length || a.when === 'click') G.push([]); G[G.length - 1].push(a); }); return G; }
-  function pNotes(i) { const s = pst(), sl = pSlides()[i]; if (!sl) return ''; const ov = (s.notesOv || {})[i]; return String(ov != null ? ov : (sl.spec && sl.spec.notes) || ''); }
+  function pNotes(i) { const s = pst(), sl = pSlides()[i]; if (!sl) return ''; const no = s.notesOv || {}, k2 = sl.src != null ? sl.src + '/' + (sl.part || 0) : i, ov = k2 in no ? no[k2] : no[i]; /* ghi chú sửa tay lưu theo nguồn/phần */ return String(ov != null ? ov : (sl.spec && sl.spec.notes) || ''); }
   function pPlan() { const n = pNotes(0) + '\n' + pNotes(1), m = n.match(/Cả buổi\s*(\d+)\s*phút/i); return m ? +m[1] : 0; }
   // dựng 1 slide (bản sao) vào khung, co cho vừa; ẩn các phần chưa tới bước hiệu ứng
   function pPaint(doc, box, i, step, anim) {
@@ -1360,10 +1360,21 @@
     const W = box.clientWidth || 1, H = box.clientHeight || 1, k = Math.min(W / 1920, H / 1080);
     const wrap = doc.createElement('div'); wrap.style.cssText = `position:absolute;width:1920px;height:1080px;left:${(W - 1920 * k) / 2}px;top:${(H - 1080 * k) / 2}px;transform:scale(${k});transform-origin:0 0;overflow:hidden;background:#fff`;
     const c = doc.importNode(sl.host, true); c.style.position = 'relative'; c.style.left = '0'; c.style.top = '0'; c.style.transform = 'none'; wrap.appendChild(c); box.appendChild(wrap);
-    const G = pSteps(i); G.forEach((g, gi) => g.forEach(a => { const el = c.querySelector(`[data-n="${a.n}"]`); if (!el) return;
-      if (gi >= step) el.style.visibility = 'hidden';
-      else if (anim && gi === step - 1) { const fr = { fade: [{ opacity: 0 }, { opacity: 1 }], fly: [{ opacity: 0, transform: 'translateY(60px)' }, { opacity: 1, transform: 'none' }], zoom: [{ opacity: 0, transform: 'scale(.85)' }, { opacity: 1, transform: 'none' }] }[a.fx];
-        if (fr && el.animate) el.animate(fr, { duration: a.dur || 450, delay: a.when === 'after' ? (a.delay || 300) : 0, easing: 'ease-out', fill: 'backwards' }); } }));
+    // HIỆU ỨNG KHI TRÌNH CHIẾU (QC 25/10: xem thử đúng mà trình chiếu sai) – chạy y như "Xem thử cả slide":
+    // tìm khối theo SỐ THỨ TỰ hiệu ứng (data-fx-order, không theo tên – tên trùng nhau ở nhiều câu), đủ kiểu appear / fade / fly 4 hướng / zoom / wipe / trượt (move), 'after' nối tiếp
+    const G = pSteps(i), byOrd = {}; c.querySelectorAll('[data-fx-order]').forEach(e => { byOrd[e.dataset.fxOrder] = e; });
+    G.forEach((g, gi) => { let t = 0, prev = 0; g.forEach(a => { if (a.when === 'after') t += prev; prev = a.dur || (a.fx === 'move' ? 700 : 500);
+      const el = byOrd[String(a.order)] || c.querySelector(`[data-n="${a.n}"]`); if (!el) return;
+      if (a.fx === 'move' || el.dataset.fx === 'move') { const to = `translate(${+el.dataset.fxDx || 0}px, ${+el.dataset.fxDy || 0}px)`;
+        if (gi < step - 1 || (gi === step - 1 && !anim)) el.style.transform = to;
+        else if (gi === step - 1 && el.animate) el.animate([{ transform: 'none' }, { transform: to }], { duration: +el.dataset.fxDur || 700, delay: t, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'both' });
+        return; }
+      if (gi >= step) { el.style.visibility = 'hidden'; return; }
+      if (anim && gi === step - 1 && el.animate) { const d = el.dataset.fxDir || a.dir || 'bottom', off = { bottom: 'translateY(70px)', top: 'translateY(-70px)', left: 'translateX(-90px)', right: 'translateX(90px)' }[d] || 'translateY(70px)';
+        const clip = { left: 'inset(0 100% 0 0)', right: 'inset(0 0 0 100%)', top: 'inset(0 0 100% 0)', bottom: 'inset(100% 0 0 0)' }[d] || 'inset(0 100% 0 0)';
+        const fr = { appear: [{ opacity: 0 }, { opacity: 1, offset: .01 }, { opacity: 1 }], fade: [{ opacity: 0 }, { opacity: 1 }], fly: [{ opacity: 0, transform: off }, { opacity: 1, transform: 'none' }],
+          zoom: [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'scale(1.04)', offset: .6 }, { opacity: 1, transform: 'scale(1)' }], wipe: [{ clipPath: clip }, { clipPath: 'inset(0)' }] }[a.fx || el.dataset.fx] || [{ opacity: 0 }, { opacity: 1 }];
+        el.animate(fr, { duration: a.fx === 'appear' ? 80 : (+el.dataset.fxDur || a.dur || 500), delay: t, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' }); } }); });
     const tr = (pst().tr || {}); if (anim === 'slide' && tr.style && tr.style !== 'NONE' && wrap.animate) wrap.animate([{ opacity: 0 }, { opacity: 1 }], { duration: (tr.duration || .5) * 1000 });
     c.querySelectorAll('[data-n="track_box"]').forEach(b => { b.style.cursor = 'pointer'; b.title = 'Phát audio'; b.onclick = e => { e.stopPropagation(); pAudio(i, doc); }; }); }
   function pAudio(i, doc) { const sl = pSlides()[i], d = (sl && sl.spec && sl.spec.data) || {}, src = d.audio || d['track.audio'] || d.audioUrl;
