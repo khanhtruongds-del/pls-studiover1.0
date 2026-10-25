@@ -196,6 +196,9 @@
     const groups = [];
     for (const a of list) { if ((a.when === 'after' || a.when === 'with') && groups.length) groups[groups.length - 1].push(a); else groups.push([a]); }
     const effect = (a, delay, nodeType) => {
+      if (a.fx === 'move') {   // ô từ trượt về đúng chỗ: Motion Path đường thẳng (đơn vị = tỉ lệ khổ slide)
+        const ctn = nid(), dur = a.dur || 700, P = `M 0 0 L ${((a.dx || 0) / 1920).toFixed(4)} ${((a.dy || 0) / 1080).toFixed(4)} E`;
+        return { dur, xml: `<p:par><p:cTn id="${ctn}" presetID="0" presetClass="path" presetSubtype="0" accel="50000" decel="50000" fill="hold" nodeType="${nodeType}"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst><p:animMotion origin="layout" path="${P}" pathEditMode="relative" ptsTypes=""><p:cBhvr><p:cTn id="${nid()}" dur="${dur}" fill="hold"/><p:tgtEl><p:spTgt spid="${a.spid}"/></p:tgtEl><p:attrNameLst><p:attrName>ppt_x</p:attrName><p:attrName>ppt_y</p:attrName></p:attrNameLst></p:cBhvr></p:animMotion></p:childTnLst></p:cTn></p:par>` }; }
       const ctn = nid();   // id cha trước con (thứ tự như PowerPoint)
       const dur = a.dur || 500; const sp = `<p:tgtEl><p:spTgt spid="${a.spid}"/></p:tgtEl>`;
       const dir = a.dir || (a.fx === 'wipe' ? 'left' : 'bottom');
