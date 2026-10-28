@@ -32,7 +32,7 @@
 
   // 1) ĐOÁN NGHĨA: 4 thẻ đánh số, chữ + phiên âm hiện sẵn, NGHĨA hiện khi bấm (HĐ1 từ vựng)
   build('Slide/Guess Cards',
-    INS + div('cards', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:row;flex-wrap:wrap;gap:32px;align-content:center;justify-content:center;align-items:stretch',
+    INS + div('cards', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:row;flex-wrap:wrap;gap:32px;align-content:center;justify-content:flex-start;align-items:stretch',
       range(4).map(i => div(`gc_${i}`, `flex:0 0 calc(50% - 16px);display:flex;flex-direction:row;gap:28px;align-items:center;padding:28px 36px;border-radius:20px;background-color:${C.soft}`,
         circle('no_box', 64, C.fill, C.inv, String(i)) +
         div('body', 'flex:1 1 0px;min-width:0;display:flex;flex-direction:column;gap:6px;align-items:flex-start',
@@ -59,7 +59,7 @@
 
   // 4) CON SỐ MAY MẮN: 4–8 ô số; HV chọn số → GV bấm hiện câu hỏi của ô đó
   build('Slide/Lucky Number',
-    INS + div('tiles', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:row;flex-wrap:wrap;gap:28px;align-content:center;justify-content:center;align-items:stretch',
+    INS + div('tiles', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:row;flex-wrap:wrap;gap:28px;align-content:center;justify-content:flex-start;align-items:stretch',
       range(8).map(i => div(`tile_${i}`, `flex:0 0 calc(25% - 21px);min-height:220px;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;padding:20px 18px;border-radius:24px;background-color:${C.fill}`,
         txt('no', 'bold', 96, C.inv, String(i), false, 'text-align:center;line-height:1') +
         div('ans', `flex:0 0 auto;align-self:stretch;display:flex;flex-direction:column;gap:2px;align-items:center;padding:10px 14px;border-radius:14px;background-color:${C.white}`,
@@ -67,7 +67,7 @@
 
   // 5) BẢNG KHOANH ĐỌC NHANH (phản xạ pinyin): lưới tối đa 24 âm tiết, GV khoanh ô bất kỳ cho HV đọc
   build('Slide/Pinyin Grid',
-    INS + div('grid', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:row;flex-wrap:wrap;gap:18px;align-content:center;justify-content:center',
+    INS + div('grid', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:row;flex-wrap:wrap;gap:18px;align-content:center;justify-content:flex-start',
       range(24).map(i => div(`c_${i}`, `flex:0 0 calc(16.66% - 15px);display:flex;flex-direction:row;align-items:center;justify-content:center;padding:22px 8px;border-radius:16px;background-color:${i % 2 ? C.soft : C.white};box-shadow:inset 0 0 0 2px ${C.border}`,
         txt('text', 'native', 44, C.text, 'bā', false, 'text-align:center'))).join('')), 'gap:24px');
 
@@ -84,7 +84,7 @@
     INS + div('ring', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:row;gap:48px;align-items:center;justify-content:center',
       div('center', `flex:0 0 auto;width:320px;height:320px;display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;padding:24px;border-radius:50%;background-color:${C.fill}`,
         txt('radical', 'native', 130, C.inv, '亻', false, 'text-align:center;line-height:1') + txt('radical.name', 'bold', 24, C.inv, 'bộ nhân đứng', true, 'text-align:center;max-width:220px')) +
-      div('chars', 'flex:0 1 860px;min-width:0;display:flex;flex-direction:row;flex-wrap:wrap;gap:24px;align-content:center;justify-content:center',
+      div('chars', 'flex:0 1 860px;min-width:0;display:flex;flex-direction:row;flex-wrap:wrap;gap:24px;align-content:center;justify-content:flex-start',
         range(8).map(i => div(`rc_${i}`, `flex:0 0 calc(25% - 18px);display:flex;flex-direction:column;gap:4px;align-items:center;padding:18px 10px;border-radius:18px;background-color:${C.soft}`,
           txt('char', 'native', 84, C.text, '你', false, 'text-align:center;line-height:1.1') + txt('py', 'body', 26, C.muted, 'nǐ', false, 'text-align:center') +
           div('ans', `position:absolute;right:10px;top:10px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:50%;background-color:${C.fill}`, txt('ok', 'bold', 28, C.inv, '✓', false, 'text-align:center;line-height:1')))).join(''))), 'gap:24px');

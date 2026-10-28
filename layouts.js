@@ -7,7 +7,7 @@
   const q = (el, n) => el.querySelector(`[data-n="${n}"]`);
   const kids = (el, re) => el ? [...el.children].filter(e => re.test(e.dataset.n || '')) : [];
   const st = (el, o) => { if (el) Object.assign(el.style, o); };
-  const grid = (box, re, cols, gap) => { if (!box) return; st(box, { flexDirection: 'row', flexWrap: 'wrap', alignContent: 'center', justifyContent: 'center', gap: gap + 'px' });
+  const grid = (box, re, cols, gap) => { if (!box) return; st(box, { flexDirection: 'row', flexWrap: 'wrap', alignContent: 'center', justifyContent: 'flex-start', gap: gap + 'px' });
     kids(box, re).forEach(e => st(e, { flex: `0 0 calc(${100 / cols}% - ${Math.round(gap * (cols - 1) / cols)}px)`, maxWidth: `calc(${100 / cols}% - ${Math.round(gap * (cols - 1) / cols)}px)` })); };
   const list = (box, re) => { if (!box) return; st(box, { flexDirection: 'column', flexWrap: 'nowrap', justifyContent: 'center', alignItems: 'stretch', gap: '18px' }); kids(box, re).forEach(e => st(e, { flex: '0 0 auto', maxWidth: 'none', width: 'auto' })); };
   const pick = (d, re) => Object.fromEntries(Object.entries(d).filter(([k]) => re.test(k)));
