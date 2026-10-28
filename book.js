@@ -237,9 +237,9 @@
   // Cả cuốn dùng một họ Noto: Noto Sans cho chữ Latin / Việt / IPA; chữ Hán – Kana – Hangul rơi sang Noto Sans JP / KR / SC
   // (cùng nhà thiết kế, cùng độ cao chữ, cùng nét) → dòng chữ Việt và chữ tượng hình thẳng hàng, dễ canh, dễ so.
   // Phân cấp chỉ bằng CỠ + ĐỘ ĐẬM của cùng một font (400 thường · 500 nhãn · 600 tiêu đề con · 700 tiêu đề).
-  const BOOK_CJK = { Sakumi: 'Noto Sans JP', Saechang: 'Noto Sans KR', 'Đắc Nhân': 'Noto Sans SC' };
-  const bookFont = brand => `'Noto Sans', '${BOOK_CJK[brand] || 'Noto Sans JP'}', 'Noto Sans SC', 'Noto Sans KR', sans-serif`;
-  const bookFamilies = brand => ['Noto Sans', BOOK_CJK[brand]].filter(Boolean);
+  const BOOK_CJK = { Sakumi: 'Noto Sans JP', Saechang: 'Noto Sans KR', 'Đắc Nhân': 'LXGW WenKai' };   // tiếng Trung: chữ Khải (người dùng 28/10) – LXGW WenKai nhúng được vào PDF
+  const bookFont = brand => `'Montserrat', ${brand === 'Đắc Nhân' ? "'KaiTi', 'Kaiti SC', " : ''}'${BOOK_CJK[brand] || 'Noto Sans JP'}', 'Noto Sans SC', 'Noto Sans KR', sans-serif`;
+  const bookFamilies = brand => ['Montserrat', BOOK_CJK[brand]].filter(Boolean);   // người dùng 28/10: sách dùng Montserrat
   function bookCss() {
     if (typeof document === 'undefined' || document.getElementById('plsBookCss')) return; const st = document.createElement('style'); st.id = 'plsBookCss';
     // ép một font cho mọi chữ trong trang sách (mẫu Figma gắn font riêng từng ô: heading / body / native / doc)

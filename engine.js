@@ -649,14 +649,14 @@
   const PPTX_CFG = {
     heading: 'Verdana', body: 'Arial',
     devices: {
-      win: { tag: 'Windows', fonts: { 'Saechang': 'Malgun Gothic', 'Sakumi': 'Yu Gothic', 'Đắc Nhân': 'Microsoft YaHei' } },
-      mac: { tag: 'Mac, iPad', fonts: { 'Saechang': 'Apple SD Gothic Neo', 'Sakumi': 'Hiragino Sans', 'Đắc Nhân': 'PingFang SC' } },
-      and: { tag: 'Android, Google Slides', fonts: { 'Saechang': 'Noto Sans KR', 'Sakumi': 'Noto Sans JP', 'Đắc Nhân': 'Noto Sans SC' } }
+      win: { tag: 'Windows', fonts: { 'Saechang': 'Malgun Gothic', 'Sakumi': 'Yu Gothic', 'Đắc Nhân': 'KaiTi' } },   // tiếng Trung = chữ Khải (người dùng 28/10)
+      mac: { tag: 'Mac, iPad', fonts: { 'Saechang': 'Apple SD Gothic Neo', 'Sakumi': 'Hiragino Sans', 'Đắc Nhân': 'Kaiti SC' } },
+      and: { tag: 'Android, Google Slides', fonts: { 'Saechang': 'Noto Sans KR', 'Sakumi': 'Noto Sans JP', 'Đắc Nhân': 'LXGW WenKai' } }
     },
     latinInNative: ['Đắc Nhân']
   };
   const VIET = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
-  const CJK_FONT = /Gothic A1|Noto Sans (JP|KR|SC)|Noto Serif (JP|KR|SC)|KaiTi|Malgun|Yu Gothic|YaHei|Hiragino|PingFang|Apple SD/i;
+  const CJK_FONT = /Gothic A1|Noto Sans (JP|KR|SC)|Noto Serif (JP|KR|SC)|KaiTi|Kaiti|WenKai|Malgun|Yu Gothic|YaHei|Hiragino|PingFang|Apple SD/i;
   const CJK = /[\u3000-\u30ff\u3400-\u9fff\uac00-\ud7af\u1100-\u11ff\uf900-\ufaff\uff00-\uffef]/;
   function devicesOf(brand) { const out = Object.entries(PPTX_CFG.devices).filter(([, d]) => d.fonts[brand]).map(([key, d]) => ({ key, tag: d.tag, font: d.fonts[brand] })); return out.length ? out : [{ key: 'all', tag: 'Mọi thiết bị', font: null }]; }
   function applyExportFonts(host, brand, device) {
@@ -669,7 +669,7 @@
       let fam = role === 'native' ? native : role === 'heading' ? PPTX_CFG.heading : PPTX_CFG.body;
       if (fam === native && VIET.test(txt) && !CJK.test(txt)) fam = role === 'heading' ? PPTX_CFG.heading : PPTX_CFG.body;   // RB-CH-04 / fixFontViet: chữ Việt không nằm trong font Hán–Hàn–Nhật
       if (native && CJK.test(txt) && PPTX_CFG.latinInNative.includes(brand)) fam = native;
-      el.style.fontFamily = `'${fam}'` + (native ? `, '${native}'` : '') + ', sans-serif';
+      el.style.fontFamily = `'${fam}'` + (native ? `, '${native}'` : '') + (/kai/i.test(native || '') ? ", 'KaiTi', 'Kaiti SC', 'STKaiti', 'LXGW WenKai'" : '') + ', sans-serif';   // máy không có Khải thư → xem bằng LXGW WenKai (web)
       // khối sách được xử lý TRƯỚC khi gắn vào trang → getComputedStyle rỗng → mọi chữ đậm thành thường (lỗi phân cấp sách);
       // chưa gắn thì đọc độ đậm từ style của mẫu (var(--fw-…, 700) → 700)
       const fwIn = String(el.style.fontWeight || ''), fwNum = parseFloat((fwIn.match(/(\d{3})\s*\)?\s*$/) || [])[1]) || parseFloat(fwIn);

@@ -87,6 +87,9 @@
     const BS = ((root.PLS_BRAND_STR || {})[brand]) || {};   // chữ cố định theo brand (tagline, web, fanpage) – không để lộ chữ của brand khác
     slides.push({ notes: NOTE({ g: [`Chào lớp, giới thiệu ${L.lesson || 'Bài'} ${info['Bài'] ? Number(info['Bài']) : buoi}: ${name}.`, S(info['Mô tả buổi']) || S(s5row['Mô tả buổi (hiển thị trên app)'])], l: [S(s5row['Lưu ý'])] }), comp: 'Slide/Cover', data: { 'tagline': BS['info/tagline'] || '', 'lesson': `${L.lesson} ${info['Bài'] ? Number(info['Bài']) : buoi}`.trim(), 'title.de': name, 'title.vi': course['Tên khoá'] || '' } });
     let steps = timeline(s5row['Nội dung buổi (timeline)']);
+    { const gb = s5 || {}, gk = Object.keys(gb).find(k => /Hướng dẫn giảng dạy/.test(k));   // THỨ TỰ BUỔI = đúng thứ tự hoạt động trong S5 (người dùng 28/10)
+      const guide = (gk ? gb[gk] : []).filter(r => isB(r, buoi) && S(r['Hoạt động'])).sort((a, b) => (+a['STT hoạt động'] || 0) - (+b['STT hoạt động'] || 0));
+      if (guide.length) steps = guide.map(r => ({ name: S(r['Hoạt động']).replace(/\s*\n\s*/g, ' '), min: r['Phút'] != null && r['Phút'] !== '' ? +r['Phút'] : null, g: r })); }
     if (!steps.length) { steps = S(info['Thành phần có trong buổi']).split(/;\s*/).filter(Boolean).map(n => ({ name: n, min: null })); warns.push('Không có timeline S5 → dùng "Thành phần có trong buổi" của S6, không có số phút.'); }
     const goals = sentences(info['Mục tiêu bài'] || s5row['Mục tiêu bài']).slice(0, 3);
     const ov = { 'title': 'Mục tiêu và lộ trình buổi học', 'cando.label': 'Sau buổi học, bạn có thể' };
@@ -105,7 +108,9 @@
     const pron = tab(s6, /Phát âm/).filter(r => isB(r, buoi) && onPPT(r)).map(r => { const c = s => /\s/.test(s) ? s.replace(/^[a-zà-ỹđ]/, x => x.toUpperCase()) : s; return Object.assign({}, r, { 'Chữ / âm': c(S(r['Chữ / âm'])), 'Bảng chữ / nhóm âm': c(S(r['Bảng chữ / nhóm âm'])) }); });
     const speak = tab(s6, /Mẫu câu/).filter(r => isB(r, buoi) && onPPT(r) && S(r['Câu']));
     const extra = tab(s6, /Ngoài kiến thức/).filter(r => isB(r, buoi) && onPPT(r));
-    const divider = (title, sub, nt) => slides.push({ comp: 'Slide/Section', data: { 'section.title': title, 'section.sub': sub || '' }, notes: NOTE(Object.assign({ g: [`Chuyển sang phần: ${title}.`] }, nt || {})) });
+    let curG = null;   // dòng "Hướng dẫn giảng dạy" (S5) của bước đang dựng → ghi chú giảng của slide chuyển mục
+    const gNote = (g, t) => g ? { t, g: [S(g['Mục tiêu']) ? 'Mục tiêu: ' + S(g['Mục tiêu']) : '', ...S(g['Cách triển khai từng bước']).split(/\n+|(?<=\.)\s+(?=\d+\.\s)/).map(S).filter(Boolean)], l: [S(g['GV chuẩn bị trước']) ? 'Chuẩn bị: ' + S(g['GV chuẩn bị trước']) : '', S(g['Sai lầm hay gặp']) ? 'Sai lầm hay gặp: ' + S(g['Sai lầm hay gặp']) : '', S(g['Lưu ý'])] } : null;
+    const divider = (title, sub, nt) => slides.push({ comp: 'Slide/Section', data: { 'section.title': title, 'section.sub': sub || '' }, notes: NOTE(Object.assign({ g: [`Chuyển sang phần: ${title}.`] }, gNote(curG) || {}, nt || {})) });
     const used = new Set(); let state_testAns = null;
     const T5 = (re) => { const b = s5 || {}; const k = Object.keys(b).find(n => re.test(n)); return k ? b[k] : []; };
     const uc = t => t.charAt(0).toUpperCase() + t.slice(1), lc = t => t.charAt(0).toLowerCase() + t.slice(1);
@@ -123,7 +128,7 @@
     const hasWarm = steps.some(x => /warm|khởi động/i.test(x.name));
 
     for (const st of steps) {
-      const n = st.name.toLowerCase(); const mins = st.min != null ? `${st.min} phút` : ''; const T = mins;
+      const n = st.name.toLowerCase(); const mins = st.min != null ? `${st.min} phút` : ''; const T = mins; curG = st.g || null;
       if (/mở đầu/.test(n)) { if (!hasWarm && !used.has('lead')) { used.add('lead'); leadIn(); } continue; }
       if (/từ vựng/.test(n) && !used.has('vocab')) {
         used.add('vocab'); divider(st.name, `${vocab.length} từ · ${mins}`);
@@ -199,8 +204,8 @@
             keys.push([no, ans[i - 1], S(r['Giải thích'])]); no++; }
           slides.push({ comp: 'Slide/Gap Fill Bank', data: sec(L.practice || L.grammar, d), notes: NOTE({ g: ['HV tự điền trong 2 phút, đổi bài với bạn bên cạnh, rồi bấm hiện từng đáp án.', ...use.map((r, i) => `${S(r['Câu hỏi'])} → ${ans[i]}`)] }) }); }
         if (A && keys.length) slides.push(...A.answerSlides(keys, L.answers || L.grammar, 'Đáp án luyện tập ngữ pháp'));
-      } else if (/phát âm|bảng chữ|hán tự/.test(n) && !used.has('pron')) {
-        used.add('pron');
+      } else if (/phát âm|bảng chữ/.test(n) && !used.has('pron')) {
+        used.add('pron'); if (pron.length) divider(st.name, [mins, `${pron.length} âm`].filter(Boolean).join(' · '));
         const pNote = p => NOTE({ t: T, g: [S(p['Chữ / âm']) + (S(p['Bảng chữ / nhóm âm']) ? ' · ' + S(p['Bảng chữ / nhóm âm']) : ''), S(p['Hướng dẫn phát âm']), 'Đọc mẫu chậm → nhanh, cả lớp nhắc lại, gọi 2–3 HV đọc cá nhân.', S(p['Ví dụ']) ? 'Ví dụ: ' + S(p['Ví dụ']) : ''], l: [S(p['Chữ phát âm tương tự']) ? 'Dễ nhầm với: ' + S(p['Chữ phát âm tương tự']) : ''] });
         for (const p of pron) {
           // NỐI ÂM (mẫu bổ sung): nhóm "Nối âm" → cụm từ có dấu nối ‿ giữa phụ âm cuối và nguyên âm đầu (theo phiên âm), tối đa 6 cụm
@@ -223,9 +228,13 @@
           slides.push({ comp: 'Slide/Pronunciation', data: sec(L.pron, d), notes: pNote(p) });
         }
         if (!pron.length) divider(st.name, mins);
-      } else if (/nói/.test(n) && !used.has('speak')) {
-        used.add('speak'); divider(st.name, mins);
-        const groups = {}; speak.forEach(r => { const k = S(r['Chủ đề / tình huống']) || S(r['Mã bài']); (groups[k] = groups[k] || []).push(r); });
+      } else if (/nói|mẫu câu|giao tiếp|hội thoại/.test(n) && !used.has('speak:' + n)) {
+        used.add('speak:' + n); used.add('speak'); divider(st.name, mins);
+        // timeline có cả bước "Mẫu câu" và bước "Hội thoại" riêng → mỗi bước chỉ lấy đúng loại của mình
+        const splitDl = steps.some(x => /hội thoại/i.test(x.name)) && steps.some(x => /mẫu câu|giao tiếp|nói/i.test(x.name) && !/hội thoại/i.test(x.name));
+        const mine = !splitDl ? speak : /hội thoại/.test(n) ? speak.filter(r => /hội thoại/i.test(S(r['Loại']))) : speak.filter(r => !/hội thoại/i.test(S(r['Loại'])));
+        // nhóm theo tình huống; "… (câu 1)", "… (câu 2)" gộp chung; dòng không ghi tình huống → nhóm theo Loại (Mẫu câu / Luyện đọc / Luyện viết)
+        const groups = {}; mine.forEach(r => { const t = S(r['Chủ đề / tình huống']).replace(/^none$/i, '').replace(/\s*\(câu\s*\d+\)\s*$/i, ''); const k = t || S(r['Loại']) || S(r['Mã bài']); (groups[k] = groups[k] || []).push(r); });
         for (const [full, all] of Object.entries(groups)) {
           // tình huống dài kiểu "Trả lời theo lịch tour cho sẵn: Monday 8:00 …" → tiêu đề = phần trước dấu hai chấm; phần thông tin lên 1 slide Key Point riêng (không để tiêu đề 3 dòng)
           const cm = full.length > 60 && full.match(/^([^:]{4,60}):\s*(.+)$/), title = cm ? cm[1].trim() : full;
@@ -320,7 +329,7 @@
           if (q.length) { const ex = A.exercises(q, L.read || L.speak, no, 'Đọc bài rồi chọn đáp án đúng.'); no = ex.next; slides.push(...ex.groups); keys.push(...ex.keys); }
         }
         if (keys.length) slides.push(...A.answerSlides(keys, L.answers || L.read, 'Đáp án bài đọc'));
-      } else if (/kiểm tra/.test(n) && !/sửa/.test(n) && !used.has('test') && root.PLS_AUTO) {
+      } else if (/kiểm tra|^test\b/.test(n) && !/sửa/.test(n) && !used.has('test') && root.PLS_AUTO) {
         // KIỂM TRA: đề của buổi (S6-Đề kiểm tra) → trang giới thiệu đề (số câu, thời gian, các phần) + câu hỏi; đáp án ở bước "Sửa kiểm tra" (không có thì ngay sau đề)
         used.add('test'); const A = root.PLS_AUTO;
         const de = tab(s6, /Đề kiểm tra/).filter(r => isB(r, buoi) && onPPT(r))[0];
@@ -334,11 +343,42 @@
         slides.push({ comp: 'Slide/Test Intro', data: sec(L.test || L.homework, d), notes: NOTE({ t: `${d.total_min || ''} phút`.trim(), g: [`Giới thiệu đề: ${qs.length} câu, ${parts.length} phần (${parts.map(p => p.k).join(', ')}).`, 'Nhắc HV cất tài liệu, làm bài độc lập.'], l: ['Báo thời gian khi còn 5 phút.'] }) });
         const ex = A.exercises(qs, L.test || L.homework, 1); slides.push(...ex.groups);
         const ans = A.answerSlides(ex.keys, L.answers || L.test, 'Đáp án ' + (d.title || 'kiểm tra'));
-        if (steps.some(x => /sửa kiểm tra/i.test(x.name))) state_testAns = ans; else slides.push(...ans);
-      } else if (/sửa kiểm tra/.test(n) && typeof state_testAns !== 'undefined' && state_testAns && state_testAns.length) {
+        if (steps.some(x => /sửa (kiểm tra|kt)/i.test(x.name))) state_testAns = ans; else slides.push(...ans);
+      } else if (/sửa (kiểm tra|kt)/.test(n) && typeof state_testAns !== 'undefined' && state_testAns && state_testAns.length) {
         divider(st.name, mins); slides.push(...state_testAns); state_testAns = null;
+      } else if (/hán tự/.test(n) && !used.has('hanzi')) {
+        // HÁN TỰ (S6-Hán tự): thẻ chữ – âm đọc hiện sẵn, nghĩa hiện khi bấm (4 chữ/slide); ≥ 3 chữ cùng bộ → hoạt động "Tìm bạn cho bộ thủ"
+        used.add('hanzi'); const hz = tab(s6, /Hán tự$/).filter(r => isB(r, buoi) && onPPT(r) && S(r['Hán tự']));
+        divider(st.name, [mins, hz.length ? `${hz.length} chữ` : ''].filter(Boolean).join(' · '));
+        const ACT = root.PLS_ACT;
+        if (hz.length && ACT) {
+          slides.push(...ACT.plan('vocab', { title: st.name.replace(/\s*\d+\s*phút/i, ''), instruction: 'Nhìn chữ – đọc to – đoán nghĩa', items: hz.map(r => ({ de: S(r['Hán tự']), ipa: S(r['Âm đọc']), vi: S(r['Nghĩa']) })) }, ['guess'], { section: L.pron || L.vocab }).map(x => Object.assign(x, { divider: false, time: T })));
+          const byR = {}; hz.forEach(r => { const k = S(r['Bộ thủ']).split(/\s+/)[0]; if (k) (byR[k] = byR[k] || []).push(r); });
+          const [rad, rs] = Object.entries(byR).sort((a, b) => b[1].length - a[1].length)[0] || [];
+          if (rs && rs.length >= 2) { const others = hz.filter(r => !rs.includes(r)).slice(0, Math.max(0, 8 - rs.length));
+            slides.push(...ACT.plan('hanzi', { radical: rad, name: S(rs[0]['Bộ thủ']).replace(rad, '').trim(), chars: rs.slice(0, 8).map(r => ({ char: S(r['Hán tự']), py: S(r['Âm đọc']), ok: 1 })).concat(others.map(r => ({ char: S(r['Hán tự']), py: S(r['Âm đọc']) }))) }, ['radical'], { section: L.pron || L.vocab }).map(x => Object.assign(x, { divider: false }))); }
+        }
+      } else if (/phản xạ/.test(n) && !used.has('reflex')) {
+        // PHẢN XẠ PINYIN: âm tiết trong "Cách triển khai" của S5 (vd bā, pó, mǐ…) → bảng khoanh đọc nhanh; không có thì lấy ví dụ phát âm các buổi trước
+        used.add('reflex'); divider(st.name, mins);
+        const TONE = /[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/i;
+        // chỉ nhận âm tiết pinyin hợp lệ (thanh mẫu + vận mẫu) – loại chữ Việt có dấu trong đoạn hướng dẫn (đó, và, nói…)
+        const plain = w => w.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/v/g, 'ü');
+        const SYL = /^(zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?(iang|iong|uang|ueng|ang|eng|ing|ong|ian|iao|uai|uan|üan|ai|ei|ao|ou|an|en|in|un|ün|ia|ie|iu|ua|uo|ui|üe|ue|er|a|o|e|i|u|ü)(r)?$/;
+        const isPy = w => TONE.test(w) && !/[đơưăâêôạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i.test(w) && (SYL.test(plain(w)) || /^[a-zü]+$/.test(plain(w)) && plain(w).length >= 4 && plain(w).split(/(?=(?:zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])[aeiouü])/).filter(Boolean).every(x => SYL.test(x)));
+        let cells = [...new Set(S(st.g && st.g['Cách triển khai từng bước']).split(/[^A-Za-zÀ-ɏüÜ]+/).filter(w => w.length <= 8 && isPy(w)))];
+        if (cells.length < 6) cells = [...new Set(tab(s6, /Phát âm/).filter(r => Number(r['Buổi']) <= Number(buoi)).flatMap(r => S(r['Ví dụ']).split(/[;,]\s*/)).map(x => x.replace(/\(.*?\)/g, '').trim()).filter(w => !/\s/.test(w) && isPy(w)))].slice(-24);
+        if (cells.length && root.PLS_ACT) slides.push(...root.PLS_ACT.plan('pinyin', { cells: cells.slice(0, 48), title: st.name }, ['grid'], { section: L.pron || L.vocab }).map(x => Object.assign(x, { divider: false, time: T })));
+      } else if (/ôn tập|ôn trước/.test(n) && !used.has('review:' + n)) {
+        // ÔN TẬP BÀI CŨ: từ vựng 2 buổi trước → đoán nghĩa (4 thẻ/slide)
+        used.add('review:' + n); divider(st.name, mins);
+        const old = tab(s6, /Từ vựng$/).filter(r => Number(r['Buổi']) < Number(buoi) && Number(r['Buổi']) >= Number(buoi) - 2 && onPPT(r) && S(r['Từ']) && !/^nâng cao$/i.test(S(r['Nhóm'])));
+        if (old.length && root.PLS_ACT) slides.push(...root.PLS_ACT.plan('vocab', { title: 'Ôn tập bài cũ', instruction: 'Đọc nhanh và nói nghĩa', items: old.slice(0, 12).map(r => ({ de: S(r['Từ']), ipa: S(r['Phiên âm / cách đọc']), vi: S(r['Nghĩa']) })) }, ['guess'], { section: L.vocab }).map(x => Object.assign(x, { divider: false, time: T })));
+      } else if (/văn hó?a|văn hoá/.test(n) && !used.has('culture')) {
+        used.add('culture'); divider(st.name, mins);
+        const cu = extra.filter(r => /văn hó?a|văn hoá/i.test(S(r['Loại']))); (cu.length ? cu : extra).slice(0, 4).forEach(x => slides.push({ comp: 'Slide/Key Point', data: sec(L.extra || L.speak, { title: S(x['Loại']) || 'Văn hoá', point: S(x['Tiêu đề']), note: S(x['Nội dung']) }), notes: NOTE({ g: [S(x['Tiêu đề']), S(x['Nội dung'])], l: [S(x['Nguồn']) ? 'Nguồn: ' + S(x['Nguồn']) : ''] }) }));
       } else {
-        divider(st.name, [mins, /kiểm tra|btvn|nghe|đọc/.test(n) ? 'thực hiện trên app' : ''].filter(Boolean).join(' · '));
+        divider(st.name, [mins, /kiểm tra|btvn|nghe|đọc|hd app/.test(n) ? 'thực hiện trên app' : ''].filter(Boolean).join(' · '));
         if (/warm|khởi động/.test(n) && !used.has('lead')) { used.add('lead'); leadIn(); }
       }
     }

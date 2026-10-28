@@ -4,7 +4,7 @@
   'use strict';
   const E = window.PLS_ENGINE;
   const $ = s => document.querySelector(s);
-  const state = { tr: { style: 'NONE', duration: 0.5, scope: 'all' }, fx: { on: true, pace: 'vừa', hideAnswer: true }, fxStep: null, fxp: {}, fxObj: {}, fxOrd: {}, fxSel: null, notesOv: {}, aud: 'teacher', fontMode: 'safe', hier: true, device: 'win', spec: null, brand: 'Betreux', slides: [], sel: 0, overrides: {}, imgOv: {}, choice: {}, building: false };
+  const state = { tr: { style: 'NONE', duration: 0.5, scope: 'all' }, fx: { on: true, pace: 'vừa', hideAnswer: true }, fxStep: null, fxp: {}, fxObj: {}, fxOrd: {}, fxSel: null, notesOv: {}, layoutSel: {}, aud: 'teacher', fontMode: 'safe', hier: true, device: 'win', spec: null, brand: 'Betreux', slides: [], sel: 0, overrides: {}, imgOv: {}, choice: {}, building: false };
   const BRANDS = ['Betreux', 'Creative English', 'Créatis', 'Saechang', 'Sakumi', 'Đắc Nhân'];
 
   // ---------- dựng cả bài ----------
@@ -216,9 +216,13 @@
   function defPreset(r) { try { const d = window.PLS_FXP.detect(r); return d.type && d.presets[0] ? d.presets[0].id : null; } catch (e) { return null; } }
   function renderOne(s, stage, srcIdx, part, trialDeck) {
     const ov = Object.assign({}, state.overrides[srcIdx] || {}, state.overrides[srcIdx + '/' + (part || 0) + '/' + s.comp] || {});   // sửa tay trên slide tự chọn mẫu: theo phần + mẫu
-    const spec = Object.assign({}, s, { common: state.spec.common, data: Object.assign({}, s.data, ov, state.imgOv[srcIdx + '/' + (part || 0)] || {}) });
+    let spec = Object.assign({}, s, { common: state.spec.common, data: Object.assign({}, s.data, ov, state.imgOv[srcIdx + '/' + (part || 0)] || {}) });
+    // BỐ CỤC người dùng chọn cho slide này (layouts.js): đổi cách xếp trong cùng mẫu, hoặc đổi sang mẫu khác cùng loại nội dung
+    let post = null; const lk = srcIdx + '/' + (part || 0);
+    if (window.PLS_LAYOUT && state.layoutSel[lk]) { const a = window.PLS_LAYOUT.apply(spec, state.layoutSel[lk]); spec = a.spec; post = a.post; }
     const r = E.render(spec, state.brand);
     stage.appendChild(r.host);
+    if (post) { try { post(r.rootEl || r.host.firstElementChild); } catch (e) { console.warn('[PLS_LAYOUT]', e); } }
     // mặc định xem bằng ĐÚNG font sẽ có trong file (font có sẵn trên máy) → thấy gì xuất nấy, không phụ thuộc font tải từ mạng
     if (state.fontMode === 'safe') { const dv = curDevice(); E.applyExportFonts(r.host, state.brand, dv.font ? dv : null); }
     // phương án dựng thử dùng bản sao bộ đếm ảnh; chỉ phương án được chọn mới ghi vào bộ đếm cả bài
@@ -382,6 +386,29 @@
         const go = document.createElement('button'); go.type = 'button'; go.textContent = 'Đi tới slide'; go.onclick = () => { state.sel = x.i; drawList(); drawMain(); };
         d.appendChild(go); p.appendChild(d);
       });
+    } else if (tab === 'layout') {
+      // BỐ CỤC (người dùng 28/10): mỗi slide có nhiều cách dàn – xem ảnh nhỏ rồi bấm để đổi
+      const r = state.slides[state.sel]; if (!r) return;
+      const L = window.PLS_LAYOUT, base = Object.assign({}, r.spec, { comp: r.spec._from || r.spec.comp }), vs = L ? L.variants(base) : [];
+      const lk = r.src + '/' + r.part, cur = state.layoutSel[lk] || (vs[0] && vs[0].id);
+      if (vs.length) {
+        p.insertAdjacentHTML('beforeend', '<p class="muted">Cách dàn của slide này – bấm để đổi (nội dung giữ nguyên):</p>');
+        const g = document.createElement('div'); g.className = 'lay-grid';
+        const tmp = document.createElement('div'); tmp.style.cssText = 'position:fixed;left:-99999px;top:0'; document.body.appendChild(tmp);
+        vs.forEach(v => { const a = L.apply(Object.assign({}, base, { data: Object.assign({}, r.spec.data) }), v.id); const rr = E.render(a.spec, state.brand); tmp.appendChild(rr.host); if (a.post) { try { a.post(rr.rootEl || rr.host.firstElementChild); } catch (e) {} } try { E.fitText(rr); } catch (e) {}
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'lay-opt' + (v.id === cur ? ' on' : ''); b.setAttribute('aria-pressed', String(v.id === cur));
+          const th = document.createElement('div'); th.className = 'lay-th'; const cl = rr.host.cloneNode(true); cl.style.transformOrigin = '0 0'; requestAnimationFrame(() => { cl.style.transform = `scale(${(th.clientWidth || 160) / 1920})`; }); cl.style.position = 'absolute'; cl.style.left = '0'; cl.style.top = '0'; th.appendChild(cl);
+          b.append(th); b.insertAdjacentHTML('beforeend', `<span>${escapeHtml(v.label)}</span>`);
+          b.onclick = () => { if (v.id === (vs[0] && vs[0].id)) delete state.layoutSel[lk]; else state.layoutSel[lk] = v.id; build(); }; g.appendChild(b); });
+        tmp.remove(); p.appendChild(g);
+      }
+      if (r.plans && r.plans.length > 1) {
+        p.insertAdjacentHTML('beforeend', '<p class="muted" style="margin-top:14px">Cách chia nội dung thành slide (máy dựng thử và chấm điểm):</p>');
+        r.plans.forEach(pl => { const b = document.createElement('button'); b.type = 'button'; b.className = 'plan' + (pl.active ? ' active' : '');
+          b.innerHTML = `<span>${escapeHtml(pl.label)}</span><span class="bar"><i style="width:${pl.score}%"></i></span><b>${pl.score}</b>`;
+          b.onclick = () => { state.choice[r.src] = pl.label; build(); }; p.appendChild(b); });
+      }
+      if (!vs.length && !(r.plans && r.plans.length > 1)) p.insertAdjacentHTML('beforeend', '<p class="muted">Slide này chưa có bố cục thay thế.</p>');
     } else if (tab === 'plans') {
       const r = state.slides[state.sel];
       if (!r || !r.plans) { p.innerHTML = '<p class="muted">Slide này dựng thẳng từ một mẫu. Slide từ vựng, ngữ pháp và bài tập có nhiều phương án máy đã dựng thử – chọn các slide đó để so.</p>'; return; }
@@ -711,7 +738,7 @@
   function fromExcel() {
     const r = window.PLS_IMPORT.buildSpec(state.book.s6, state.book.s5, +$('#buoi').value, state.brand);
     state.importWarns = r.warns; $('#lessonName').textContent = r.spec.lesson;
-    state.spec = r.spec; state.overrides = {}; state.imgOv = {}; state.choice = {}; state.sel = 0; touchRecent();
+    state.spec = r.spec; state.overrides = {}; state.imgOv = {}; state.layoutSel = {}; state.choice = {}; state.sel = 0; touchRecent();
     return build();
   }
 

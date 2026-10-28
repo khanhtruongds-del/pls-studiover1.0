@@ -46,7 +46,7 @@
     let s = (st || 'Regular').replace(/\s*Italic$/i, ''); const it = /Italic/i.test(st || '');
     let face = f, b = false;
     // Font hệ thống theo thiết bị (bảng LOG › 7): 1 họ font nhiều độ đậm → KHÔNG ghép tên kiểu vào tên font ("PingFang SC Semibold" không tồn tại) – dùng họ font + b="1" cho Semibold trở lên
-    const SYS = /^(Arial|Verdana|PingFang (SC|TC|HK)|Hiragino Sans|Hiragino Kaku Gothic ProN|Apple SD Gothic Neo|Microsoft YaHei|Microsoft JhengHei|Yu Gothic|Meiryo|Malgun Gothic|Noto Sans( (SC|TC|JP|KR))?|Noto Sans CJK (SC|TC|JP|KR))$/;
+    const SYS = /^(Arial|Verdana|KaiTi|Kaiti SC|STKaiti|LXGW WenKai|PingFang (SC|TC|HK)|Hiragino Sans|Hiragino Kaku Gothic ProN|Apple SD Gothic Neo|Microsoft YaHei|Microsoft JhengHei|Yu Gothic|Meiryo|Malgun Gothic|Noto Sans( (SC|TC|JP|KR))?|Noto Sans CJK (SC|TC|JP|KR))$/;
     if (SYS.test(f)) b = /semi|demi|bold|heavy|black|W[6-9]/i.test(s);
     else if (s === 'Bold') b = true;
     else if (s !== 'Regular' && s !== '') face = f + ' ' + s.replace(/\s+/g, '');   // Montserrat SemiBold, Montserrat Medium …
