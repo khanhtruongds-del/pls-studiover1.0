@@ -12,7 +12,8 @@
   const pronSub = r => { const g = String(r['Bảng chữ / nhóm âm'] || '').trim(), m = g.match(/\s+[–—-]\s+(.+)$/); return m ? m[1] : (g.match(/\(([^)]*)\)\s*$/) || [])[1] || ''; };
   const pronClusters = rows => { const m = new Map(); rows.forEach(r => { const k = pronKey(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }); return [...m.entries()]; };
   const tab = (book, re) => { const k = Object.keys(book || {}).find(n => re.test(n)); return k ? book[k] : []; };
-  const isB = (r, b) => Number(r['Buổi']) === Number(b);
+  const bNum = v => { if (v == null || v === '') return NaN; if (typeof v === 'number') return v; const m = String(v).replace(/,/g, '.').match(/\d+(?:\.\d+)?/); return m ? Number(m[0]) : NaN; };   // "Buổi 1", " 1 ", "1.0" → 1 (28/10)
+  const isB = (r, b) => bNum(r['Buổi']) === bNum(b);
   const onPDF = r => !/^không$/i.test(S(r['Lên PDF']));
   const LET = ['A', 'B', 'C', 'D'];
   const TPL = n => !!(root.PLS_TPL && root.PLS_TPL.blocks && root.PLS_TPL.blocks[n]);

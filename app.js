@@ -100,7 +100,7 @@
   function openBooks(books, names, buoi, fromRecent) {
     state.book = books;
     const bs = window.PLS_IMPORT.sessions(books.s6); const bsel = $('#buoi'); bsel.innerHTML = '';
-    bs.forEach(x => bsel.add(new Option(`Buổi ${x.buoi} · ${x.name.replace(/^Bài\s*\d+\s*[–-]\s*/, '')}`, x.buoi)));
+    bs.forEach(x => bsel.add(new Option(`Buổi ${x.buoi}${x.bai != null ? ' · Bài ' + x.bai : ''} · ${x.name.replace(/^Bài\s*\d+\s*[–-]\s*/, '')}`, x.buoi)));   // hiện cả số Bài: từ buổi 12 số buổi ≠ số bài (28/10)
     bsel.hidden = $('#buoiLabel').hidden = false; bsel.onchange = () => fromExcel();
     const first = bs.find(x => /học/i.test(x.type)) || bs[0]; bsel.value = buoi && bs.some(x => x.buoi === +buoi) ? buoi : first.buoi;
     if (!fromRecent && state.brand === 'Betreux' && /toeic|english|ielts/i.test(names[0] || '')) { state.brand = 'Creative English'; $('#brand').value = state.brand; }
@@ -752,7 +752,7 @@
 
   // ---------- cổng lệnh cho Claude ----------
   window.PLS = {
-    loadExcelBooks(books, buoi) { state.book = books; const s = $('#buoi'); s.innerHTML = ''; window.PLS_IMPORT.sessions(books.s6).forEach(x => s.add(new Option('Buổi ' + x.buoi, x.buoi))); s.value = buoi; s.hidden = false; return fromExcel(); },
+    loadExcelBooks(books, buoi) { state.book = books; const s = $('#buoi'); s.innerHTML = ''; window.PLS_IMPORT.sessions(books.s6).forEach(x => s.add(new Option('Buổi ' + x.buoi + (x.bai != null ? ' · Bài ' + x.bai : ''), x.buoi))); s.value = buoi; s.hidden = false; return fromExcel(); },
     load(spec) { state.spec = spec; state.brand = spec.brand || state.brand; state.overrides = {}; state.choice = {}; $('#brand').value = state.brand; return build(); },
     build, exportPptx, devices: () => E.devicesOf(state.brand), standard: () => state.std,
     device(k) { state.device = k; return build(); }, fontMode(m) { state.fontMode = m; $('#fontMode').value = m; return build(); }, hier(on) { state.hier = !!on; $('#hier').value = on ? '1' : '0'; return build(); },

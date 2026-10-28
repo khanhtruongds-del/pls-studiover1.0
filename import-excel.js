@@ -42,7 +42,8 @@
   }
 
   const S = v => v == null ? '' : String(v).trim();
-  const isB = (r, b) => Number(r['Buổi']) === Number(b);
+  const bNum = v => { if (v == null || v === '') return NaN; if (typeof v === 'number') return v; const m = String(v).replace(/,/g, '.').match(/\d+(?:\.\d+)?/); return m ? Number(m[0]) : NaN; };   // "Buổi 1", " 1 ", "1.0" → 1 (28/10)
+  const isB = (r, b) => bNum(r['Buổi']) === bNum(b);
   const onPPT = r => !/^không$/i.test(S(r['Lên PPT'])) && !/mở rộng/i.test(S(r['Trên lớp']));   // cột "Trên lớp" = Mở rộng → chỉ sách / app
   const tab = (book, re) => { const k = Object.keys(book).find(n => re.test(n)); return k ? book[k] : []; };
   const sentences = t => S(t).split(/(?<=[.!?])\s+(?=[A-ZÀ-Ỹ])/u).map(x => x.trim()).filter(Boolean);
@@ -414,9 +415,19 @@
     // QC 24/10: nội dung S6 của buổi mà timeline S5 không có bước tương ứng → không lên slide; báo rõ thay vì bỏ im lặng
     [['vocab', vocab.length, 'Từ vựng', 'từ'], ['grammar', grammar.length, 'Ngữ pháp', 'điểm'], ['listen', tab(s6, /^S6-Nghe$/).filter(r => isB(r, buoi) && onPPT(r)).length, 'Nghe', 'dòng'], ['read', tab(s6, /^S6-Đọc$/).filter(r => isB(r, buoi) && onPPT(r)).length, 'Đọc', 'dòng']]
       .forEach(([k, n, nm, u]) => { if (n && !used.has(k)) warns.push(`S6 có ${n} ${u} ${nm} cho buổi ${buoi} nhưng timeline S5 không có bước “${nm}” – phần này chưa lên slide (thêm bước vào timeline hoặc đặt Lên PPT = Không).`); });
+    // TỰ SOÁT "BUỔI NÀO RA BUỔI ĐÓ": mọi cụm chữ Hán đổ vào slide phải có trong dòng S5/S6 của chính buổi này (28/10)
+    { const own = [s6, s5 || {}].flatMap(bk => Object.values(bk).filter(Array.isArray).flatMap(t => t.filter(r => isB(r, buoi)))).map(r => Object.values(r).join(' ')).join(' ');
+      const de = tab(s6, /Đề kiểm tra/).filter(r => isB(r, buoi)).map(r => S(r['Mã đề'])); const ownQ = tab(s6, /Câu hỏi kiểm tra/).filter(r => de.includes(S(r['Mã đề']))).map(r => Object.values(r).join(' ')).join(' ');
+      const bad = new Set(); const walk = (x, k) => { if (typeof x === 'string') { if (/^(header|section|_)/.test(k || '')) return; (x.match(/[\u3400-\u9fff]+/g) || []).forEach(h => { if (!own.includes(h) && !ownQ.includes(h)) bad.add(h); }); } else if (x && typeof x === 'object') for (const [kk, v] of Object.entries(x)) walk(v, Array.isArray(x) ? k : kk); };
+      slides.forEach(sl => walk(sl.data || sl, '')); const LAB = /^(课程概览|作业检查|发音|词汇|语法|练习|答案|提示|口语|听力|阅读|谢谢|汉字|测验|第)$/; const odd = [...bad].filter(h => !LAB.test(h));
+      if (odd.length) warns.push(`Soát buổi ${buoi}: ${odd.length} cụm chữ Hán trên slide không có trong S5/S6 của buổi này: ${odd.slice(0, 8).join(', ')}`); }
+    // dòng S6 ghi số buổi sai / trống / không có trong "Khoá & bài" → không thuộc buổi nào, báo để sửa file
+    { const known = new Set(sessions(s6).map(x => x.buoi)); const lost = [];
+      for (const [k, t] of Object.entries(s6)) if (Array.isArray(t) && !/Khoá & bài|Khóa & bài|Thông tin|Nhật ký|Câu hỏi kiểm tra/.test(k) && t.length && 'Buổi' in t[0]) { const n = t.filter(r => Object.values(r).some(v => S(v)) && !known.has(bNum(r['Buổi']))).length; if (n) lost.push(`${k.replace(/^S6-/, '')}: ${n}`); }
+      if (lost.length) warns.push('Dòng S6 có cột Buổi trống / sai / không có trong Khoá & bài (không lên buổi nào): ' + lost.join(' · ')); }
     return { spec: { brand, meta, lesson: `${course['Mã khoá'] || course['Tên khoá'] || 'Khoá'} · ${S(info['Tên buổi']) || 'Buổi ' + buoi}`, common, slides }, warns, counts: { vocab: vocab.length, grammar: grammar.length, pron: pron.length, speak: speak.length, steps: steps.length } };
   }
-  function sessions(s6) { return tab(s6, /Khoá & bài|Khóa & bài/).filter(r => r['Buổi'] != null).map(r => ({ buoi: Number(r['Buổi']), name: S(r['Tên buổi']), type: S(r['Loại buổi']) })); }
+  function sessions(s6) { return tab(s6, /Khoá & bài|Khóa & bài/).filter(r => !isNaN(bNum(r['Buổi']))).map(r => ({ buoi: bNum(r['Buổi']), bai: isNaN(bNum(r['Bài'])) ? null : bNum(r['Bài']), name: S(r['Tên buổi']), type: S(r['Loại buổi']) })); }
 
   root.PLS_IMPORT = { readWorkbook, buildSpec, sessions, LABELS };
 })(typeof window !== 'undefined' ? window : globalThis);
