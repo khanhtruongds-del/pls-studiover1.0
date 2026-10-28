@@ -366,9 +366,18 @@
   function extraPage(kind, opt) {
     const E = root.PLS_ENGINE, size = SIZES[opt.size] || SIZES.A4, pre = opt.size === '19x27' ? '19x27' : 'A4', m = opt.meta || {};
     if (kind === 'cover' || kind === 'back') {
+      // MẪU BÌA ẢNH (Figma › IMAGE LIBRARY › Bìa sách): chọn trong thanh "Bìa" của chế độ sách; 'tpl' = mẫu chữ của khổ (A4/Cover…)
+      const pid = opt.pick, C = root.PLS_COVERS || {};
+      const hit = pid && pid !== 'tpl' ? Object.values(C).flatMap(b => b.front.concat(b.back)).find(x => x.id === pid) : null;
+      if (hit) { const [w, h] = opt.size === '19x27' ? [538.6, 765.4] : [595, 842];
+        const host = document.createElement('div'); host.className = 'pls-book-cover'; host.dataset.coverId = hit.id;
+        host.style.cssText = `position:relative;width:${w}px;height:${h}px;overflow:hidden;background:#fff url("covers/${hit.id}.jpg") center/cover no-repeat;-webkit-print-color-adjust:exact;print-color-adjust:exact`;
+        opt.stage.appendChild(host); return { host, kind, n: null, cover: hit }; }
       const comp = `${pre}/${kind === 'cover' ? 'Cover' : 'Back Cover'}`; if (!TPL(comp)) return null;
       const data = kind === 'cover' ? { title: [m.course || 'TÀI LIỆU', m.level].filter(Boolean).join(' ').toUpperCase(), subtitle: `Bài ${m.bai} – ${m.title}`, tag_1: 'TỪ VỰNG', tag_2: 'NGỮ PHÁP', tag_3: 'HỘI THOẠI' } : {};
-      const r = E.render({ comp, data }, opt.brand); opt.stage.appendChild(r.host); r.host.classList.add('pls-book-cover'); return { host: r.host, kind, n: null };
+      const r = E.render({ comp, data }, opt.brand); opt.stage.appendChild(r.host); r.host.classList.add('pls-book-cover');
+      r.host.querySelectorAll('.pls-imgslot, .pls-imgempty').forEach(e => { e.style.visibility = 'hidden'; });   // mẫu chữ: không in khung "Ảnh minh hoạ" trống
+      return { host: r.host, kind, n: null };
     }
     bookCss(); letterCss();
     const n = opt.n; const r = E.render({ comp: size.page(n), data: { running: opt.running || '', page_no: n % 2 === 0 ? '' : String(n), page_no_l: n % 2 === 0 ? String(n) : '' } }, opt.brand);

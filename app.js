@@ -596,8 +596,6 @@
               catch (e) { ai.textContent = 'Lỗi AI cục bộ: ' + e.message; } ai.disabled = false; };
             extra.push(ai);
           }
-          const rs = document.createElement('button'); rs.type = 'button'; rs.className = 'btn'; rs.textContent = 'Khôi phục prompt gợi ý';
-          rs.onclick = () => { ta.value = pk.prompt; ta.oninput(); }; extra.push(rs);
           const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'btn'; cp.textContent = 'Sao chép prompt';
           cp.onclick = async () => { try { await navigator.clipboard.writeText(ta.value); cp.textContent = 'Đã sao chép'; } catch (e) { ta.select(); cp.textContent = 'Bấm Ctrl+C để sao chép'; } };
           const refs = document.createElement('div'); refs.className = 'cands';
