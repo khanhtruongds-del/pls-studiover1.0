@@ -98,6 +98,20 @@
     const c = cons(sent ? (sent.vi || main) : main);
     const who = c.sex ? (c.sex === 'f' ? 'một nhân vật nữ' : 'một nhân vật nam') : c.person ? 'một nhân vật' : '';
     const out = [];
+    const L = ctx.lines || [];
+    if (L.length >= 2 && L.some(x => x.who)) {   // hội thoại
+      const who = [...new Set(L.map(x => x.who).filter(Boolean))];
+      out.push(`Cảnh ${who.length || 2} người đang nói chuyện với nhau (${who.join(', ') || 'A, B'}), đúng nội dung lời thoại: ` + L.map(x => `${x.who ? x.who + ': ' : ''}"${x.vi || x.t}"`).join(' ') + '. Thể hiện rõ tuổi, giới tính, nơi chốn và hành động suy ra từ lời thoại; hai nhân vật nhìn nhau, nét mặt đúng cảm xúc câu nói.');
+      if (ctx.situation || ctx.slide) out.push(`Tình huống: ${ctx.situation || ctx.slide}.`);
+      if (ctx.title) out.push(`Chủ đề bài: «${ctx.title}».`);
+      return out.join(' ');
+    }
+    if (L.length || ctx.para) {   // câu / đoạn văn
+      const txt = ctx.para || L.map(x => x.vi || x.t).join(' ');
+      out.push(`Minh hoạ đúng nội dung: "${txt.slice(0, 300)}${txt.length > 300 ? '…' : ''}". Vẽ nhân vật, nơi chốn, đồ vật được nhắc tới.`);
+      if (ctx.slide) out.push(`Slide: «${ctx.slide}».`);
+      return out.join(' ');
+    }
     if (ctx.topic) { out.push(`Một cảnh tiêu biểu cho chủ đề «${ctx.vi || main}»${ctx.term && ctx.term !== (ctx.vi || main) ? ' (' + ctx.term + ')' : ''}: bối cảnh, nhân vật và đồ vật đặc trưng nhất của chủ đề, đủ rõ để làm ảnh mở đầu bài.`); return out.join(' '); }
     if (sent) out.push(`Vẽ đúng tình huống của câu${sent.t ? ' «' + sent.t + '»' : ''}${sent.vi ? ' (nghĩa: ' + sent.vi + ')' : ''}: thể hiện rõ ai, đang làm gì, ở đâu, với đồ vật chính nào.`);
     else if (who) out.push(`${who[0].toUpperCase() + who.slice(1)}${c.roles.length ? ' (' + c.roles.join(', ') + ')' : ''} với trang phục, đạo cụ hoặc hành động đặc trưng để nhìn vào là nhận ra ngay «${main}».`);
@@ -121,16 +135,27 @@
       + `\nKỸ THUẬT\nKhung ${r}. Nền trong suốt, không chữ, không số, không bóng đổ ra ngoài, 1 đối tượng hoặc 1 cảnh chính.`;
     return { prompt, scene, ratio: r, kho: src === 'eu' ? 'Châu Âu (3D)' : 'Châu Á (2D anime)', refs: STYLE[src].map(([label, id]) => ({ label, id, url: url(id, 1200) })), near: near ? Object.assign({ url: url(near.id, 1200) }, near) : null };
   }
-  // ngữ cảnh 1 ô ảnh: các ô chữ cùng mục (vocab_3.de / .ipa / .vi / .ex…) hoặc tiêu đề slide với ảnh lớn
+  // ngữ cảnh 1 ô ảnh: các ô chữ cùng mục (vocab_3.de / .ipa / .vi / .ex…); ô ảnh lớn của slide → tiêu đề, tình huống, lời thoại / đoạn văn trên slide
   function ctxOf(el, host, data) {
     const p = el.parentElement, item = p && /_(\d+|[A-H])$/.test(p.dataset.n || '');
-    const f = {}; (item ? p : host).querySelectorAll('[data-filled]').forEach(x => { const k = x.dataset.filled; if (!item && /_(\d+|[A-H])\./.test(k)) return; const t = x.textContent.trim(); if (!t) return; const s = k.split('.').pop(); if (!(s in f)) f[s] = t; });
+    const all = {}; host.querySelectorAll('[data-filled]').forEach(x => { const t = x.textContent.trim(); if (t && x.offsetParent !== null && !(x.dataset.filled in all)) all[x.dataset.filled] = t; });
+    const f = {}; (item ? [...p.querySelectorAll('[data-filled]')].map(x => x.dataset.filled) : Object.keys(all).filter(k => !/_(\d+|[A-H])\./.test(k))).forEach(k => { const t = all[k]; if (!t) return; const s = k.split('.').pop(); if (!(s in f)) f[s] = t; });
     const pick = re => { const k = Object.keys(f).find(k => re.test(k)); return k ? f[k] : ''; };
     data = data || {};
-    return { topic: !item, term: pick(/^(de|zh|word|term|en|ja|ko|fr|kanji|hanzi)$/), ipa: pick(/^(ipa|pinyin|py|reading)$/), vi: pick(/^(vi|mean|meaning)$/),
+    const head = k => all[k] || String(data[k] || '').trim();
+    const c = { topic: !item, term: pick(/^(de|zh|word|term|en|ja|ko|fr|kanji|hanzi)$/), ipa: pick(/^(ipa|pinyin|py|reading)$/), vi: pick(/^(vi|mean|meaning)$/),
       ex: pick(/^(ex|example|sentence)$/), exVi: pick(/^(ex_vi|example_vi)$/),
-      title: String(data['header.topic'] || data.topic || '').trim(), slide: String(data.title || data['title.de'] || data['header.section'] || '').trim() };
+      title: head('header.topic') || String(data.topic || '').trim(), slide: head('title') || head('situation') || head('title.de') || head('track') || head('header.section') };
+    if (!item) {   // lời thoại / câu / đoạn trên slide (line_1.de + line_1.vi + line_1.who…)
+      const by = {}; for (const [k, t] of Object.entries(all)) { const m = k.match(/^([a-z]+_\d+)\.(\w+)$/); if (!m) continue; (by[m[1]] = by[m[1]] || {})[m[2]] = t; }
+      c.lines = Object.entries(by).sort((a, b) => (+a[0].split('_')[1]) - (+b[0].split('_')[1])).map(([, o]) => ({ who: o.who || o.sp || o.speaker || o.key || '', t: o.de || o.en || o.zh || o.text || o.ja || o.ko || o.fr || '', vi: o.vi || '' })).filter(x => x.t || x.vi).slice(0, 8);
+      c.para = pick(/^(para|text|body|passage)$/) || '';
+      c.situation = head('situation') || head('task') || '';
+      if (c.lines.length || c.para) c.topic = false;   // slide có nội dung cụ thể → vẽ theo nội dung, không phải ảnh chủ đề chung
+    }
+    return c;
   }
+
   // ---------- gắn ảnh vào slide đã dựng ----------
   // Ô ảnh: nghĩa lấy từ ô ".vi" cùng mục (vd vocab_3.img ↔ vocab_3.vi), giống PLS_IMG.fill. Ghi đè: data['img:<ô>'] = 'id:<driveId>' | '<từ cần tìm>' | '-' (bỏ ảnh)
   // Câu dài / có người (luật ảnh ngữ cảnh fit 2.6c): không tự khớp gần nghĩa → để người chọn.

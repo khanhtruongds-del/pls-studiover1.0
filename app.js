@@ -580,7 +580,7 @@
           const ok = r.src + '/' + r.part, dk = 'imgdesc:' + im.key;
           const topic0 = String((state.spec.common || {})['header.topic'] || '').trim();
           const ctx = Object.assign({}, im.ctx || {}, { title: (im.ctx && im.ctx.title) || topic0 });
-          const w0 = word || (im.ctx && (im.ctx.vi || im.ctx.term)) || topic0 || state.spec.lesson || '';
+          const w0 = word || (im.ctx && (im.ctx.vi || im.ctx.term || im.ctx.slide)) || topic0 || state.spec.lesson || '';
           const pk = window.PLS_IMAGES.stylePack(w0, state.brand, { bai: state.spec.lesson, level: (state.spec.meta || {}).level, w: sb && sb.width, h: sb && sb.height, ctx });
           const g = document.createElement('details'); g.className = 'pack'; g.open = true;
           g.innerHTML = `<summary>Prompt tạo ảnh (${pk.kho}, khung ${pk.ratio}) – sửa thẳng trong ô</summary>`;
