@@ -4,6 +4,7 @@
   const S = I.state, $ = q => document.querySelector(q);
   S.view = 'slide'; { const v = $('#view'); if (v) v.value = 'slide'; }   // option đầu giờ là "Nghiên cứu" → mặc định vẫn mở Slide
   let book = null;
+  const COVERS_ONLY = true;
   // NỘI DUNG SỬA TAY của trang mở đầu / kết thúc: lưu trên máy theo brand + bài + buổi
   const LK = 'pls.bookLetters';
   const lkey = kind => [S.brand, (S.spec && S.spec.lesson) || '', +($('#buoi') && $('#buoi').value) || 1, kind].join('|');
@@ -30,7 +31,7 @@
       r.appendChild(strip); return r; };
     bar.append(row('front', 'Bìa trước', C.front), row('back', 'Bìa sau', C.back));
     if (!document.getElementById('coverBarCss')) { const cs = document.createElement('style'); cs.id = 'coverBarCss';
-      cs.textContent = '.cover-bar{position:sticky;top:0;z-index:2;background:var(--ui-bg,#fbf8f2);padding:8px 0 10px;margin-bottom:14px;border-bottom:1px solid var(--ui-line,#e7e0d2)}.cover-row{display:flex;gap:10px;align-items:center;margin:4px 0}.cover-h{flex:0 0 70px;font-size:12px;font-weight:600}.cover-strip{display:flex;gap:8px;overflow-x:auto;padding:4px 2px}.cover-opt{flex:0 0 auto;width:64px;padding:0;border:2px solid transparent;border-radius:6px;background:none;cursor:pointer;text-align:center}.cover-opt img,.cover-opt .tpl{display:block;width:60px;height:85px;object-fit:cover;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.18)}.cover-opt .tpl{display:flex;align-items:center;justify-content:center;background:#fff;font-weight:700;color:#666}.cover-opt .cap{display:block;font-size:9px;line-height:1.2;margin-top:3px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--ui-ink,#333)}.cover-opt.on{border-color:#7c5cd6}';
+      cs.textContent = '.cover-bar{background:var(--ui-bg,#fbf8f2);padding:8px 0 10px;margin-bottom:14px;border-bottom:1px solid var(--ui-line,#e7e0d2)}.cover-row{display:flex;gap:10px;align-items:center;margin:4px 0}.cover-h{flex:0 0 70px;font-size:12px;font-weight:600}.cover-strip{display:flex;gap:8px;overflow-x:auto;padding:4px 2px}.cover-opt{flex:0 0 auto;width:64px;padding:0;border:2px solid transparent;border-radius:6px;background:none;cursor:pointer;text-align:center}.cover-opt img,.cover-opt .tpl{display:block;width:60px;height:85px;object-fit:cover;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.18)}.cover-opt .tpl{display:flex;align-items:center;justify-content:center;background:#fff;font-weight:700;color:#666}.cover-opt .cap{display:block;font-size:9px;line-height:1.2;margin-top:3px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--ui-ink,#333)}.cover-opt.on{border-color:#7c5cd6}';
       document.head.appendChild(cs); }
     box.appendChild(bar);
   }
@@ -65,6 +66,8 @@
     const bk = B.paginate(list, { size, brand: S.brand, stage: st, running, prep: null, first: intro ? 2 : 1 });   // sách in ra PDF: Chrome nhúng font web vào PDF → giữ đủ độ đậm (font an toàn của PPTX chỉ có thường / đậm)
     const outro = X('outro', (intro ? 2 : 1) + bk.pages.length), back = XC('back', cp.back);
     bk.pages = [cover, intro, ...bk.pages, outro, back].filter(Boolean);
+    // TẠM ẨN NỘI DUNG (người dùng 28/10): chế độ sách chỉ hiện + in bìa trước và bìa sau; đổi COVERS_ONLY = false để hiện lại cả cuốn
+    if (COVERS_ONLY) bk.pages.filter(pg => pg.kind !== 'cover' && pg.kind !== 'back').forEach(pg => pg.host.remove()), bk.pages = bk.pages.filter(pg => pg.kind === 'cover' || pg.kind === 'back');
     bk.blocks = list.length; return bk;
   }
   // tên file PDF theo cùng mẫu tên PPTX (RB-CH-02) + khổ sách; Chrome lấy tiêu đề trang làm tên file khi "Lưu dưới dạng PDF"
@@ -86,8 +89,8 @@
   }
   function draw() {
     const box = $('#bookView'); box.innerHTML = ''; if (!book) return;
-    $('#selTitle').textContent = `Sách ${B.SIZES[S.view].label} · ${book.pages.length} trang`;
-    $('#selMeta').textContent = book.warns.length ? book.warns.join(' · ') : `${book.blocks} khối · không có khối cao hơn trang`;
+    $('#selTitle').textContent = COVERS_ONLY ? `Sách ${B.SIZES[S.view].label} · bìa trước + bìa sau` : `Sách ${B.SIZES[S.view].label} · ${book.pages.length} trang`;
+    $('#selMeta').textContent = COVERS_ONLY ? 'Phần nội dung sách đang tạm ẩn' : book.warns.length ? book.warns.join(' · ') : `${book.blocks} khối · không có khối cao hơn trang`;
     coverBar(box);
     const W = Math.min(box.clientWidth - 24 || 700, 760);
     book.pages.forEach(pg => { const w = parseFloat(pg.host.style.width), h = parseFloat(pg.host.style.height), k = W / w;

@@ -374,9 +374,11 @@
         host.style.cssText = `position:relative;transform-origin:0 0;width:${w}px;height:${h}px;overflow:hidden;background:#fff url("covers/${hit.id}.jpg") center/cover no-repeat;-webkit-print-color-adjust:exact;print-color-adjust:exact`;
         opt.stage.appendChild(host); return { host, kind, n: null, cover: hit }; }
       const comp = `${pre}/${kind === 'cover' ? 'Cover' : 'Back Cover'}`; if (!TPL(comp)) return null;
-      const data = kind === 'cover' ? { title: [m.course || 'TÀI LIỆU', m.level].filter(Boolean).join(' ').toUpperCase(), subtitle: `Bài ${m.bai} – ${m.title}`, tag_1: 'TỪ VỰNG', tag_2: 'NGỮ PHÁP', tag_3: 'HỘI THOẠI' } : {};
+      const short = (m.course || '').split(/\s+[–-]\s+|\s*\(/)[0];   // tên khoá dài → lấy phần trước dấu "–" / "("
+      const ttl = (short && short.length <= 28 ? short : (m.level || short || 'TÀI LIỆU')).toUpperCase();
+      const data = kind === 'cover' ? { title: ttl, subtitle: `Bài ${m.bai} – ${String(m.title).replace(/^Bài\s*\d+\s*[–-]\s*/i, '')}`, tag_1: 'TỪ VỰNG', tag_2: 'NGỮ PHÁP', tag_3: 'HỘI THOẠI' } : {};
       const r = E.render({ comp, data }, opt.brand); opt.stage.appendChild(r.host); r.host.classList.add('pls-book-cover');
-      r.host.querySelectorAll('.pls-imgslot, .pls-imgempty').forEach(e => { e.style.visibility = 'hidden'; });   // mẫu chữ: không in khung "Ảnh minh hoạ" trống
+      r.host.querySelectorAll('.pls-imgslot, .pls-imgempty').forEach(e => { e.style.display = 'none'; });   // mẫu chữ: không in khung "Ảnh minh hoạ" trống
       return { host: r.host, kind, n: null };
     }
     bookCss(); letterCss();
