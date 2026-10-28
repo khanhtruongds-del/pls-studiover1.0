@@ -79,7 +79,7 @@
       for (const c of [...new Set(lis.map(r => S(r['Mã bài'])).concat(lq.map(r => S(r['Mã bài']))))].filter(Boolean)) {
         const ls = lis.filter(r => S(r['Mã bài']) === c).sort((a, b) => (+a['Câu số'] || 0) - (+b['Câu số'] || 0)); const r0 = ls[0] || {};
         B('Block/Sub Heading', { text: [S(r0['Tiêu đề bài nghe']), S(r0['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || c });
-        exercises(lq.filter(r => S(r['Mã bài']) === c), 'Nghe rồi chọn đáp án đúng.');
+        exercises(lq.filter(r => S(r['Mã bài']) === c), '');
         for (const g of segs(ls, 'Tiêu đề bài nghe')) { const r1 = g[0] || {};
         if (g.length) { B('Block/Paragraph', { text: 'Lời bài nghe' + (S(r1['Tiêu đề bài nghe']) ? ': ' + S(r1['Tiêu đề bài nghe']) : '') }); out[out.length - 1].role = 'label'; }
         for (const part of chunk(g, 4)) { const d = {}; part.forEach((r, i) => { d[`line_${i + 1}.speaker`] = S(r['Vai / nhân vật']) || '–'; d[`line_${i + 1}.de`] = S(r['Câu']); d[`line_${i + 1}.vi`] = S(r['Nghĩa']); }); B('Block/Dialogue', d); } }
@@ -92,7 +92,7 @@
         for (const g of segs(ls, 'Tiêu đề bài đọc')) { const r1 = g[0] || {};
         const paras = []; let cur = null; for (const r of g) { const p = String(r['Đoạn'] || 1); if (!cur || cur.p !== p) paras.push(cur = { p, t: [], v: [] }); cur.t.push(S(r['Câu'])); cur.v.push(S(r['Nghĩa'])); }
         paras.forEach((p, i) => B('Block/Reading', { tag: i ? '' : 'Bài đọc', title: i ? '' : ([S(r1['Tiêu đề bài đọc']), S(r1['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || c), text: p.t.join(' '), 'text.vi': '' })); }
-        exercises(rq.filter(r => S(r['Mã bài']) === c), 'Đọc bài rồi chọn đáp án đúng.');
+        exercises(rq.filter(r => S(r['Mã bài']) === c), '');
       } };
 
     // HÁN TỰ (S6-Hán tự): bảng chữ – âm đọc – nghĩa – bộ thủ
@@ -151,9 +151,9 @@
         // trắc nghiệm + điền / viết dùng chung khối Exercise → gom liền nhau thành 1 bài (đánh số 1, 2, 3…), không tách mỗi câu 1 bài
         const ins = S(r['Hướng dẫn làm bài']) || defIns; const fam = kind === 'mc' || kind === 'write' ? 'ex' : kind; const k = S(r['Phần']) + '|' + fam + '|' + ins;
         if (!g || g.k !== k) groups.push(g = { k, kind, ins, kinds: new Set(), rows: [] }); g.kinds.add(kind); g.rows.push(r); }
-      for (const gr of groups) if (!gr.ins) gr.ins = gr.kind === 'match' ? 'Nối cho phù hợp.' : gr.kind === 'order' ? 'Sắp xếp thành câu đúng.' : gr.kinds.size > 1 ? 'Làm các câu sau.' : gr.kind === 'mc' ? 'Chọn đáp án đúng.' : 'Hoàn thành các câu sau.';
+      for (const gr of groups) if (!gr.ins) gr.ins = [...new Set(gr.rows.map(r => S(r['Dạng câu'])).filter(Boolean))].join(' / ');   // S6 không ghi hướng dẫn → dùng nguyên văn cột Dạng câu, không tự viết (28/10)
       for (const gr of groups) for (const part of chunk(gr.rows, 5)) {
-        const no = ex(), d = { no: 'Bài ' + no, instruction: gr.ins || 'Làm bài tập.', 'head.track': '', 'head.ab': '' };
+        const no = ex(), d = { no: 'Bài ' + no, instruction: gr.ins || '', 'head.track': '', 'head.ab': '' };
         part.forEach((r, i) => { const n = `${no}.${i + 1}`; let q = S(r['Câu hỏi']).replace(/^\[[^\]]{1,80}\]\s*/, '');
           if (gr.kind === 'match') { d[`item_${i + 1}.no`] = String(i + 1); d[`item_${i + 1}.text`] = q.replace(/^nối\s*[:：]?\s*/i, ''); d[`item_${i + 1}.blank`] = '____'; }
           else if (gr.kind === 'order') { d[`item_${i + 1}.no`] = String(i + 1); d[`item_${i + 1}.words`] = q.replace(/^[^:]{0,60}:\s*/, ''); d[`item_${i + 1}.answer`] = ''; }

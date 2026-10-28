@@ -184,7 +184,7 @@
         const LT = ['A', 'B', 'C', 'D'], ansOf = r => { const a = S(r['Đáp án']).toUpperCase().charAt(0); return LT.includes(a) ? S(r[a]) : ''; };
         const gCodes = new Set(grammar.map(g => S(g['Mã mục'])));
         const bankOk = gq.filter(r => isB(r, buoi) && gCodes.has(S(r['Mã ngữ pháp'])) && /_{2,}|…|\.\.\./.test(S(r['Câu hỏi'])) && ansOf(r) && ansOf(r).split(/\s+/).length <= 2 && ansOf(r).length <= 16 && !/\//.test(ansOf(r)));
-        const bankUse = A && bankOk.length >= 3 && root.PLS_TPL && root.PLS_TPL.slides['Slide/Gap Fill Bank'] ? bankOk.slice(0, 5) : [];
+        const bankUse = false && A && bankOk.length >= 3 && root.PLS_TPL && root.PLS_TPL.slides['Slide/Gap Fill Bank'] ? bankOk.slice(0, 5) : [];
         for (const g of grammar) {
           const tn = S(g['Tên ngữ pháp']), ng = S(g['Nghĩa']);
           const same = ng && tn.toLowerCase().includes(ng.toLowerCase().replace(/\s*\(.*$/, '').slice(0, 12));
@@ -198,12 +198,12 @@
           // ĐỢT 4: DÒNG THỜI GIAN cho các thì (nhận theo tên ngữ pháp)
           const TK = [[/past perfect/i, 'pastperfect'], [/past continuous/i, 'pastcont'], [/present perfect/i, 'perfect'], [/past simple/i, 'past'], [/dùng cho tương lai/i, 'future'], [/present simple vs|vs present continuous/i, ''], [/present continuous/i, 'now'], [/present simple/i, 'habit'], [/be going to/i, 'going'], [/^will\b/i, 'future']];
           const tk = (TK.find(([re]) => re.test(tn)) || [])[1];
-          if (tk && exs.length && root.PLS_TPL && root.PLS_TPL.slides['Slide/Tense Timeline'])
+          if (false && tk && exs.length)
             slides.push({ comp: 'Slide/Tense Timeline', data: sec(L.grammar, { title: tn.replace(/\s*\(.*\)$/, '') + ' – trên dòng thời gian', _kind: tk, label: 'Cấu trúc', l_past: 'Quá khứ', l_now: 'Bây giờ', l_fut: 'Tương lai', rule: S(g['Cấu trúc (công thức)']).split('\n').map(S).filter(Boolean).slice(0, 2).map(t => t.length <= 34 ? t.replace(/ /g, '\u00a0') : t).join('\n'), use: uses[0] ? uc(uses[0]) : '', de: exs[0].de, vi: exs[0].vi }),
               notes: NOTE({ g: ['Vẽ trục thời gian lên bảng, chỉ vị trí hành động so với BÂY GIỜ.', `Ví dụ: ${exs[0].de}`], l: [S(g['Dấu hiệu nhận biết']) ? 'Dấu hiệu: ' + S(g['Dấu hiệu nhận biết']) : ''] }) });
           // ĐỢT 4: KIỂM TRA HIỂU – câu ví dụ ghép với NGHĨA (lấy đúng từ dữ liệu); câu 2 ghép nghĩa của ví dụ khác → Sai. Không tự suy luận cách dùng (tránh đáp án sai)
           const exv = exs.filter(e => e.vi);
-          if (exv.length >= 2 && root.PLS_TPL && root.PLS_TPL.slides['Slide/CCQ']) {
+          if (false && exv.length >= 2) {   // tắt: bài Đúng/Sai tự sinh, không có trong S6 (28/10)
             const short = tn.replace(/\s*\(.*\)$/, ''), d = { title: 'Đúng hay sai? – ' + (short.length > 40 ? short.slice(0, 40).replace(/\s+\S*$/, '') + '…' : short) }, why = [];
             for (let i = 1; i <= 4; i++) { const e = exv[i - 1]; if (!e) { ['no', 'text', 'ans.val'].forEach(k => { d[`c_${i}.${k}`] = ''; }); continue; }
               const wrong = i === 2 ? exv.find(x => x !== e && x.vi !== e.vi) : null;
@@ -293,7 +293,7 @@
         const noQ = st.g && /không chiếu câu hỏi/i.test(S(st.g['Lưu ý']) + ' ' + S(st.g['Cách triển khai từng bước']));   // S5 dặn không chiếu câu hỏi BTVN → theo S5
         const rows = [];   // buổi nào ra buổi đó: không kéo BTVN của buổi khác vào slide (28/10) → theo S5 của buổi này
         const ex = A.exercises(rows, L.check || L.homework, 1);
-        divider(st.name, [mins, noQ ? 'chữa lỗi chung theo thống kê app' : ''].filter(Boolean).join(' · '));
+        divider(st.name, mins);
         slides.push(...ex.groups); if (!ex.groups.length) actSteps(st, L.check || L.homework);
         if (ex.keys.length) slides.push(...A.answerSlides(ex.keys, L.answers || L.homework, `Đáp án BTVN buổi ${Number(buoi) - 1}`));
       } else if (/^nghe/.test(n) && !used.has('listen') && root.PLS_AUTO) {
@@ -301,13 +301,13 @@
         used.add('listen'); const A = root.PLS_AUTO;
         const lines = tab(s6, /^S6-Nghe$/).filter(r => isB(r, buoi) && onPPT(r) && S(r['Câu'])), qs = tab(s6, /Nghe câu hỏi/).filter(r => isB(r, buoi) && onPPT(r));
         const codes = [...new Set(lines.map(r => S(r['Mã bài'])).concat(qs.map(r => S(r['Mã bài']))))].filter(Boolean);
-        divider(st.name, [mins, codes.length ? `${codes.length} bài nghe` : 'thực hiện trên app'].filter(Boolean).join(' · '));
+        divider(st.name, [mins, codes.length ? `${codes.length} bài nghe` : ''].filter(Boolean).join(' · '));
         let no = 1; const keys = [];
         for (const u of units(codes, lines, qs, 'Tiêu đề bài nghe')) { const c = u.c;
           const ls = u.ls.slice().sort((a, b) => (+a['Câu số'] || 0) - (+b['Câu số'] || 0)), q = u.q;
           const r0 = ls[0] || {}; const title = [S(r0['Tiêu đề bài nghe']), S(r0['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || c;
-          if (q.length) { const d = { track: title, task: 'Nghe và trả lời câu hỏi.', 'task.vi': '', _audio: S(r0['File audio']) }; let tot = 0; q.map(x => S(x['Câu hỏi']).replace(/^\[[^\]]{1,80}\]\s*/, '')).filter((t, i) => i < 4 && (i === 0 || (tot += t.length) <= 260) && (i > 0 || (tot = t.length))).forEach((t, i) => { d[`q_${i + 1}.no`] = String(i + 1); d[`q_${i + 1}.text`] = t; }); /* câu hỏi trước khi nghe: tối đa 4 câu, ≤ 260 ký tự cho khỏi co chữ */ slides.push({ comp: 'Slide/Listening', data: sec(L.listen || L.speak, d) }); }
-          if (q.length) { const ex = A.exercises(q, L.listen || L.speak, no, 'Nghe đoạn ghi âm rồi chọn đáp án đúng.'); no = ex.next; slides.push(...ex.groups); keys.push(...ex.keys); }
+          if (q.length) { const d = { track: title, task: '', 'task.vi': '', _audio: S(r0['File audio']) }; let tot = 0; q.map(x => S(x['Câu hỏi']).replace(/^\[[^\]]{1,80}\]\s*/, '')).filter((t, i) => i < 4 && (i === 0 || (tot += t.length) <= 260) && (i > 0 || (tot = t.length))).forEach((t, i) => { d[`q_${i + 1}.no`] = String(i + 1); d[`q_${i + 1}.text`] = t; }); /* câu hỏi trước khi nghe: tối đa 4 câu, ≤ 260 ký tự cho khỏi co chữ */ slides.push({ comp: 'Slide/Listening', data: sec(L.listen || L.speak, d) }); }
+          if (q.length) { const ex = A.exercises(q, L.listen || L.speak, no, ''); no = ex.next; slides.push(...ex.groups); keys.push(...ex.keys); }
           for (const g of segs(ls, 'Tiêu đề bài nghe', (a, b) => (+a['Câu số'] || 0) - (+b['Câu số'] || 0))) { const r1 = g[0] || {}, t1 = [S(r1['Tiêu đề bài nghe']), S(r1['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || title;
             slides.push({ auto: 'dlg', section: L.listen || L.speak, audio: S(r1['File audio']), situation: 'Lời bài nghe: ' + t1, lines: g.map(r => ({ sp: S(r['Vai / nhân vật']) || '–', de: S(r['Câu']), vi: S(r['Nghĩa']) })),
             notes: NOTE({ g: ['Chỉ mở lời bài sau khi HV đã nghe và trả lời câu hỏi.', 'Nghe lại từng đoạn, dừng ở câu chứa đáp án.', S(r1['File audio']) ? 'Audio: ' + S(r1['File audio']) : ''], l: g.filter(r => S(r['Mốc thời gian'])).slice(0, 8).map(r => `${S(r['Mốc thời gian'])} – ${S(r['Câu'])}`) }) }); }
@@ -318,7 +318,7 @@
         used.add('read'); const A = root.PLS_AUTO;
         const lines = tab(s6, /^S6-Đọc$/).filter(r => isB(r, buoi) && onPPT(r) && S(r['Câu'])), qs = tab(s6, /Đọc câu hỏi/).filter(r => isB(r, buoi) && onPPT(r));
         const codes = [...new Set(lines.map(r => S(r['Mã bài'])).concat(qs.map(r => S(r['Mã bài']))))].filter(Boolean);
-        divider(st.name, [mins, codes.length ? `${codes.length} bài đọc` : 'thực hiện trên app'].filter(Boolean).join(' · '));
+        divider(st.name, [mins, codes.length ? `${codes.length} bài đọc` : ''].filter(Boolean).join(' · '));
         let no = 1; const keys = [];
         for (const u of units(codes, lines, qs, 'Tiêu đề bài đọc')) { const c = u.c;
           const ls = u.ls.slice().sort((a, b) => ((+a['Đoạn'] || 0) - (+b['Đoạn'] || 0)) || ((+a['Câu số'] || 0) - (+b['Câu số'] || 0))), q = u.q;
@@ -326,14 +326,14 @@
           for (const g of segs(ls, 'Tiêu đề bài đọc', (a, b) => ((+a['Đoạn'] || 0) - (+b['Đoạn'] || 0)) || ((+a['Câu số'] || 0) - (+b['Câu số'] || 0)))) { const r1 = g[0] || {}, title = [S(r1['Tiêu đề bài đọc']), S(r1['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || c, ls = g;
           const paras = []; let cur = null; for (const r of ls) { const p = String(r['Đoạn'] || 1); if (!cur || cur.p !== p) { cur = { p, t: [] }; paras.push(cur); } cur.t.push(S(r['Câu'])); }
           if (paras.length) slides.push({ auto: 'read', section: L.read || L.speak, tag: 'Reading', title, paras: paras.map(x => x.t.join(' ')), notes: NOTE({ t: T, g: [`Bài đọc: ${title}.`, 'Cho HV đọc thầm 2–3 phút, gạch chân từ mới; sau đó đọc mẫu từng đoạn.', ...ls.slice(0, 12).map(r => `${S(r['Câu'])} – ${S(r['Nghĩa'])}`)], l: ['Hỏi ý chính từng đoạn trước khi chuyển sang câu hỏi.'] }) }); }
-          if (q.length) { const ex = A.exercises(q, L.read || L.speak, no, 'Đọc bài rồi chọn đáp án đúng.'); no = ex.next; slides.push(...ex.groups); keys.push(...ex.keys); }
+          if (q.length) { const ex = A.exercises(q, L.read || L.speak, no, ''); no = ex.next; slides.push(...ex.groups); keys.push(...ex.keys); }
         }
         if (keys.length) slides.push(...A.answerSlides(keys, L.answers || L.read, 'Đáp án bài đọc'));
       } else if (/kiểm tra|^test\b/.test(n) && !/sửa/.test(n) && !used.has('test') && root.PLS_AUTO) {
         // KIỂM TRA: đề của buổi (S6-Đề kiểm tra) → trang giới thiệu đề (số câu, thời gian, các phần) + câu hỏi; đáp án ở bước "Sửa kiểm tra" (không có thì ngay sau đề)
         used.add('test'); const A = root.PLS_AUTO;
         const de = tab(s6, /Đề kiểm tra/).filter(r => isB(r, buoi) && onPPT(r))[0];
-        if (!de) { divider(st.name, [mins, 'thực hiện trên app'].filter(Boolean).join(' · ')); continue; }
+        if (!de) { divider(st.name, mins); continue; }
         const qs = tab(s6, /Câu hỏi kiểm tra/).filter(r => S(r['Mã đề']) === S(de['Mã đề']) && onPPT(r));
         if (!qs.length) { warns.push(`Đề ${S(de['Mã đề'])} chưa có câu hỏi trong S6-Câu hỏi kiểm tra – chưa dựng slide đề.`); divider(st.name, [mins, 'đề chưa có câu hỏi'].filter(Boolean).join(' · ')); continue; }   // không để slide còn chữ mẫu
         const parts = []; for (const r of qs) { const k = S(r['Phần']) || S(r['Kỹ năng']) || 'Câu hỏi'; let p = parts.find(x => x.k === k); if (!p) parts.push(p = { k, n: 0, t: 0 }); p.n++; p.t += +r['Thời gian ước tính'] || 0; }
@@ -353,7 +353,7 @@
         divider(st.name, [mins, hz.length ? `${hz.length} chữ` : ''].filter(Boolean).join(' · '));
         const ACT = root.PLS_ACT;
         if (hz.length && ACT) {
-          slides.push(...ACT.plan('vocab', { title: st.name.replace(/\s*\d+\s*phút/i, ''), instruction: 'Nhìn chữ – đọc to – đoán nghĩa', items: hz.map(r => ({ de: S(r['Hán tự']), ipa: S(r['Âm đọc']), vi: S(r['Nghĩa']) })) }, ['guess'], { section: L.pron || L.vocab }).map(x => Object.assign(x, { divider: false, time: T })));
+          slides.push(...ACT.plan('vocab', { title: st.name.replace(/\s*\d+\s*phút/i, ''), instruction: '', items: hz.map(r => ({ de: S(r['Hán tự']), ipa: S(r['Âm đọc']), vi: S(r['Nghĩa']) })) }, ['guess'], { section: L.pron || L.vocab }).map(x => Object.assign(x, { divider: false, time: T })));
           // (bỏ hoạt động "Tìm bạn cho bộ thủ" tự sinh – người dùng 28/10: chỉ đúng nội dung Excel)
         }
       } else if (/phản xạ/.test(n) && !used.has('reflex')) {
@@ -376,7 +376,7 @@
         used.add('culture'); divider(st.name, mins);
         const cu = extra.filter(r => /văn hó?a|văn hoá/i.test(S(r['Loại']))); (cu.length ? cu : extra).slice(0, 4).forEach(x => slides.push({ comp: 'Slide/Key Point', data: sec(L.extra || L.speak, { title: S(x['Loại']) || 'Văn hoá', point: S(x['Tiêu đề']), note: S(x['Nội dung']) }), notes: NOTE({ g: [S(x['Tiêu đề']), S(x['Nội dung'])], l: [S(x['Nguồn']) ? 'Nguồn: ' + S(x['Nguồn']) : ''] }) }));
       } else {
-        divider(st.name, [mins, /kiểm tra|btvn|nghe|đọc|hd app/.test(n) ? 'thực hiện trên app' : ''].filter(Boolean).join(' · '));
+        divider(st.name, mins);
         if (!/cttt|khai giảng/i.test(n)) actSteps(st);   // nội dung lấy đúng từ S5 (HD App, …); Khai giảng: chỉ slide chuyển mục (người dùng 28/10)
         if (/warm|khởi động/.test(n) && !used.has('lead')) { used.add('lead'); leadIn(); }
       }
