@@ -7,6 +7,10 @@
   const chunk = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
   // chia đều (33 từ / 8 dòng → 7·7·7·6·6, không để bảng cuối lẻ 1 dòng)
   const chunkEven = (a, n) => { const k = Math.ceil(a.length / n) || 1, sz = Math.ceil(a.length / k); return chunk(a, sz); };
+  // nhóm âm: "Thanh mẫu – âm hai môi (âm mũi)" → cụm "Thanh mẫu", tiểu nhóm "âm hai môi (âm mũi)"
+  const pronKey = r => String(r['Bảng chữ / nhóm âm'] || '').trim().split(/\s+[–—-]\s+/)[0].replace(/\s*\(.*\)\s*$/, '').trim() || String(r['Chữ / âm'] || '').trim();
+  const pronSub = r => { const g = String(r['Bảng chữ / nhóm âm'] || '').trim(), m = g.match(/\s+[–—-]\s+(.+)$/); return m ? m[1] : (g.match(/\(([^)]*)\)\s*$/) || [])[1] || ''; };
+  const pronClusters = rows => { const m = new Map(); rows.forEach(r => { const k = pronKey(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }); return [...m.entries()]; };
   const tab = (book, re) => { const k = Object.keys(book || {}).find(n => re.test(n)); return k ? book[k] : []; };
   const isB = (r, b) => Number(r['Buổi']) === Number(b);
   const onPDF = r => !/^không$/i.test(S(r['Lên PDF']));
@@ -31,14 +35,19 @@
 
     const pron = tab(s6, /Phát âm/).filter(r => isB(r, buoi) && onPDF(r));
     const F_pron = T => { if (!pron.length) return; SEC(T || 'Phát âm'); 
-      for (const p of pron) { const capH = s => /\s/.test(s) ? s.replace(/^[a-zà-ỹđ]/, c => c.toUpperCase()) : s, a1 = capH(S(p['Chữ / âm'])), a2 = capH(S(p['Bảng chữ / nhóm âm'])); B('Block/Sub Heading', { text: a2 && !a1.toLowerCase().includes(a2.toLowerCase()) ? `${a1} · ${a2}` : a1 || a2 });   // không lặp "Nối âm … · Nối âm"
-        if (S(p['Hướng dẫn phát âm'])) B('Block/Paragraph', { text: S(p['Hướng dẫn phát âm']) });
-        const exR = S(p['Ví dụ']), exs = exR.split(exR.includes(';') ? /;\s*/ : /,\s*/).filter(Boolean).slice(0, 6);
-        if (exs.length) { const d = { no: 'Bài ' + ex(), instruction: 'Đọc to các từ sau.', 'head.track': '', 'head.ab': '' }; exs.forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.word`] = m ? m[1] : x; d[`ex_${i + 1}.vi`] = m ? '/' + m[2] + '/' : ''; }); for (let i = exs.length; i < 12; i++) { d[`ex_${i + 1}.word`] = ''; d[`ex_${i + 1}.vi`] = ''; } B('Block/Pronunciation', d); } } };
+      // GOM CỤM theo nhóm âm (Thanh mẫu / Vận mẫu / Thanh điệu …): 1 tiêu đề + bảng Âm · Hướng dẫn · Âm tương tự · Ví dụ + 1 bài đọc to gom ví dụ của cả cụm (28/10)
+      const capH = s => /\s/.test(s) ? s.replace(/^[a-zà-ỹđ]/, c => c.toUpperCase()) : s;
+      for (const [ck, rs] of pronClusters(pron)) { B('Block/Sub Heading', { text: capH(ck) });
+        const subs = new Set(rs.map(r => S(r['Bảng chữ / nhóm âm']))).size > 1;
+        for (const [pi, part] of chunkEven(rs, 6).entries()) { const d = { 'row_0.c1': 'Âm', 'row_0.c2': 'Hướng dẫn phát âm', 'row_0.c3': 'Âm tương tự', 'row_0.c4': 'Ví dụ' };
+          part.forEach((r, i) => { const sub = pronSub(r); d[`row_${i + 1}.c1`] = S(r['Chữ / âm']) + (subs && sub ? '\n(' + sub + ')' : ''); d[`row_${i + 1}.c2`] = S(r['Hướng dẫn phát âm']); d[`row_${i + 1}.c3`] = S(r['Chữ phát âm tương tự']); d[`row_${i + 1}.c4`] = S(r['Ví dụ']).split(/;\s*/).filter(Boolean).join(', '); });
+          B('Block/Table N', d); out[out.length - 1].role = 'pron'; if (pi) out[out.length - 1].cont = true; }
+        const exs = rs.flatMap(r => { const x = S(r['Ví dụ']); return x.split(x.includes(';') ? /;\s*/ : /,\s*/).filter(Boolean); }).filter((x, i, a) => a.indexOf(x) === i);
+        for (const part of chunkEven(exs, 12)) { const d = { no: 'Bài ' + ex(), instruction: 'Đọc to các từ sau.', 'head.track': '', 'head.ab': '' }; part.forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.word`] = m ? m[1] : x; d[`ex_${i + 1}.vi`] = m ? '/' + m[2] + '/' : ''; }); for (let i = part.length; i < 12; i++) { d[`ex_${i + 1}.word`] = ''; d[`ex_${i + 1}.vi`] = ''; } B('Block/Pronunciation', d); } } };
 
     const vocab = tab(s6, /Từ vựng$/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Từ']));
     const F_vocab = T => { if (!vocab.length) return; SEC(T || 'Từ vựng'); 
-      for (const [pi, part] of chunkEven(vocab, 8).entries()) { const d = { 'row_0.c1': 'Từ', 'row_0.c2': 'Phiên âm', 'row_0.c3': 'Loại từ', 'row_0.c4': 'Nghĩa' }; part.forEach((r, i) => { d[`row_${i + 1}.c1`] = S(r['Từ']); d[`row_${i + 1}.c2`] = S(r['Phiên âm / cách đọc']); d[`row_${i + 1}.c3`] = S(r['Loại từ']); d[`row_${i + 1}.c4`] = S(r['Nghĩa']); }); B('Block/Vocab Table', d); if (pi) out[out.length - 1].cont = true; } };
+      for (const [pi, part] of chunkEven(vocab, 8).entries()) { const d = { 'row_0.c1': 'Từ', 'row_0.c2': 'Phiên âm', 'row_0.c3': 'Loại từ', 'row_0.c4': 'Nghĩa', 'row_0.c5': 'Ví dụ' }; part.forEach((r, i) => { d[`row_${i + 1}.c1`] = S(r['Từ']); d[`row_${i + 1}.c2`] = S(r['Phiên âm / cách đọc']); d[`row_${i + 1}.c3`] = S(r['Loại từ']); d[`row_${i + 1}.c4`] = S(r['Nghĩa']); d[`row_${i + 1}.c5`] = [S(r['Ví dụ 1']), S(r['Phiên âm ví dụ 1']), S(r['Nghĩa ví dụ 1'])].filter(Boolean).join('\n'); }); B('Block/Table N', d); out[out.length - 1].role = 'vocab'; if (pi) out[out.length - 1].cont = true; } };
 
     const grammar = tab(s6, /Ngữ pháp$/).filter(r => isB(r, buoi) && onPDF(r));
     const gq = tab(s6, /Câu hỏi ngữ pháp/).filter(r => isB(r, buoi) && onPDF(r));
@@ -57,7 +66,10 @@
 
     const speak = tab(s6, /Mẫu câu/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Câu']));
     const F_speak = T => { if (!speak.length) return; SEC(T || 'Mẫu câu giao tiếp'); 
-      for (const [pi, part] of chunkEven(speak, 8).entries()) { const d = { 'row_0.c1': 'Câu', 'row_0.c2': 'Nghĩa' }; part.forEach((r, i) => { d[`row_${i + 1}.c1`] = S(r['Câu']); d[`row_${i + 1}.c2`] = S(r['Nghĩa']); }); B('Block/Table N', d); if (pi) out[out.length - 1].cont = true; } };
+      // GOM CỤM theo chủ đề / tình huống ("… (câu 1)", "… (câu 2)" chung 1 cụm; không ghi tình huống → theo Loại) – giữ thứ tự xuất hiện trong S6 (28/10)
+      const grp = new Map(); speak.forEach(r => { const t = S(r['Chủ đề / tình huống']).replace(/^none$/i, '').replace(/\s*\(câu\s*\d+\)\s*$/i, ''); const k = t || S(r['Loại']) || 'Mẫu câu'; if (!grp.has(k)) grp.set(k, []); grp.get(k).push(r); });
+      for (const [k, rs] of grp) { B('Block/Sub Heading', { text: k });
+        for (const [pi, part] of chunkEven(rs, 8).entries()) { const d = { 'row_0.c1': 'Câu', 'row_0.c2': 'Phiên âm', 'row_0.c3': 'Nghĩa' }; part.forEach((r, i) => { const v = S(r['Vai']); d[`row_${i + 1}.c1`] = (v && /hội thoại/i.test(S(r['Loại'])) ? v + ': ' : '') + S(r['Câu']); d[`row_${i + 1}.c2`] = S(r['Phiên âm']); d[`row_${i + 1}.c3`] = S(r['Nghĩa']); }); B('Block/Table N', d); out[out.length - 1].role = 'speak'; if (pi) out[out.length - 1].cont = true; } } };
 
     const segs = (rows, tk) => { const m = new Map(); rows.forEach(r => { const x = S(r['Mã đoạn']) || S(r[tk]); if (!m.has(x)) m.set(x, []); m.get(x).push(r); }); return [...m.values()]; };   // QC F03/F04: tách đoạn theo tiêu đề
     const lis = tab(s6, /^S6-Nghe$/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Câu'])), lq = tab(s6, /Nghe câu hỏi/).filter(r => isB(r, buoi) && onPDF(r));
@@ -220,9 +232,9 @@
       el.querySelectorAll('[data-n$="_cell"]').forEach(c => { Object.assign(c.style, { justifyContent: 'flex-start', padding: '5px 8px' }); const t = c.querySelector('[data-text]'); if (t) t.style.textAlign = 'left'; });
       el.querySelectorAll('[data-n^="row_"]').forEach(r => { if (!/^row_\d+$/.test(r.dataset.n)) return; r.style.height = 'auto'; const c1 = r.querySelector('[data-n="c1"]'); if (c1 && r.dataset.n !== 'row_0') c1.style.fontWeight = '600'; });
       // bảng đáp án: cột số câu hẹp, căn giữa, màu brand; giải thích chiếm phần lớn bề ngang
-      const AW = b && { ans3: { c1: 9, c2: 28, c3: 63 }, ans2: { c1: 10, c2: 90 }, ansgrid: { c1: 7, c2: 18, c3: 7, c4: 18, c5: 7, c6: 18, c7: 7, c8: 18 }, self: { c1: 76, c2: 8, c3: 8, c4: 8 } }[b.role];
+      const AW = b && { ans3: { c1: 9, c2: 28, c3: 63 }, ans2: { c1: 10, c2: 90 }, ansgrid: { c1: 7, c2: 18, c3: 7, c4: 18, c5: 7, c6: 18, c7: 7, c8: 18 }, self: { c1: 76, c2: 8, c3: 8, c4: 8 }, pron: { c1: 16, c2: 46, c3: 19, c4: 19 }, vocab: { c1: 12, c2: 13, c3: 12, c4: 28, c5: 35 }, speak: { c1: 34, c2: 33, c3: 33 } }[b.role];
       if (AW) el.querySelectorAll('[data-n$="_cell"]').forEach(c => { const k = c.dataset.n.replace('_cell', ''); if (!AW[k]) return; c.style.flex = `${AW[k]} 1 0px`;
-        const num = AW[k] <= 10; if (num) { c.style.justifyContent = 'center'; c.style.padding = '5px 4px'; const t = c.querySelector('[data-text]'); if (t) { t.style.textAlign = 'center'; t.style.fontWeight = '700'; t.style.color = 'var(--color-primary-ink, var(--color-primary, #406864))'; } }
+        const num = AW[k] <= 10 && !/^(pron|speak|vocab)$/.test(b.role); if (num) { c.style.justifyContent = 'center'; c.style.padding = '5px 4px'; const t = c.querySelector('[data-text]'); if (t) { t.style.textAlign = 'center'; t.style.fontWeight = '700'; t.style.color = 'var(--color-primary-ink, var(--color-primary, #406864))'; } }
         else if (b.role === 'ans3' && k === 'c3') { const t = c.querySelector('[data-text]'); if (t) t.style.fontWeight = '400'; } });
       if (/Vocab Table/.test(comp)) { const W = { c1: 27, c2: 22, c3: 14, c4: 37 }; el.querySelectorAll('[data-n$="_cell"]').forEach(c => { const k = c.dataset.n.replace('_cell', ''); if (W[k]) c.style.flex = `${W[k]} 1 0px`; }); }
     }

@@ -157,7 +157,7 @@
         const grid = vocab.filter(r => !inPic.has(r));
         // ĐỢT 4: THẺ TỪ – tối đa 3 từ có câu ví dụ (ưu tiên từ có hình minh hoạ riêng) → 1 từ / slide trước lưới ôn
         if (TPL['Slide/Vocab Card']) grid.filter(r => S(r['Ví dụ 1']) && S(r['Ví dụ 1']).length <= 80).sort((a, b) => !!S(b['Hình minh hoạ']) - !!S(a['Hình minh hoạ'])).slice(0, 3).forEach(r => {
-          slides.push({ comp: 'Slide/Vocab Card', data: sec(L.vocab, { title: '', word: S(r['Từ']), ipa: S(r['Phiên âm / cách đọc']) ? '/' + S(r['Phiên âm / cách đọc']).replace(/^\/|\/$/g, '') + '/' : '', pos: S(r['Loại từ']), mean: S(r['Nghĩa']), exde: S(r['Ví dụ 1']), exvi: S(r['Nghĩa ví dụ 1']), 'img:img': S(r['Hình minh hoạ']) || S(r['Từ']) }),
+          slides.push({ comp: 'Slide/Vocab Card', data: sec(L.vocab, { title: '', word: S(r['Từ']), ipa: S(r['Phiên âm / cách đọc']) ? '/' + S(r['Phiên âm / cách đọc']).replace(/^\/|\/$/g, '') + '/' : '', pos: S(r['Loại từ']), mean: S(r['Nghĩa']), exde: S(r['Ví dụ 1']), exvi: [S(r['Phiên âm ví dụ 1']), S(r['Nghĩa ví dụ 1'])].filter(Boolean).join(' – '), 'img:img': S(r['Hình minh hoạ']) || S(r['Từ']) }),
             notes: NOTE({ g: [`Đọc mẫu “${S(r['Từ'])}” 2 lần, cả lớp nhắc lại.`, `Ví dụ: ${S(r['Ví dụ 1'])} – ${S(r['Nghĩa ví dụ 1'])}`, 'Gọi 2 HV đặt câu khác với từ này.'], l: [S(r['Cách dùng']), S(r['Trọng âm']) ? 'Trọng âm: ' + S(r['Trọng âm']) : ''] }) }); });
         if (grid.length) for (const part of chunk(grid, Math.ceil(grid.length / Math.ceil(grid.length / 24)))) slides.push({ auto: 'vocab', section: L.vocab, items: part.map(r => ({ de: S(r['Từ']), vi: S(r['Nghĩa']), nt: wordNote(r), nw: wordWarn(r) })), notes: NOTE({ t: T, g: ['Đọc mẫu từng từ 2 lần, cả lớp nhắc lại; hỏi nghĩa trước khi lật nghĩa.'] }) });
         for (const [lab, rs] of pics) { const d = { title: lab, 'img:img': lab }; rs.forEach((r, i) => { d[`item_${i + 1}.no`] = String(i + 1); d[`item_${i + 1}.de`] = S(r['Từ']); d[`item_${i + 1}.vi`] = S(r['Nghĩa']); }); slides.push({ comp: 'Slide/Vocab Picture', data: sec(L.vocab, d), notes: NOTE({ g: ['Cho HV nhìn hình đoán từ trước, rồi đọc mẫu.', ...rs.map(wordNote)], l: rs.map(wordWarn) }) }); }
@@ -225,7 +225,16 @@
       } else if (/phát âm|bảng chữ/.test(n) && !used.has('pron')) {
         used.add('pron'); if (pron.length) divider(st.name, [mins, `${pron.length} âm`].filter(Boolean).join(' · '));
         const pNote = p => NOTE({ t: T, g: [S(p['Chữ / âm']) + (S(p['Bảng chữ / nhóm âm']) ? ' · ' + S(p['Bảng chữ / nhóm âm']) : ''), S(p['Hướng dẫn phát âm']), 'Đọc mẫu chậm → nhanh, cả lớp nhắc lại, gọi 2–3 HV đọc cá nhân.', S(p['Ví dụ']) ? 'Ví dụ: ' + S(p['Ví dụ']) : ''], l: [S(p['Chữ phát âm tương tự']) ? 'Dễ nhầm với: ' + S(p['Chữ phát âm tương tự']) : ''] });
-        for (const p of pron) {
+        // GOM CỤM theo nhóm âm (Thanh mẫu / Vận mẫu / Thanh điệu …): mỗi cụm 1 slide bảng tổng (Âm · Âm tương tự · Ví dụ) rồi từng âm của cụm (28/10)
+        const pKey = r => S(r['Bảng chữ / nhóm âm']).split(/\s+[–—-]\s+/)[0].replace(/\s*\(.*\)\s*$/, '').trim() || S(r['Chữ / âm']);
+        const pCl = new Map(); pron.forEach(r => { const k = pKey(r); if (!pCl.has(k)) pCl.set(k, []); pCl.get(k).push(r); });
+        const pFirst = new Map(); for (const [k, rs] of pCl) pFirst.set(rs[0], [k, rs]);
+        const pronSorted = [...pCl.values()].flat();
+        for (const p of pronSorted) {
+          if (pFirst.has(p) && pFirst.get(p)[1].length > 1 && root.PLS_TPL && root.PLS_TPL.slides['Slide/Grammar Table N']) { const [k, rs] = pFirst.get(p);
+            for (const part of chunk(rs, Math.ceil(rs.length / Math.ceil(rs.length / 6)))) { const d = { title: k, 'row_0.c1': 'Âm', 'row_0.c2': 'Âm tương tự', 'row_0.c3': 'Ví dụ' };
+              for (let i = 1; i <= 6; i++) { const r = part[i - 1]; d[`row_${i}.c1`] = r ? S(r['Chữ / âm']) : ''; d[`row_${i}.c2`] = r ? S(r['Chữ phát âm tương tự']) : ''; d[`row_${i}.c3`] = r ? S(r['Ví dụ']).split(/;\s*/).filter(Boolean).join(', ') : ''; }
+              slides.push({ comp: 'Slide/Grammar Table N', data: sec(L.pron, d), notes: NOTE({ t: T, g: [`Tổng quan cụm “${k}”: đọc mẫu từng âm, so với âm tương tự.`, ...part.map(r => `${S(r['Chữ / âm'])}: ${S(r['Ví dụ'])}`)] }) }); } }
           // NỐI ÂM (mẫu bổ sung): nhóm "Nối âm" → cụm từ có dấu nối ‿ giữa phụ âm cuối và nguyên âm đầu (theo phiên âm), tối đa 6 cụm
           if (/nối âm|linking/i.test(S(p['Bảng chữ / nhóm âm']) + ' ' + S(p['Chữ / âm'])) && root.PLS_TPL && root.PLS_TPL.slides['Slide/Pronunciation Linking']) {
             const d = { 'title': S(p['Chữ / âm']), 'tip': S(p['Hướng dẫn phát âm']) };
@@ -241,7 +250,7 @@
             exs.slice(1, 6).forEach((x, i) => { d[`chip_${i + 1}.text`] = x.w; });
             slides.push({ comp: 'Slide/Pronunciation Steps', data: sec(L.pron, d), notes: pNote(p) }); continue;
           }
-          const d = { 'sound': S(p['Chữ / âm']), 'ipa': S(p['Bảng chữ / nhóm âm']), 'tip': S(p['Hướng dẫn phát âm']) };
+          const d = { 'sound': S(p['Chữ / âm']), 'ipa': S(p['Bảng chữ / nhóm âm']), 'tip': S(p['Hướng dẫn phát âm']) + (S(p['Chữ phát âm tương tự']) && S(p['Hướng dẫn phát âm']).length + S(p['Chữ phát âm tương tự']).length < 240 ? '\nÂm tương tự: ' + S(p['Chữ phát âm tương tự']) : '') };
           S(p['Ví dụ']).split(/;\s*/).filter(Boolean).slice(0, 4).forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.word`] = m ? m[1] : x; d[`ex_${i + 1}.vi`] = m ? '/' + m[2] + '/' : ''; });
           slides.push({ comp: 'Slide/Pronunciation', data: sec(L.pron, d), notes: pNote(p) });
         }
