@@ -4,6 +4,13 @@
   const S = I.state, $ = q => document.querySelector(q);
   S.view = 'slide'; { const v = $('#view'); if (v) v.value = 'slide'; }   // option đầu giờ là "Nghiên cứu" → mặc định vẫn mở Slide
   let book = null;
+  // NỘI DUNG SỬA TAY của trang mở đầu / kết thúc: lưu trên máy theo brand + bài + buổi
+  const LK = 'pls.bookLetters';
+  const lkey = kind => [S.brand, (S.spec && S.spec.lesson) || '', +($('#buoi') && $('#buoi').value) || 1, kind].join('|');
+  const lstore = () => { try { return JSON.parse(localStorage.getItem(LK)) || {}; } catch (e) { return {}; } };
+  const letterTxt = kind => lstore()[lkey(kind)] || null;
+  function saveLetter(kind, field, val) { const all = lstore(), k = lkey(kind); all[k] = Object.assign({}, all[k] || {}, { [field]: val }); try { localStorage.setItem(LK, JSON.stringify(all)); } catch (e) {} }
+  function resetLetter(kind) { const all = lstore(); delete all[lkey(kind)]; try { localStorage.setItem(LK, JSON.stringify(all)); } catch (e) {} }
   function stage() { let st = $('#bookStage'); if (!st) { st = document.createElement('div'); st.id = 'bookStage'; document.body.appendChild(st); } st.innerHTML = ''; return st; }
   // FONT GOOGLE: chờ tải xong đủ font + độ đậm của brand rồi mới dàn trang / in PDF.
   // Chưa tải xong mà đã đo → ngắt trang theo font dự phòng (sai chỗ xuống trang); in sớm → PDF dùng font dự phòng, mất phân cấp độ đậm.
@@ -25,7 +32,13 @@
     let list = B.blocks(S.book, buoi, S.brand);
     if (S.aud === 'student') { const k = list.findIndex(b => /Section/.test(b.comp || '') && b.data && (b.data.title === 'Đáp án' || b.data.text === 'Đáp án')); if (k >= 0) list = list.slice(0, k); }   // bản học viên: bỏ phần Đáp án cuối sách
     const running = ((S.spec && S.spec.lesson) || '').toUpperCase();
-    const bk = B.paginate(list, { size, brand: S.brand, stage: stage(), running, prep: null });   // sách in ra PDF: Chrome nhúng font web vào PDF → giữ đủ độ đậm (font an toàn của PPTX chỉ có thường / đậm)
+    const st = stage();
+    // BÌA + LỜI DẪN (người dùng 28/10): bìa trước · trang mở đầu (trang 1) · nội dung (từ trang 2) · trang kết thúc · bìa sau
+    const m = B.meta ? B.meta(S.book, buoi) : null, X = B.extraPage && m ? (kind, n) => B.extraPage(kind, { size, brand: S.brand, stage: st, running, meta: m, n, txt: letterTxt(kind) }) : () => null;
+    const cover = X('cover'), intro = X('intro', 1);
+    const bk = B.paginate(list, { size, brand: S.brand, stage: st, running, prep: null, first: intro ? 2 : 1 });   // sách in ra PDF: Chrome nhúng font web vào PDF → giữ đủ độ đậm (font an toàn của PPTX chỉ có thường / đậm)
+    const outro = X('outro', (intro ? 2 : 1) + bk.pages.length), back = X('back');
+    bk.pages = [cover, intro, ...bk.pages, outro, back].filter(Boolean);
     bk.blocks = list.length; return bk;
   }
   // tên file PDF theo cùng mẫu tên PPTX (RB-CH-02) + khổ sách; Chrome lấy tiêu đề trang làm tên file khi "Lưu dưới dạng PDF"
@@ -53,7 +66,13 @@
     book.pages.forEach(pg => { const w = parseFloat(pg.host.style.width), h = parseFloat(pg.host.style.height), k = W / w;
       const wrap = document.createElement('div'); wrap.className = 'book-page'; wrap.style.width = W + 'px'; wrap.style.height = Math.round(h * k) + 'px';
       const c = pg.host.cloneNode(true); c.style.transform = `scale(${k})`; wrap.appendChild(c);
-      const lb = document.createElement('div'); lb.className = 'muted'; lb.style.cssText = 'text-align:center;margin:-14px 0 18px;font-size:12px'; lb.textContent = 'Trang ' + pg.n;
+      const lb = document.createElement('div'); lb.className = 'muted'; lb.style.cssText = 'text-align:center;margin:-14px 0 18px;font-size:12px';
+      lb.textContent = { cover: 'Bìa trước', back: 'Bìa sau', intro: 'Trang ' + pg.n + ' · Mở đầu – bấm vào chữ để sửa', outro: 'Trang ' + pg.n + ' · Kết thúc – bấm vào chữ để sửa' }[pg.kind] || 'Trang ' + pg.n;
+      if (pg.kind === 'intro' || pg.kind === 'outro') {   // chỉ hai trang lời dẫn được sửa; sửa trên bản xem → ghi vào trang gốc (bản in) + lưu máy
+        c.querySelectorAll('[data-field]').forEach(e => { e.contentEditable = 'plaintext-only'; if (e.contentEditable !== 'plaintext-only') e.contentEditable = 'true'; e.spellcheck = false;
+          e.oninput = () => { const v = e.innerText.replace(/\n$/, ''); const o = pg.host.querySelector(`[data-field="${e.dataset.field}"]`); if (o) o.textContent = v; saveLetter(pg.kind, e.dataset.field, v); }; });
+        const rs = document.createElement('button'); rs.type = 'button'; rs.className = 'btn'; rs.textContent = 'Khôi phục nội dung gợi ý'; rs.style.cssText = 'margin-left:8px;font-size:12px;padding:2px 8px';
+        rs.onclick = () => { resetLetter(pg.kind); build(); }; lb.appendChild(rs); }
       box.append(wrap, lb); });
   }
   async function exportPdf() {

@@ -264,7 +264,7 @@
     const E = root.PLS_ENGINE, size = SIZES[opt.size] || SIZES.A4, stage = opt.stage, pages = [], warns = [];
     const running = opt.running || '';
     // SỐ TRANG như sách in: góc ngoài chân trang – trang lẻ bên phải, trang chẵn bên trái (trang 1 cũng in số – người dùng 24/10)
-    const newPage = () => { const n = pages.length + 1; const comp = size.page(n);
+    const newPage = () => { const n = pages.length + (opt.first || 1); const comp = size.page(n);
       const r = E.render({ comp, data: { running, page_no: n % 2 === 0 ? '' : String(n), page_no_l: n % 2 === 0 ? String(n) : '' } }, opt.brand);
       stage.appendChild(r.host); r.host.classList.add('pls-book-page'); r.host.style.setProperty('--book-font', bookFont(opt.brand)); pageFrame(r.host, opt.size);
       const content = r.host.querySelector('[data-n="content"]'); [...content.children].forEach(c => c.remove()); content.style.gap = '0px'; content.style.rowGap = '0px';
@@ -330,6 +330,57 @@
     return { pages, warns, size };
   }
 
+  // ---------- BÌA TRƯỚC · TRANG MỞ ĐẦU · TRANG KẾT THÚC · BÌA SAU (người dùng 28/10) ----------
+  // Bìa trước / sau dựng từ mẫu Figma của khổ (A4/Cover, A4/Back Cover…). Trang mở đầu + kết thúc = lời dẫn, dàn theo form cố định
+  // (nhãn nhỏ · tiêu đề · kẻ màu brand · thân bài · chữ ký) trên khung trang nội dung; CHỈ hai trang này cho sửa nội dung.
+  function meta(books, buoi) {
+    const s6 = (books && books.s6) || {};
+    const info = tab(s6, /Khoá & bài|Khóa & bài/).find(r => isB(r, buoi)) || {};
+    const course = Object.fromEntries(tab(s6, /Thông tin khoá|Thông tin khóa/).map(r => [S(r['Mục']), S(r['Nội dung'])]));
+    const objs = S(info['Mục tiêu bài']).split(/\n|;\s*|(?<=[.!?])\s+(?=[A-ZÀ-ỸĐ])/).map(x => x.replace(/^[-•\d.\s]+/, '').trim()).filter(Boolean).slice(0, 5);
+    return { course: course['Tên khoá'] || '', level: course['Cấp độ'] || '', bai: info['Bài'] ? Number(info['Bài']) : buoi, title: S(info['Tên buổi']) || 'Buổi ' + buoi, objs };
+  }
+  function letterDefaults(kind, m, brand) {
+    const team = `Đội ngũ biên soạn ${brand}`;
+    if (kind === 'intro') return { kicker: 'LỜI MỞ ĐẦU', title: `Chào mừng bạn đến với Bài ${m.bai}: ${m.title}`,
+      body: [`Cuốn tài liệu này đồng hành cùng bạn trong buổi học${m.course ? ' thuộc khoá ' + m.course : ''}. Mỗi phần đi từ từ vựng, ngữ pháp đến luyện tập để bạn hiểu ngay trên lớp và nhớ lâu sau buổi học.`,
+        m.objs.length ? 'Sau bài học này, bạn sẽ:\n' + m.objs.map(t => '• ' + t).join('\n') : 'Hãy đọc trước phần từ vựng, đánh dấu chỗ chưa rõ để hỏi giáo viên trên lớp.',
+        'Chúc bạn học vui và tiến bộ mỗi ngày!'].join('\n\n'), sign: team };
+    return { kicker: 'LỜI KẾT', title: 'Bạn đã hoàn thành bài học!',
+      body: ['Kiến thức chỉ thật sự là của mình khi được ôn lại. Trước buổi học sau, bạn hãy:\n• Làm đầy đủ bài tập về nhà.\n• Đọc to lại các câu ví dụ và đoạn hội thoại.\n• Ghi lại những điểm còn băn khoăn để hỏi giáo viên.',
+        'Cảm ơn bạn đã luôn cố gắng. Hẹn gặp lại ở bài học tiếp theo!'].join('\n\n'), sign: team };
+  }
+  function letterCss() {
+    if (typeof document === 'undefined' || document.getElementById('plsLetterCss')) return; const st = document.createElement('style'); st.id = 'plsLetterCss';
+    st.textContent = '.bk-letter{display:flex;flex-direction:column;flex:1 1 auto;padding:36px 8px 0;box-sizing:border-box;color:var(--color-text,#1f2a2e)}'
+      + '.bk-letter .bk-kicker{font-size:12px;font-weight:700;letter-spacing:.18em;color:var(--color-primary,#406864)}'
+      + '.bk-letter .bk-title{font-size:26px;line-height:1.25;font-weight:700;margin:10px 0 0;color:var(--color-primary-dark,#142738)}'
+      + '.bk-letter .bk-rule{width:64px;height:4px;border-radius:2px;background:var(--color-primary,#406864);margin:18px 0 22px}'
+      + '.bk-letter .bk-body{font-size:13px;line-height:1.75;white-space:pre-wrap}'
+      + '.bk-letter .bk-sign{margin-top:28px;align-self:flex-end;font-size:13px;font-style:italic;font-weight:500;color:var(--color-primary,#406864)}'
+      + '.bk-letter [contenteditable]{outline:none;border-radius:4px}.bk-letter [contenteditable]:hover{box-shadow:0 0 0 1px #c9b8f5}.bk-letter [contenteditable]:focus{box-shadow:0 0 0 2px #7c5cd6;background:rgba(124,92,214,.05)}'
+      + '@media print{.bk-letter [contenteditable]{box-shadow:none!important;background:none!important}}';
+    document.head.appendChild(st);
+  }
+  // kind: 'cover' | 'intro' | 'outro' | 'back' · txt: nội dung đã sửa của trang lời dẫn {kicker,title,body,sign}
+  function extraPage(kind, opt) {
+    const E = root.PLS_ENGINE, size = SIZES[opt.size] || SIZES.A4, pre = opt.size === '19x27' ? '19x27' : 'A4', m = opt.meta || {};
+    if (kind === 'cover' || kind === 'back') {
+      const comp = `${pre}/${kind === 'cover' ? 'Cover' : 'Back Cover'}`; if (!TPL(comp)) return null;
+      const data = kind === 'cover' ? { title: [m.course || 'TÀI LIỆU', m.level].filter(Boolean).join(' ').toUpperCase(), subtitle: `Bài ${m.bai} – ${m.title}`, tag_1: 'TỪ VỰNG', tag_2: 'NGỮ PHÁP', tag_3: 'HỘI THOẠI' } : {};
+      const r = E.render({ comp, data }, opt.brand); opt.stage.appendChild(r.host); r.host.classList.add('pls-book-cover'); return { host: r.host, kind, n: null };
+    }
+    bookCss(); letterCss();
+    const n = opt.n; const r = E.render({ comp: size.page(n), data: { running: opt.running || '', page_no: n % 2 === 0 ? '' : String(n), page_no_l: n % 2 === 0 ? String(n) : '' } }, opt.brand);
+    opt.stage.appendChild(r.host); r.host.classList.add('pls-book-page'); r.host.style.setProperty('--book-font', bookFont(opt.brand)); pageFrame(r.host, opt.size);
+    const content = r.host.querySelector('[data-n="content"]'); [...content.children].forEach(c => c.remove());
+    const t = Object.assign(letterDefaults(kind, m, opt.brand), opt.txt || {});
+    const box = document.createElement('div'); box.className = 'bk-letter'; box.dataset.letter = kind;
+    [['kicker', 'div'], ['title', 'h1'], ['rule', 'div'], ['body', 'div'], ['sign', 'div']].forEach(([f, tag]) => { const e = document.createElement(tag); e.className = 'bk-' + f; if (f !== 'rule') { e.dataset.field = f; e.textContent = t[f] || ''; } box.appendChild(e); });
+    content.appendChild(box);
+    return { host: r.host, kind, n };
+  }
+
   // ---------- in PDF ----------
   function print(size) {
     const s = SIZES[size] || SIZES.A4; let st = document.getElementById('bookPrintCss');
@@ -337,5 +388,5 @@
     st.textContent = `@page{size:${s.mm[0]}mm ${s.mm[1]}mm;margin:0}`;
     window.print();
   }
-  root.PLS_BOOK = { blocks, paginate, print, SIZES, bookFamilies, bookFont };
+  root.PLS_BOOK = { blocks, paginate, print, SIZES, bookFamilies, bookFont, meta, extraPage, letterDefaults };
 })(typeof window !== 'undefined' ? window : globalThis);
