@@ -56,7 +56,9 @@
     const buoi = +($('#buoi') && $('#buoi').value) || 1;
     let list = B.blocks(S.book, buoi, S.brand);
     if (S.aud === 'student') { const k = list.findIndex(b => /Section/.test(b.comp || '') && b.data && (b.data.title === 'Đáp án' || b.data.text === 'Đáp án')); if (k >= 0) list = list.slice(0, k); }   // bản học viên: bỏ phần Đáp án cuối sách
-    const running = ((S.spec && S.spec.lesson) || '').toUpperCase();
+    // chữ chạy đầu trang: tên khoá ngắn · BÀI n (một dòng) thay cho "khoá · tên buổi" dài 2 dòng
+    const m0 = B.meta ? B.meta(S.book, buoi) : null, short0 = m0 && (m0.course || '').split(/\s+[–-]\s+|\s*\(/)[0];
+    const running = (m0 ? `Bài ${m0.bai} – ${String(m0.title).replace(/^Bài\s*\d+\s*[–-]\s*/i, '')}` : ((S.spec && S.spec.lesson) || '')).toUpperCase();   // người dùng 28/10: chữ chạy đầu trang chỉ ghi tên bài
     const st = stage();
     // BÌA + LỜI DẪN (người dùng 28/10): bìa trước · trang mở đầu (trang 1) · nội dung (từ trang 2) · trang kết thúc · bìa sau
     const m = B.meta ? B.meta(S.book, buoi) : null, X = B.extraPage && m ? (kind, n) => B.extraPage(kind, { size, brand: S.brand, stage: st, running, meta: m, n, txt: letterTxt(kind) }) : () => null;

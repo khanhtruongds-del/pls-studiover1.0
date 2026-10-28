@@ -76,7 +76,39 @@
       { id: 'img', label: 'Có ảnh', css: () => {} },
       { id: 'noimg', label: 'Chỉ chữ – rộng', css: r => { const im = q(r, 'img'); if (im) st(im, { display: 'none' }); } }]
   };
-  function variants(spec) { return V[spec && spec.comp] || []; }
+  // ---------- BỐ CỤC CHUNG cho mọi mẫu (người dùng 28/10: slide nào cũng có 2–3 lựa chọn) ----------
+  // Dò cấu trúc mẫu: (a) hàng chính 2 khối trái/phải → đảo bên, xếp dọc; (b) nhóm mục lặp (x_1, x_2, x_3…) xếp dọc → lưới 2 cột, xếp ngang → danh sách.
+  const SKIP = /^(brand\.bg|bg|bg\..*|header|section|topic|logo.*|footer|title|instruction.*)$/;
+  const isRow = e => /flex-direction:\s*row(?!-)/.test(e.getAttribute('style') || '') || (e.style && e.style.flexDirection === 'row');
+  const isCol = e => /flex-direction:\s*column/.test(e.getAttribute('style') || '') || (e.style && e.style.flexDirection === 'column');
+  const blocks = e => [...e.children].filter(c => c.dataset && c.dataset.n && !SKIP.test(c.dataset.n) && c.querySelector('[data-text]') && !c.dataset.text);
+  const ITEM = /^[a-z]+_\d+$/i;
+  function findMain(card) { if (!card) return null; const q = [card]; while (q.length) { const e = q.shift(); if (e !== card && isRow(e) && blocks(e).length === 2 && !ITEM.test(e.dataset.n || '')) return e; if (e === card && isRow(e) && blocks(e).length === 2) return e; [...e.children].forEach(c => { if (c.dataset && c.dataset.n && !ITEM.test(c.dataset.n) && !SKIP.test(c.dataset.n)) q.push(c); }); } return null; }
+  function findItems(card) { if (!card) return null; let best = null; card.querySelectorAll('[data-n]').forEach(e => { const k = [...e.children].filter(c => ITEM.test(c.dataset.n || '')); if (k.length >= 3 && (!best || k.length > best.k)) best = { e, k: k.length }; }); return best && best.e; }
+  const cardOf = r => r.querySelector('[data-n="card"]') || r;
+  const GEN = {
+    swap: { label: 'Đảo trái – phải', css: r => { const m = findMain(cardOf(r)); if (m) m.style.flexDirection = 'row-reverse'; } },
+    stack: { label: 'Xếp trên – dưới', css: r => { const m = findMain(cardOf(r)); if (!m) return; st(m, { flexDirection: 'column', alignItems: 'stretch' }); blocks(m).forEach(b => st(b, { flex: '0 1 auto', width: 'auto', maxWidth: 'none', minHeight: '0' })); } },
+    grid2: { label: 'Lưới 2 cột', css: r => { const b = findItems(cardOf(r)); if (b) grid(b, ITEM, 2, 24); } },
+    list: { label: 'Danh sách dọc', css: r => { const b = findItems(cardOf(r)); if (b) list(b, ITEM); } },
+    airy: { label: 'Căn giữa, thoáng', css: r => { const c = cardOf(r); st(c, { justifyContent: 'center' }); } }
+  };
+  const genCache = {};
+  function generic(comp) {
+    if (genCache[comp]) return genCache[comp];
+    const T = root.PLS_TPL && root.PLS_TPL.slides[comp]; if (!T || typeof document === 'undefined') return (genCache[comp] = []);
+    const t = document.createElement('template'); t.innerHTML = T.html; const rt = t.content.firstElementChild, card = rt.querySelector('[data-n="card"]') || rt;
+    const out = []; const mn = findMain(card);
+    if (mn) { out.push('swap'); const tall = blocks(mn).some(b => b.querySelectorAll('[data-text]').length >= 8 || [...b.querySelectorAll('[data-n]')].filter(x => ITEM.test(x.dataset.n || '')).length >= 4); if (!tall) out.push('stack'); }   // khối dài (≥ 4 mục) xếp dọc sẽ tràn
+    const it = findItems(card); if (it) { const pic = it.querySelector('[data-img], [data-n$="img"], [data-n="img"]'); const NOGRID = /Match|Table|Answer Key|Order|Dialogue|Pronunciation/; if (!NOGRID.test(comp)) { if (isCol(it)) out.push('grid2'); else if (!pic) out.push('list'); } }   // thẻ có ảnh không xếp thành danh sách dọc (tràn)
+    if (out.length < 2) out.push('airy');
+    return (genCache[comp] = out.map(id => Object.assign({ id: 'g_' + id }, GEN[id])));
+  }
+  function variants(spec) { const comp = spec && spec.comp; if (!comp) return [];
+    const own = V[comp] || [], gen = generic(comp);
+    if (/^Slide\/(Cover|Section|Section Character|End)$/.test(comp)) return [];   // bìa / chuyển mục / kết thúc: giữ nguyên
+    const base = own.length ? own : [{ id: 'def', label: 'Mặc định', css: () => {} }];
+    return base.concat(gen.filter(g => !own.some(o => o.label === g.label))).slice(0, Math.max(3, own.length)); }
   // trả về spec (có thể đổi mẫu) + hàm post chạy trên rootEl sau khi dựng
   function apply(spec, id) {
     const v = variants(spec).find(x => x.id === id); if (!v) return { spec, post: null };

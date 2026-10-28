@@ -25,7 +25,7 @@
     let secNo = 0, curSec = ''; const SEC = text => (curSec = text, B(TPL('Block/Section Bar') ? 'Block/Section Bar' : 'Block/Section Heading', TPL('Block/Section Bar') ? { letter: String.fromCharCode(65 + secNo++), title: text, lesson: '' } : { text }));
     let exNo = 0; const ex = () => String(++exNo);
     const title = S(info['Tên buổi']) || 'Buổi ' + buoi;
-    B('Block/Lesson Header', { lesson: 'Bài ' + (info['Bài'] ? Number(info['Bài']) : buoi), 'title.vi': title, 'title.native': course['Tên khoá'] || '' });
+    B('Block/Lesson Header', { lesson: 'Bài ' + (info['Bài'] ? Number(info['Bài']) : buoi), 'title.vi': title.replace(/^Bài\s*\d+\s*[–-]\s*/i, ''), /* ô "Bài n" đã có số bài → tên không lặp "Bài n –" (28/10) */ 'title.native': course['Tên khoá'] || '' });
     const objs = S(info['Mục tiêu bài'] || s5row['Mục tiêu bài']).split(/\n|;\s*|(?<=[.!?])\s+(?=[A-ZÀ-ỸĐ])/).map(x => x.replace(/^[-•\d.\s]+/, '').trim()).filter(Boolean).slice(0, 5);
     if (objs.length) { const d = { no: '', title: 'Mục tiêu bài học' }; objs.forEach((t, i) => { d[`obj_${i + 1}.bullet`] = '•'; d[`obj_${i + 1}.text`] = t; }); B('Block/Objectives', d); }
 
@@ -342,9 +342,9 @@
   }
   function letterDefaults(kind, m, brand) {
     const team = `Đội ngũ biên soạn ${brand}`;
-    if (kind === 'intro') return { kicker: 'LỜI MỞ ĐẦU', title: `Chào mừng bạn đến với Bài ${m.bai}: ${m.title}`,
-      body: [`Cuốn tài liệu này đồng hành cùng bạn trong buổi học${m.course ? ' thuộc khoá ' + m.course : ''}. Mỗi phần đi từ từ vựng, ngữ pháp đến luyện tập để bạn hiểu ngay trên lớp và nhớ lâu sau buổi học.`,
-        m.objs.length ? 'Sau bài học này, bạn sẽ:\n' + m.objs.map(t => '• ' + t).join('\n') : 'Hãy đọc trước phần từ vựng, đánh dấu chỗ chưa rõ để hỏi giáo viên trên lớp.',
+    if (kind === 'intro') return { kicker: 'LỜI MỞ ĐẦU', title: `Chào mừng bạn đến với ${m.course || 'khoá học'}`,   // người dùng 28/10: lời chào gắn với tên khoá
+      body: [`Cuốn tài liệu này đồng hành cùng bạn trong Bài ${m.bai}: ${String(m.title).replace(/^Bài\s*\d+\s*[–-]\s*/i, '')}. Mỗi phần đi từ từ vựng, ngữ pháp đến luyện tập để bạn hiểu ngay trên lớp và nhớ lâu sau buổi học.`,
+        'Hãy đọc trước phần từ vựng, đánh dấu chỗ chưa rõ để hỏi giáo viên trên lớp. Mục tiêu của bài nằm ngay ở trang đầu bài học.',   /* người dùng 28/10: không lặp mục tiêu bài (S5/S6) – đã có ở khối Mục tiêu bài học */
         'Chúc bạn học vui và tiến bộ mỗi ngày!'].join('\n\n'), sign: team };
     return { kicker: 'LỜI KẾT', title: 'Bạn đã hoàn thành bài học!',
       body: ['Kiến thức chỉ thật sự là của mình khi được ôn lại. Trước buổi học sau, bạn hãy:\n• Làm đầy đủ bài tập về nhà.\n• Đọc to lại các câu ví dụ và đoạn hội thoại.\n• Ghi lại những điểm còn băn khoăn để hỏi giáo viên.',

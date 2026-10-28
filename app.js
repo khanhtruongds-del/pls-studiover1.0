@@ -265,7 +265,15 @@
       const cap = document.createElement('span'); cap.className = 'cap';
       cap.innerHTML = `<i class="dot ${lvOf(r)}"></i><b>${i + 1}</b> ${r.host.dataset.comp.replace(/^Slide\//, '')}`;
       b.append(wrap, cap); b.onclick = () => { stopFx(); state.sel = i; state.fxSel = null; state.fxDemo = null; state.fxStep = null; drawList(); drawMain(); drawPanel(); };
-      li.appendChild(b); ul.appendChild(li);
+      li.appendChild(b);
+      // CHỌN BỐ CỤC NGAY DƯỚI ẢNH SLIDE (người dùng 28/10): 2–3 cách dàn, bấm số để đổi
+      const vs = window.PLS_LAYOUT ? window.PLS_LAYOUT.variants(Object.assign({}, r.spec, { comp: r.spec._from || r.spec.comp })) : [];
+      if (vs.length >= 2) { const lk = r.src + '/' + r.part, cur = state.layoutSel[lk] || vs[0].id; const row = document.createElement('div'); row.className = 'lay-chips'; row.setAttribute('role', 'group'); row.setAttribute('aria-label', 'Bố cục slide ' + (i + 1));
+        row.insertAdjacentHTML('beforeend', '<span>Bố cục</span>');
+        vs.forEach((v, k) => { const c = document.createElement('button'); c.type = 'button'; c.textContent = String(k + 1); c.title = v.label; c.className = v.id === cur ? 'on' : ''; c.setAttribute('aria-pressed', String(v.id === cur));
+          c.onclick = e => { e.stopPropagation(); state.sel = i; if (k === 0) delete state.layoutSel[lk]; else state.layoutSel[lk] = v.id; build(); }; row.appendChild(c); });
+        li.appendChild(row); }
+      ul.appendChild(li);
     });
   }
   function drawMain() {
