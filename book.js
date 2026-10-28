@@ -30,19 +30,19 @@
     if (objs.length) { const d = { no: '', title: 'Mục tiêu bài học' }; objs.forEach((t, i) => { d[`obj_${i + 1}.bullet`] = '•'; d[`obj_${i + 1}.text`] = t; }); B('Block/Objectives', d); }
 
     const pron = tab(s6, /Phát âm/).filter(r => isB(r, buoi) && onPDF(r));
-    if (pron.length) { SEC('Phát âm');
+    const F_pron = T => { if (!pron.length) return; SEC(T || 'Phát âm'); 
       for (const p of pron) { const capH = s => /\s/.test(s) ? s.replace(/^[a-zà-ỹđ]/, c => c.toUpperCase()) : s, a1 = capH(S(p['Chữ / âm'])), a2 = capH(S(p['Bảng chữ / nhóm âm'])); B('Block/Sub Heading', { text: a2 && !a1.toLowerCase().includes(a2.toLowerCase()) ? `${a1} · ${a2}` : a1 || a2 });   // không lặp "Nối âm … · Nối âm"
         if (S(p['Hướng dẫn phát âm'])) B('Block/Paragraph', { text: S(p['Hướng dẫn phát âm']) });
         const exR = S(p['Ví dụ']), exs = exR.split(exR.includes(';') ? /;\s*/ : /,\s*/).filter(Boolean).slice(0, 6);
-        if (exs.length) { const d = { no: 'Bài ' + ex(), instruction: 'Đọc to các từ sau.', 'head.track': '', 'head.ab': '' }; exs.forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.word`] = m ? m[1] : x; d[`ex_${i + 1}.vi`] = m ? '/' + m[2] + '/' : ''; }); for (let i = exs.length; i < 12; i++) { d[`ex_${i + 1}.word`] = ''; d[`ex_${i + 1}.vi`] = ''; } B('Block/Pronunciation', d); } } }
+        if (exs.length) { const d = { no: 'Bài ' + ex(), instruction: 'Đọc to các từ sau.', 'head.track': '', 'head.ab': '' }; exs.forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.word`] = m ? m[1] : x; d[`ex_${i + 1}.vi`] = m ? '/' + m[2] + '/' : ''; }); for (let i = exs.length; i < 12; i++) { d[`ex_${i + 1}.word`] = ''; d[`ex_${i + 1}.vi`] = ''; } B('Block/Pronunciation', d); } } };
 
     const vocab = tab(s6, /Từ vựng$/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Từ']));
-    if (vocab.length) { SEC('Từ vựng');
-      for (const [pi, part] of chunkEven(vocab, 8).entries()) { const d = { 'row_0.c1': 'Từ', 'row_0.c2': 'Phiên âm', 'row_0.c3': 'Loại từ', 'row_0.c4': 'Nghĩa' }; part.forEach((r, i) => { d[`row_${i + 1}.c1`] = S(r['Từ']); d[`row_${i + 1}.c2`] = S(r['Phiên âm / cách đọc']); d[`row_${i + 1}.c3`] = S(r['Loại từ']); d[`row_${i + 1}.c4`] = S(r['Nghĩa']); }); B('Block/Vocab Table', d); if (pi) out[out.length - 1].cont = true; } }
+    const F_vocab = T => { if (!vocab.length) return; SEC(T || 'Từ vựng'); 
+      for (const [pi, part] of chunkEven(vocab, 8).entries()) { const d = { 'row_0.c1': 'Từ', 'row_0.c2': 'Phiên âm', 'row_0.c3': 'Loại từ', 'row_0.c4': 'Nghĩa' }; part.forEach((r, i) => { d[`row_${i + 1}.c1`] = S(r['Từ']); d[`row_${i + 1}.c2`] = S(r['Phiên âm / cách đọc']); d[`row_${i + 1}.c3`] = S(r['Loại từ']); d[`row_${i + 1}.c4`] = S(r['Nghĩa']); }); B('Block/Vocab Table', d); if (pi) out[out.length - 1].cont = true; } };
 
     const grammar = tab(s6, /Ngữ pháp$/).filter(r => isB(r, buoi) && onPDF(r));
     const gq = tab(s6, /Câu hỏi ngữ pháp/).filter(r => isB(r, buoi) && onPDF(r));
-    if (grammar.length) { SEC('Ngữ pháp');
+    const F_grammar = T => { if (!grammar.length) return; SEC(T || 'Ngữ pháp'); 
       for (const [gi, g] of grammar.entries()) {
         B('Block/Sub Heading', { text: `${gi + 1}. ` + [S(g['Tên ngữ pháp']), S(g['Nghĩa'])].filter(Boolean).join(' – ') });   // điểm ngữ pháp đánh số 1, 2… trong mục
         // nhãn "Cấu trúc" chỉ ở dòng đầu, các dòng sau để trống nhãn → các công thức xếp thẳng một cột
@@ -53,15 +53,15 @@
       }
       const gqs = gq.filter(q => grammar.some(g => S(g['Mã mục']) === S(q['Mã ngữ pháp'])));
       if (gqs.length) { B('Block/Sub Heading', { text: 'Luyện tập' }); out[out.length - 1].role = 'practice'; exercises(gqs, ''); }   // bài tập tách khỏi điểm ngữ pháp cuối, có tiêu đề riêng
-    }
+    };
 
     const speak = tab(s6, /Mẫu câu/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Câu']));
-    if (speak.length) { SEC('Mẫu câu giao tiếp');
-      for (const [pi, part] of chunkEven(speak, 8).entries()) { const d = { 'row_0.c1': 'Câu', 'row_0.c2': 'Nghĩa' }; part.forEach((r, i) => { d[`row_${i + 1}.c1`] = S(r['Câu']); d[`row_${i + 1}.c2`] = S(r['Nghĩa']); }); B('Block/Table N', d); if (pi) out[out.length - 1].cont = true; } }
+    const F_speak = T => { if (!speak.length) return; SEC(T || 'Mẫu câu giao tiếp'); 
+      for (const [pi, part] of chunkEven(speak, 8).entries()) { const d = { 'row_0.c1': 'Câu', 'row_0.c2': 'Nghĩa' }; part.forEach((r, i) => { d[`row_${i + 1}.c1`] = S(r['Câu']); d[`row_${i + 1}.c2`] = S(r['Nghĩa']); }); B('Block/Table N', d); if (pi) out[out.length - 1].cont = true; } };
 
     const segs = (rows, tk) => { const m = new Map(); rows.forEach(r => { const x = S(r['Mã đoạn']) || S(r[tk]); if (!m.has(x)) m.set(x, []); m.get(x).push(r); }); return [...m.values()]; };   // QC F03/F04: tách đoạn theo tiêu đề
     const lis = tab(s6, /^S6-Nghe$/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Câu'])), lq = tab(s6, /Nghe câu hỏi/).filter(r => isB(r, buoi) && onPDF(r));
-    if (lis.length || lq.length) { SEC('Nghe');
+    const F_listen = T => { if (!(lis.length || lq.length)) return; SEC(T || 'Nghe'); 
       for (const c of [...new Set(lis.map(r => S(r['Mã bài'])).concat(lq.map(r => S(r['Mã bài']))))].filter(Boolean)) {
         const ls = lis.filter(r => S(r['Mã bài']) === c).sort((a, b) => (+a['Câu số'] || 0) - (+b['Câu số'] || 0)); const r0 = ls[0] || {};
         B('Block/Sub Heading', { text: [S(r0['Tiêu đề bài nghe']), S(r0['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || c });
@@ -69,18 +69,34 @@
         for (const g of segs(ls, 'Tiêu đề bài nghe')) { const r1 = g[0] || {};
         if (g.length) { B('Block/Paragraph', { text: 'Lời bài nghe' + (S(r1['Tiêu đề bài nghe']) ? ': ' + S(r1['Tiêu đề bài nghe']) : '') }); out[out.length - 1].role = 'label'; }
         for (const part of chunk(g, 4)) { const d = {}; part.forEach((r, i) => { d[`line_${i + 1}.speaker`] = S(r['Vai / nhân vật']) || '–'; d[`line_${i + 1}.de`] = S(r['Câu']); d[`line_${i + 1}.vi`] = S(r['Nghĩa']); }); B('Block/Dialogue', d); } }
-      } }
+      } };
 
     const rd = tab(s6, /^S6-Đọc$/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Câu'])), rq = tab(s6, /Đọc câu hỏi/).filter(r => isB(r, buoi) && onPDF(r));
-    if (rd.length || rq.length) { SEC('Đọc');
+    const F_read = T => { if (!(rd.length || rq.length)) return; SEC(T || 'Đọc'); 
       for (const c of [...new Set(rd.map(r => S(r['Mã bài'])).concat(rq.map(r => S(r['Mã bài']))))].filter(Boolean)) {
         const ls = rd.filter(r => S(r['Mã bài']) === c).sort((a, b) => ((+a['Đoạn'] || 0) - (+b['Đoạn'] || 0)) || ((+a['Câu số'] || 0) - (+b['Câu số'] || 0))); const r0 = ls[0] || {};
         for (const g of segs(ls, 'Tiêu đề bài đọc')) { const r1 = g[0] || {};
         const paras = []; let cur = null; for (const r of g) { const p = String(r['Đoạn'] || 1); if (!cur || cur.p !== p) paras.push(cur = { p, t: [], v: [] }); cur.t.push(S(r['Câu'])); cur.v.push(S(r['Nghĩa'])); }
         paras.forEach((p, i) => B('Block/Reading', { tag: i ? '' : 'Bài đọc', title: i ? '' : ([S(r1['Tiêu đề bài đọc']), S(r1['Nghĩa tiêu đề'])].filter(Boolean).join(' – ') || c), text: p.t.join(' '), 'text.vi': '' })); }
         exercises(rq.filter(r => S(r['Mã bài']) === c), 'Đọc bài rồi chọn đáp án đúng.');
-      } }
+      } };
 
+    // HÁN TỰ (S6-Hán tự): bảng chữ – âm đọc – nghĩa – bộ thủ
+    const hz = tab(s6, /Hán tự$/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Hán tự']));
+    const F_hanzi = T => { if (!hz.length) return; SEC(T || 'Hán tự');
+      for (const [pi, part] of chunkEven(hz, 8).entries()) { const d = { 'row_0.c1': 'Chữ', 'row_0.c2': 'Âm đọc', 'row_0.c3': 'Nghĩa', 'row_0.c4': 'Bộ thủ' }; part.forEach((r, i) => { d[`row_${i + 1}.c1`] = S(r['Hán tự']); d[`row_${i + 1}.c2`] = S(r['Âm đọc']); d[`row_${i + 1}.c3`] = S(r['Nghĩa']); d[`row_${i + 1}.c4`] = S(r['Bộ thủ']); }); B('Block/Table N', d); if (pi) out[out.length - 1].cont = true; } };
+    const cu = tab(s6, /Ngoài kiến thức/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Tiêu đề']));
+    const F_culture = T => { if (!cu.length) return; SEC(T || 'Văn hoá'); cu.forEach(r => B('Block/Note Box', { title: S(r['Tiêu đề']), text: S(r['Nội dung']) })); };
+    // THỨ TỰ MỤC = ĐÚNG THỨ TỰ HOẠT ĐỘNG TRONG S5 (người dùng 28/10 – "cực kì nguy hiểm" nếu lệch): tên mục lấy theo tên bước của S5
+    { const gb = s5 || {}, gk = Object.keys(gb).find(k => /Hướng dẫn giảng dạy/.test(k));
+      let steps = (gk ? gb[gk] : []).filter(r => isB(r, buoi) && S(r['Hoạt động'])).sort((a, b) => (+a['STT hoạt động'] || 0) - (+b['STT hoạt động'] || 0)).map(r => S(r['Hoạt động']).replace(/\s*\n\s*/g, ' '));
+      if (!steps.length) steps = S(s5row['Nội dung buổi (timeline)']).split(/\n+/).map(l => (l.match(/^\s*\d+\.\s*(.+?)\s*:\s*\d+\s*p/i) || [])[1]).filter(Boolean);
+      const KIND = n => /phát âm|bảng chữ/i.test(n) ? 'pron' : /hán tự/i.test(n) ? 'hanzi' : /từ vựng/i.test(n) ? 'vocab' : /ngữ pháp/i.test(n) ? 'grammar' : /mẫu câu|giao tiếp|hội thoại|nói/i.test(n) ? 'speak' : /^nghe/i.test(n) ? 'listen' : /^đọc/i.test(n) ? 'read' : /văn hó?a|văn hoá/i.test(n) ? 'culture' : null;
+      const F = { culture: F_culture, pron: F_pron, hanzi: F_hanzi, vocab: F_vocab, grammar: F_grammar, speak: F_speak, listen: F_listen, read: F_read }, done = new Set();
+      const nice = n => { const t = n.replace(/\s*\d+\s*PHÚT\b/i, '').replace(/\s*\n.*$/, '').trim().toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1); };
+      for (const n of steps) { const k = KIND(n); if (k && !done.has(k)) { done.add(k); F[k](nice(n)); } }
+      for (const k of ['pron', 'hanzi', 'vocab', 'grammar', 'speak', 'listen', 'read']) if (!done.has(k)) F[k]();   // phần S6 có mà S5 không nhắc → giữ sau, không bỏ mất
+    }
     const hw = tab(s6, /BTVN/).filter(r => isB(r, buoi) && onPDF(r));
     if (hw.length) { SEC('Bài tập về nhà'); exercises(hw, ''); }
     // TỰ ĐÁNH GIÁ cuối bài (như Cambridge "Review your progress"): mỗi mục tiêu khoanh 3 / 2 / 1

@@ -340,6 +340,7 @@
         const d = { title: S(de['Tên đề']).replace(/^Buổi\s*\d+\s*-\s*/i, '').replace(/\s*-\s*\d+\s*$/, '') || st.name, total_q: String(qs.length), 'total_q.unit': 'câu', total_min: String(Number(de['Thời gian làm bài (phút)']) || st.min || ''), 'total_min.unit': 'phút' };
         for (let i = Math.min(parts.length, 6); i < 6; i++) ['no', 'name', 'count', 'time'].forEach(k => { d[`part_${i + 1}.${k}`] = ''; });   // ô phần không dùng → trống (không hiện chữ mẫu)
         parts.slice(0, 6).forEach((p, i) => { d[`part_${i + 1}.no`] = String(i + 1); d[`part_${i + 1}.name`] = p.k; d[`part_${i + 1}.count`] = p.n + ' câu'; d[`part_${i + 1}.time`] = p.t ? Math.max(1, Math.round(p.t)) + ' phút' : ''; });
+        divider(st.name, [mins, `${qs.length} câu`].filter(Boolean).join(' · '));   // mỗi bước S5 đều có slide chuyển mục (đúng thứ tự S5)
         slides.push({ comp: 'Slide/Test Intro', data: sec(L.test || L.homework, d), notes: NOTE({ t: `${d.total_min || ''} phút`.trim(), g: [`Giới thiệu đề: ${qs.length} câu, ${parts.length} phần (${parts.map(p => p.k).join(', ')}).`, 'Nhắc HV cất tài liệu, làm bài độc lập.'], l: ['Báo thời gian khi còn 5 phút.'] }) });
         const ex = A.exercises(qs, L.test || L.homework, 1); slides.push(...ex.groups);
         const ans = A.answerSlides(ex.keys, L.answers || L.test, 'Đáp án ' + (d.title || 'kiểm tra'));
