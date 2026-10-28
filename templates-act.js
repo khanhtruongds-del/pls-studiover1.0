@@ -83,7 +83,7 @@
   build('Slide/Radical Match',
     INS + div('ring', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:row;gap:48px;align-items:center;justify-content:center',
       div('center', `flex:0 0 auto;width:320px;height:320px;display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;padding:24px;border-radius:50%;background-color:${C.fill}`,
-        txt('radical', 'native', 130, C.inv, '亻', false, 'text-align:center;line-height:1') + txt('radical.name', 'bold', 26, C.inv, 'bộ nhân đứng', true, 'text-align:center;max-width:250px')) +
+        txt('radical', 'native', 130, C.inv, '亻', false, 'text-align:center;line-height:1') + txt('radical.name', 'bold', 24, C.inv, 'bộ nhân đứng', true, 'text-align:center;max-width:220px')) +
       div('chars', 'flex:0 1 860px;min-width:0;display:flex;flex-direction:row;flex-wrap:wrap;gap:24px;align-content:center;justify-content:center',
         range(8).map(i => div(`rc_${i}`, `flex:0 0 calc(25% - 18px);display:flex;flex-direction:column;gap:4px;align-items:center;padding:18px 10px;border-radius:18px;background-color:${C.soft}`,
           txt('char', 'native', 84, C.text, '你', false, 'text-align:center;line-height:1.1') + txt('py', 'body', 26, C.muted, 'nǐ', false, 'text-align:center') +
