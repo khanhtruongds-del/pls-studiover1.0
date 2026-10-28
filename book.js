@@ -91,6 +91,9 @@
     { const gb = s5 || {}, gk = Object.keys(gb).find(k => /Hướng dẫn giảng dạy/.test(k));
       let steps = (gk ? gb[gk] : []).filter(r => isB(r, buoi) && S(r['Hoạt động'])).sort((a, b) => (+a['STT hoạt động'] || 0) - (+b['STT hoạt động'] || 0)).map(r => S(r['Hoạt động']).replace(/\s*\n\s*/g, ' '));
       if (!steps.length) steps = S(s5row['Nội dung buổi (timeline)']).split(/\n+/).map(l => (l.match(/^\s*\d+\.\s*(.+?)\s*:\s*\d+\s*p/i) || [])[1]).filter(Boolean);
+      steps = steps.filter(n => !/dặn dò/i.test(n));
+      { const RANK = n => /cttt|khai giảng/i.test(n) ? 0 : /từ vựng/i.test(n) ? 1 : /hán tự/i.test(n) ? 2 : /bảng chữ/i.test(n) ? 3 : /phát âm/i.test(n) ? 4 : /mẫu câu|giao tiếp|hội thoại|nói/i.test(n) ? 5 : null;   // cùng thứ tự chốt với slide (28/10)
+        const slots = steps.map((x, i) => RANK(x) != null ? i : -1).filter(i => i >= 0), ranked = slots.map(i => steps[i]).sort((a, b) => RANK(a) - RANK(b)); slots.forEach((i, k) => { steps[i] = ranked[k]; }); }
       const KIND = n => /phát âm|bảng chữ/i.test(n) ? 'pron' : /hán tự/i.test(n) ? 'hanzi' : /từ vựng/i.test(n) ? 'vocab' : /ngữ pháp/i.test(n) ? 'grammar' : /mẫu câu|giao tiếp|hội thoại|nói/i.test(n) ? 'speak' : /^nghe/i.test(n) ? 'listen' : /^đọc/i.test(n) ? 'read' : /văn hó?a|văn hoá/i.test(n) ? 'culture' : null;
       const F = { culture: F_culture, pron: F_pron, hanzi: F_hanzi, vocab: F_vocab, grammar: F_grammar, speak: F_speak, listen: F_listen, read: F_read }, done = new Set();
       const nice = n => { const t = n.replace(/\s*\d+\s*PHÚT\b/i, '').replace(/\s*\n.*$/, '').trim().toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1); };

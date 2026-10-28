@@ -91,6 +91,12 @@
       const guide = (gk ? gb[gk] : []).filter(r => isB(r, buoi) && S(r['Hoạt động'])).sort((a, b) => (+a['STT hoạt động'] || 0) - (+b['STT hoạt động'] || 0));
       if (guide.length) steps = guide.map(r => ({ name: S(r['Hoạt động']).replace(/\s*\n\s*/g, ' '), min: r['Phút'] != null && r['Phút'] !== '' ? +r['Phút'] : null, g: r })); }
     if (!steps.length) { steps = S(info['Thành phần có trong buổi']).split(/;\s*/).filter(Boolean).map(n => ({ name: n, min: null })); warns.push('Không có timeline S5 → dùng "Thành phần có trong buổi" của S6, không có số phút.'); }
+    // THỨ TỰ NỘI DUNG CHỐT (người dùng 28/10): Khai giảng (không nội dung) → Từ vựng → Hán tự / Bảng chữ / Phát âm → Nói; bỏ Dặn dò.
+    // Các bước khác (Sửa BTVN, Phản xạ pinyin, Ôn tập, HD App, Test…) giữ nguyên chỗ như S5; chỉ các bước có hạng đổi chỗ cho nhau.
+    steps = steps.filter(x => !/dặn dò/i.test(x.name));
+    { const RANK = n => /cttt|khai giảng/i.test(n) ? 0 : /từ vựng/i.test(n) ? 1 : /hán tự/i.test(n) ? 2 : /bảng chữ/i.test(n) ? 3 : /phát âm/i.test(n) ? 4 : /mẫu câu|giao tiếp|hội thoại|nói/i.test(n) ? 5 : null;
+      const slots = steps.map((x, i) => RANK(x.name) != null ? i : -1).filter(i => i >= 0), ranked = slots.map(i => steps[i]).sort((a, b) => RANK(a.name) - RANK(b.name));
+      slots.forEach((i, k) => { steps[i] = ranked[k]; }); }
     const goals = sentences(info['Mục tiêu bài'] || s5row['Mục tiêu bài']).slice(0, 3);
     const ov = { 'title': 'Mục tiêu và lộ trình buổi học', 'cando.label': 'Sau buổi học, bạn có thể' };
     goals.forEach((g, i) => { ov[`cando_${i + 1}`] = g.replace(/^Học viên (sẽ )?/, ''); ov[`cando_${i + 1}.mark`] = '✓'; });
@@ -390,7 +396,7 @@
         const cu = extra.filter(r => /văn hó?a|văn hoá/i.test(S(r['Loại']))); (cu.length ? cu : extra).slice(0, 4).forEach(x => slides.push({ comp: 'Slide/Key Point', data: sec(L.extra || L.speak, { title: S(x['Loại']) || 'Văn hoá', point: S(x['Tiêu đề']), note: S(x['Nội dung']) }), notes: NOTE({ g: [S(x['Tiêu đề']), S(x['Nội dung'])], l: [S(x['Nguồn']) ? 'Nguồn: ' + S(x['Nguồn']) : ''] }) }));
       } else {
         divider(st.name, [mins, /kiểm tra|btvn|nghe|đọc|hd app/.test(n) ? 'thực hiện trên app' : ''].filter(Boolean).join(' · '));
-        actSteps(st);   // nội dung lấy đúng từ S5 (CTTT, HD App, …)
+        if (!/cttt|khai giảng/i.test(n)) actSteps(st);   // nội dung lấy đúng từ S5 (HD App, …); Khai giảng: chỉ slide chuyển mục (người dùng 28/10)
         if (/warm|khởi động/.test(n) && !used.has('lead')) { used.add('lead'); leadIn(); }
       }
     }
