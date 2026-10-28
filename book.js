@@ -381,12 +381,12 @@
   }
   function letterCss() {
     if (typeof document === 'undefined' || document.getElementById('plsLetterCss')) return; const st = document.createElement('style'); st.id = 'plsLetterCss';
-    st.textContent = '.bk-letter{display:flex;flex-direction:column;flex:1 1 auto;padding:36px 8px 0;box-sizing:border-box;color:var(--color-text,#1f2a2e)}'
-      + '.bk-letter .bk-kicker{font-size:12px;font-weight:700;letter-spacing:.18em;color:var(--color-primary,#406864)}'
-      + '.bk-letter .bk-title{font-size:26px;line-height:1.25;font-weight:700;margin:10px 0 0;color:var(--color-primary-dark,#142738)}'
-      + '.bk-letter .bk-rule{width:64px;height:4px;border-radius:2px;background:var(--color-primary,#406864);margin:18px 0 22px}'
-      + '.bk-letter .bk-body{font-size:13px;line-height:1.75;white-space:pre-wrap}'
-      + '.bk-letter .bk-sign{margin-top:28px;align-self:flex-end;font-size:13px;font-style:italic;font-weight:500;color:var(--color-primary,#406864)}'
+    st.textContent = '.bk-letter{display:flex;flex-direction:column;flex:1 1 auto;padding:28px 8px 0;box-sizing:border-box;color:var(--color-text,#1f2a2e)}'
+      + '.bk-letter .bk-kicker{font-size:9px;font-weight:700;letter-spacing:.16em;color:var(--color-primary,#406864)}'
+      + '.bk-letter .bk-title{font-size:18px;line-height:1.3;font-weight:700;margin:8px 0 0;color:var(--color-primary-dark,#142738)}'
+      + '.bk-letter .bk-rule{width:40px;height:3px;border-radius:2px;background:var(--color-primary,#406864);margin:12px 0 16px}'
+      + '.bk-letter .bk-body{font-size:10.5px;line-height:1.7;white-space:pre-wrap}'
+      + '.bk-letter .bk-sign{margin-top:20px;align-self:flex-end;font-size:10.5px;font-style:italic;font-weight:500;color:var(--color-primary,#406864)}'
       + '.bk-letter [contenteditable]{outline:none;border-radius:4px}.bk-letter [contenteditable]:hover{box-shadow:0 0 0 1px #c9b8f5}.bk-letter [contenteditable]:focus{box-shadow:0 0 0 2px #7c5cd6;background:rgba(124,92,214,.05)}'
       + '@media print{.bk-letter [contenteditable]{box-shadow:none!important;background:none!important}}';
     document.head.appendChild(st);
