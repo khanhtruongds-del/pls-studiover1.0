@@ -315,7 +315,15 @@
         const ln = el.querySelector('[data-n="lesson"]'); if (ln) { ln.dataset.fs = '34'; ln.style.fontSize = '34px'; ln.style.fontWeight = '900'; ln.style.webkitTextStroke = '0.8px currentColor'; } }   // chữ "Bài n" to và đậm hơn (người dùng chốt 24/10)   // viền khung tên bài mảnh 1px (mẫu 2px nặng hơn cả chữ)
       // ô đánh số không có dữ liệu (vd ex_6 của khối Phát âm khi chỉ có 5 ví dụ) → ẩn, khỏi lộ chữ mẫu Figma ("fünf")
       el.querySelectorAll('[data-text]').forEach(x => { const n = x.dataset.n || ''; const m = n.match(/^([a-z]+_)\d+\.[\w.]+$/); if (m && !(n in (b.data || {})) && keys.some(k => k.startsWith(m[1]))) { if (/Pronunciation/.test(b.comp)) x.style.visibility = 'hidden'; else x.style.display = 'none'; x.dataset.hid = '1'; } });   // khối Phát âm: giữ chỗ ô trống để lưới cặp từ – phiên âm thẳng cột
-      bookStyle(el, b.comp, b); if (b.cont) { const h0 = el.querySelector('[data-n="row_0"]'); if (h0) { h0.style.display = 'none'; h0.dataset.cont = '1'; } } el.style.marginTop = (b.space || 0) + 'px'; el.dataset.space = String(b.space || 0);
+      bookStyle(el, b.comp, b);
+      // PHÁT ÂM (người dùng 28/10: lưới cặp từ – nghĩa so le "kì quá"): gom ví dụ thành lưới 4 cột đều nhau, chữ Hán đi liền sau phiên âm
+      if (b.comp === 'Block/Pronunciation') { const pairs = [...el.querySelectorAll('[data-n^="pair_"]')].filter(p => /^pair_\d+$/.test(p.dataset.n)); if (pairs.length) {
+        const g = document.createElement('div'); g.dataset.n = 'ex_grid'; g.style.cssText = 'display:grid;grid-template-columns:repeat(4,minmax(0,1fr));column-gap:16px;row-gap:4px;align-self:stretch;margin-top:2px';
+        for (let i = 1; i <= 12; i++) { const w = el.querySelector(`[data-n="ex_${i}.word"]`), v = el.querySelector(`[data-n="ex_${i}.vi"]`); if (!w || w.dataset.hid || !w.textContent.trim() || !(`ex_${i}.word` in (b.data || {}))) continue;
+          const c = document.createElement('div'); c.style.cssText = 'display:flex;flex-wrap:wrap;align-items:baseline;column-gap:5px;min-width:0'; Object.assign(w.style, { flex: '0 1 auto', width: 'auto', visibility: 'visible' }); c.appendChild(w);
+          const vt = v && !v.dataset.hid ? v.textContent.replace(/^\/|\/$/g, '').trim() : ''; if (v && vt) { v.textContent = vt; Object.assign(v.style, { flex: '0 1 auto', width: 'auto', fontSize: '0.92em', color: 'var(--color-text-muted, #6d6d6d)', visibility: 'visible' }); c.appendChild(v); }
+          g.appendChild(c); }
+        pairs[0].before(g); pairs.forEach(p => p.remove()); } } if (b.cont) { const h0 = el.querySelector('[data-n="row_0"]'); if (h0) { h0.style.display = 'none'; h0.dataset.cont = '1'; } } el.style.marginTop = (b.space || 0) + 'px'; el.dataset.space = String(b.space || 0);
       if (opt.prep) opt.prep(el); return el; };
     // BẢNG DÀI ĐƯỢC CẮT QUA TRANG (sách thật không đẩy cả bảng + tiêu đề mục sang trang sau để lại nửa trang trắng)
     const nRows = b => { if (!/Table/.test(b.comp) || !b.data) return 0; let n = 0; while (Object.keys(b.data).some(k => k.startsWith(`row_${n + 1}.`))) n++; return n; };
