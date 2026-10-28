@@ -89,17 +89,47 @@
     as: 'Tranh minh hoạ 2D phong cách anime, nét viền rõ, màu phẳng tươi, bóng đổ đơn giản, nền trong suốt, không chữ, một đối tượng chính căn giữa.'   // RB-CH-06: Châu Á = 2D anime
   };
   function ratio(w, h) { const r = w / h; const C = [[1, '1:1'], [4 / 3, '4:3'], [3 / 4, '3:4'], [16 / 9, '16:9'], [9 / 16, '9:16'], [3 / 2, '3:2'], [2 / 3, '2:3']]; return C.reduce((b, c) => Math.abs(Math.log(r / c[0])) < Math.abs(Math.log(r / b[0])) ? c : b)[1]; }
+  // MÔ TẢ CẢNH (người dùng 28/10): prompt phải nói rõ hình đang thiếu vẽ CÁI GÌ – lấy từ chính dữ liệu của ô (từ, nghĩa, câu ví dụ, chủ đề slide)
+  const isSent = t => /[.!?。！？]$/.test(String(t || '').trim()) || String(t || '').trim().split(/\s+/).length >= 6;
+  function sceneOf(word, ctx) {
+    ctx = ctx || {}; const senses = String(word || '').split(/\s*(?:[;,/]|\bhoặc\b)\s*/).map(s => s.trim()).filter(Boolean);
+    const main = senses[0] || word || '';
+    const sent = ctx.ex ? { t: ctx.ex, vi: ctx.exVi } : (ctx.term && isSent(ctx.term) ? { t: ctx.term, vi: ctx.vi } : (isSent(main) ? { t: '', vi: main } : null));
+    const c = cons(sent ? (sent.vi || main) : main);
+    const who = c.sex ? (c.sex === 'f' ? 'một nhân vật nữ' : 'một nhân vật nam') : c.person ? 'một nhân vật' : '';
+    const out = [];
+    if (ctx.topic) { out.push(`Một cảnh tiêu biểu cho chủ đề «${ctx.vi || main}»${ctx.term && ctx.term !== (ctx.vi || main) ? ' (' + ctx.term + ')' : ''}: bối cảnh, nhân vật và đồ vật đặc trưng nhất của chủ đề, đủ rõ để làm ảnh mở đầu bài.`); return out.join(' '); }
+    if (sent) out.push(`Vẽ đúng tình huống của câu${sent.t ? ' «' + sent.t + '»' : ''}${sent.vi ? ' (nghĩa: ' + sent.vi + ')' : ''}: thể hiện rõ ai, đang làm gì, ở đâu, với đồ vật chính nào.`);
+    else if (who) out.push(`${who[0].toUpperCase() + who.slice(1)}${c.roles.length ? ' (' + c.roles.join(', ') + ')' : ''} với trang phục, đạo cụ hoặc hành động đặc trưng để nhìn vào là nhận ra ngay «${main}».`);
+    else out.push(`Một đồ vật hoặc một cảnh cụ thể, điển hình nhất của «${main}», để người học nhìn vào là đoán ra ngay nghĩa «${main}». Không dùng biểu tượng chung chung hay sơ đồ.`);
+    if (senses.length > 1 && !sent) out.push(`Chỉ minh hoạ nghĩa «${main}» (không vẽ các nghĩa khác: ${senses.slice(1).join(', ')}).`);
+    if (ctx.title && norm(ctx.title) !== norm(main)) out.push(`Hợp chủ đề «${ctx.title}».`);
+    return out.join(' ');
+  }
   function stylePack(word, brand, o) {
-    o = o || {}; const src = srcOfBrand(brand); const c = cons(word);
-    const who = c.sex ? (c.sex === 'f' ? 'nhân vật nữ' : 'nhân vật nam') + (c.roles.length ? ' (' + c.roles.join(', ') + ')' : '') : '';
+    o = o || {}; const src = srcOfBrand(brand); const ctx = o.ctx || {};
     const near = search(word, src, 1)[0];
     const r = o.w && o.h ? ratio(o.w, o.h) : '1:1';
-    const prompt = `Dùng ${STYLE[src].length} ảnh đính kèm làm mẫu phong cách: giữ nét vẽ, độ dày viền, bảng màu. ${STYLE_DESC[src]}
-`
-      + `Vẽ: ${word}${who ? ' – ' + who : ''} (ngữ cảnh: ${o.bai || 'bài học'}${o.level ? ', ' + o.level : ''}).
-`
-      + `Khung ${r}. Nền trong suốt, không chữ, không bóng đổ ra ngoài, 1 đối tượng chính.`;
-    return { prompt, ratio: r, kho: src === 'eu' ? 'Châu Âu (3D)' : 'Châu Á (2D anime)', refs: STYLE[src].map(([label, id]) => ({ label, id, url: url(id, 1200) })), near: near ? Object.assign({ url: url(near.id, 1200) }, near) : null };
+    const scene = String(o.desc || '').trim() || sceneOf(word, ctx);
+    const vi = ctx.vi && ctx.vi !== ctx.term ? ctx.vi : word;
+    const term = ctx.term && ctx.term !== vi ? `«${ctx.term}»${ctx.ipa ? ' ' + ctx.ipa : ''} = ` : '';
+    const prompt = `NỘI DUNG CẦN VẼ\n`
+      + `- Minh hoạ cho: ${term}${vi}\n`
+      + `- Cảnh: ${scene}\n`
+      + `- Bối cảnh: ${o.bai || 'bài học'}${o.level ? ', ' + o.level : ''}${ctx.slide ? ' · slide «' + ctx.slide + '»' : ''}.\n`
+      + `\nPHONG CÁCH\nDùng ${STYLE[src].length} ảnh đính kèm làm mẫu phong cách: giữ nét vẽ, độ dày viền, bảng màu. ${STYLE_DESC[src]}\n`
+      + `\nKỸ THUẬT\nKhung ${r}. Nền trong suốt, không chữ, không số, không bóng đổ ra ngoài, 1 đối tượng hoặc 1 cảnh chính.`;
+    return { prompt, scene, ratio: r, kho: src === 'eu' ? 'Châu Âu (3D)' : 'Châu Á (2D anime)', refs: STYLE[src].map(([label, id]) => ({ label, id, url: url(id, 1200) })), near: near ? Object.assign({ url: url(near.id, 1200) }, near) : null };
+  }
+  // ngữ cảnh 1 ô ảnh: các ô chữ cùng mục (vocab_3.de / .ipa / .vi / .ex…) hoặc tiêu đề slide với ảnh lớn
+  function ctxOf(el, host, data) {
+    const p = el.parentElement, item = p && /_(\d+|[A-H])$/.test(p.dataset.n || '');
+    const f = {}; (item ? p : host).querySelectorAll('[data-filled]').forEach(x => { const k = x.dataset.filled; if (!item && /_(\d+|[A-H])\./.test(k)) return; const t = x.textContent.trim(); if (!t) return; const s = k.split('.').pop(); if (!(s in f)) f[s] = t; });
+    const pick = re => { const k = Object.keys(f).find(k => re.test(k)); return k ? f[k] : ''; };
+    data = data || {};
+    return { topic: !item, term: pick(/^(de|zh|word|term|en|ja|ko|fr|kanji|hanzi)$/), ipa: pick(/^(ipa|pinyin|py|reading)$/), vi: pick(/^(vi|mean|meaning)$/),
+      ex: pick(/^(ex|example|sentence)$/), exVi: pick(/^(ex_vi|example_vi)$/),
+      title: String(data['header.topic'] || data.topic || '').trim(), slide: String(data.title || data['title.de'] || data['header.section'] || '').trim() };
   }
   // ---------- gắn ảnh vào slide đã dựng ----------
   // Ô ảnh: nghĩa lấy từ ô ".vi" cùng mục (vd vocab_3.img ↔ vocab_3.vi), giống PLS_IMG.fill. Ghi đè: data['img:<ô>'] = 'id:<driveId>' | '<từ cần tìm>' | '-' (bỏ ảnh)
@@ -184,6 +214,7 @@
         if (res.type === 'none') el.dataset.imgLabel = q ? `Thiếu hình: ${q}` + (res.why ? ` (${res.why})` : '') : (inItem ? 'Thiếu hình' : 'Ảnh minh hoạ – ghi img:' + name + ' trong dữ liệu');
         if (res.type === 'none' && !q && !inItem) { el.classList.remove('pls-imgslot'); el.classList.add('pls-imgempty'); res.type = 'empty'; }   // ảnh lớn không ghi trong dữ liệu: để trống có chủ đích (luật fit 4.4), không tính thiếu hình
       }
+      if (res.type === 'none' || res.type === 'empty') res.ctx = ctxOf(el, host, data);
       el.dataset.imgReport = JSON.stringify({ type: res.type, word }); el.dataset.imgKey = res.key;
       report.push(res);
     }
@@ -203,5 +234,5 @@
     }
   }
 
-  root.PLS_IMAGES = { stylePack, autoRefresh, fill, cons, whoOk, match, search, variants, refresh, index, url, bytes, srcOfBrand, stats: () => Object.fromEntries(Object.keys(SOURCES).map(s => [s, { count: index(s).count, from: index(s).from }])) };
+  root.PLS_IMAGES = { stylePack, sceneOf, autoRefresh, fill, cons, whoOk, match, search, variants, refresh, index, url, bytes, srcOfBrand, stats: () => Object.fromEntries(Object.keys(SOURCES).map(s => [s, { count: index(s).count, from: index(s).from }])) };
 })(window);

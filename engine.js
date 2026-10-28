@@ -56,7 +56,7 @@
     if (spec.comp === 'Slide/Answer Key' && spec.layout === 'flow') ansFlow(rootEl, data);
     // đổ nội dung
     for (const [k, v] of Object.entries(data)) {
-      if (k.startsWith('img:') || k.startsWith('_')) continue;   // khoá "_…" = tham số cho hook mẫu, không phải ô chữ
+      if (k.startsWith('img:') || k.startsWith('imgdesc:') || k.startsWith('_')) continue;   // khoá "_…" = tham số cho hook mẫu, không phải ô chữ
       const el = find(rootEl, k); const te = textEl(el);
       const sp = TY() && el ? TY().special(el, te, v, host) : null;   // ruby / khối công thức (typo.js)
       if (sp) { show(sp, host); sp.dataset.filled = k; filled.push(sp); continue; }

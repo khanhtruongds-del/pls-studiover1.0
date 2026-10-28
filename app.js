@@ -575,10 +575,27 @@
           const slotEl = r.host.querySelector(`[data-img-key="${CSS.escape(im.key)}"]`);
           const sb = slotEl ? slotEl.getBoundingClientRect() : null;
           const word = im.word || '';
-          const pk = window.PLS_IMAGES.stylePack(word || '…', state.brand, { bai: state.spec.lesson, level: (state.spec.meta || {}).level, w: sb && sb.width, h: sb && sb.height });
-          const g = document.createElement('details'); g.className = 'pack';
+          // MÔ TẢ CẢNH (người dùng 28/10): máy soạn sẵn từ dữ liệu ô (từ, nghĩa, câu ví dụ, chủ đề); sửa tay được, lưu theo ô ảnh của slide
+          const ok = r.src + '/' + r.part, dk = 'imgdesc:' + im.key;
+          const ctx = Object.assign({}, im.ctx || {}, { title: (im.ctx && im.ctx.title) || String((state.spec.common || {})['header.topic'] || '').trim() });
+          const pkOf = () => window.PLS_IMAGES.stylePack(word || '…', state.brand, { bai: state.spec.lesson, level: (state.spec.meta || {}).level, w: sb && sb.width, h: sb && sb.height, ctx, desc: ((state.imgOv[ok] || {})[dk]) || '' });
+          let pk = pkOf();
+          const g = document.createElement('details'); g.className = 'pack'; g.open = true;
           g.innerHTML = `<summary>Gói tạo ảnh (${pk.kho}, khung ${pk.ratio})</summary>`;
+          const sl = document.createElement('label'); sl.className = 'muted'; sl.textContent = 'Mô tả cảnh cần vẽ (sửa được):';
+          const sc = document.createElement('textarea'); sc.className = 'scene'; sc.rows = 3; sc.value = pk.scene; sc.setAttribute('aria-label', 'Mô tả cảnh cần vẽ');
           const ta = document.createElement('textarea'); ta.className = 'prompt'; ta.value = pk.prompt; ta.setAttribute('aria-label', 'Prompt tạo ảnh');
+          sc.oninput = () => { const o = (state.imgOv[ok] = state.imgOv[ok] || {}); const v = sc.value.trim(); if (v && v !== window.PLS_IMAGES.sceneOf(word, ctx)) o[dk] = v; else delete o[dk]; pk = pkOf(); ta.value = pk.prompt; };
+          g.append(sl, sc);
+          const LA = window.PLS_LOCAL_AI;
+          if (LA && LA.cfg().model) {   // AI chạy trên máy người dùng (Ollama / LM Studio) – miễn phí; không có thì bỏ qua nút
+            const ai = document.createElement('button'); ai.type = 'button'; ai.className = 'btn'; ai.textContent = 'Soạn mô tả bằng AI cục bộ';
+            ai.onclick = async () => { ai.disabled = true; ai.textContent = 'Đang soạn…';
+              try { const t = await LA.chat([{ role: 'user', content: `Viết 1–2 câu tiếng Việt mô tả CỤ THỂ một bức tranh minh hoạ cho từ vựng dạy ngoại ngữ, để hoạ sĩ vẽ: ai/cái gì, đang làm gì, ở đâu, đồ vật nào. Không chữ trong tranh. Chỉ trả về đoạn mô tả.\nTừ: ${ctx.term || ''} ${ctx.ipa || ''}\nNghĩa: ${word}\n${ctx.ex ? 'Câu ví dụ: ' + ctx.ex + '\n' : ''}Chủ đề: ${ctx.title || state.spec.lesson || ''}` }], { maxTokens: 200 });
+                sc.value = String(t).trim(); sc.oninput(); ai.textContent = 'Soạn lại bằng AI cục bộ'; }
+              catch (e) { ai.textContent = 'Lỗi AI cục bộ: ' + e.message; } ai.disabled = false; };
+            g.appendChild(ai);
+          }
           const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'btn'; cp.textContent = 'Sao chép prompt';
           cp.onclick = async () => { try { await navigator.clipboard.writeText(ta.value); cp.textContent = 'Đã sao chép'; } catch (e) { ta.select(); cp.textContent = 'Bấm Ctrl+C để sao chép'; } };
           const refs = document.createElement('div'); refs.className = 'cands';
@@ -588,7 +605,7 @@
           const fi = document.createElement('input'); fi.type = 'file'; fi.accept = 'image/png,image/jpeg,image/webp'; up.appendChild(fi);
           fi.onchange = () => upload(fi.files[0]);
           const acts = document.createElement('div'); acts.className = 'acts'; acts.append(cp, up);
-          g.append(ta, acts, refs);
+          g.append(ta, acts, refs);   // (mô tả cảnh đã gắn phía trên prompt)
           g.insertAdjacentHTML('beforeend', '<span class="muted">Tải ảnh mẫu (bấm vào ảnh) đính kèm cùng prompt vào công cụ tạo ảnh. Ảnh tải lên dùng ngay trong bài và tự gửi lên Drive chờ duyệt; duyệt xong ảnh vào kho cho các bài sau.</span>');
           d.appendChild(g);
         }
