@@ -58,16 +58,19 @@
     if (S.aud === 'student') { const k = list.findIndex(b => /Section/.test(b.comp || '') && b.data && (b.data.title === 'Đáp án' || b.data.text === 'Đáp án')); if (k >= 0) list = list.slice(0, k); }   // bản học viên: bỏ phần Đáp án cuối sách
     // chữ chạy đầu trang: tên khoá ngắn · BÀI n (một dòng) thay cho "khoá · tên buổi" dài 2 dòng
     const m0 = B.meta ? B.meta(S.book, buoi) : null, short0 = m0 && (m0.course || '').split(/\s+[–-]\s+|\s*\(/)[0];
-    const running = (m0 ? `Bài ${m0.bai} – ${String(m0.title).replace(/^Bài\s*\d+\s*[–-]\s*/i, '')}` : ((S.spec && S.spec.lesson) || '')).toUpperCase();   // người dùng 28/10: chữ chạy đầu trang chỉ ghi tên bài
+    const running = (m0 ? `${m0.label} – ${String(m0.title).replace(/^Bài\s*\d+\s*[–-]\s*/i, '')}` : ((S.spec && S.spec.lesson) || '')).toUpperCase();   // người dùng 28/10: chữ chạy đầu trang chỉ ghi tên bài
     const st = stage();
     // BÌA + LỜI DẪN (người dùng 28/10): bìa trước · trang mở đầu (trang 1) · nội dung (từ trang 2) · trang kết thúc · bìa sau
     const m = B.meta ? B.meta(S.book, buoi) : null, X = B.extraPage && m ? (kind, n) => B.extraPage(kind, { size, brand: S.brand, stage: st, running, meta: m, n, txt: letterTxt(kind) }) : () => null;
     const cp = coverPick();
     const XC = (kind, pick) => B.extraPage && m ? B.extraPage(kind, { size, brand: S.brand, stage: st, running, meta: m, pick }) : null;
-    const cover = XC('cover', cp.front), intro = X('intro', 1);
+    // bìa trước + lời mở đầu: chỉ buổi đầu khoá · lời dặn dò: mọi buổi có cột Dặn dò (S5) · lời cảm ơn + bìa sau: chỉ buổi cuối khoá (người dùng 28/10)
+    const cover = m && m.isFirst ? XC('cover', cp.front) : null, intro = m && m.isFirst ? X('intro', 1) : null;
     const bk = B.paginate(list, { size, brand: S.brand, stage: st, running, prep: null, first: intro ? 2 : 1 });   // sách in ra PDF: Chrome nhúng font web vào PDF → giữ đủ độ đậm (font an toàn của PPTX chỉ có thường / đậm)
-    const outro = X('outro', (intro ? 2 : 1) + bk.pages.length), back = XC('back', cp.back);
-    bk.pages = [cover, intro, ...bk.pages, outro, back].filter(Boolean);
+    let nx = (intro ? 2 : 1) + bk.pages.length;
+    const outro = m && (m.dando || letterTxt('outro')) ? X('outro', nx++) : null;
+    const thanks = m && m.isLast ? X('thanks', nx++) : null, back = m && m.isLast ? XC('back', cp.back) : null;
+    bk.pages = [cover, intro, ...bk.pages, outro, thanks, back].filter(Boolean);
     // TẠM ẨN NỘI DUNG (người dùng 28/10): chế độ sách chỉ hiện + in bìa trước và bìa sau; đổi COVERS_ONLY = false để hiện lại cả cuốn
     if (COVERS_ONLY) bk.pages.filter(pg => pg.kind !== 'cover' && pg.kind !== 'back').forEach(pg => pg.host.remove()), bk.pages = bk.pages.filter(pg => pg.kind === 'cover' || pg.kind === 'back');
     bk.blocks = list.length; return bk;
@@ -99,10 +102,10 @@
       const c = pg.host.cloneNode(true); c.style.transform = `scale(${k})`; wrap.appendChild(c);
       const lb = document.createElement('div'); lb.className = 'muted'; lb.style.cssText = 'text-align:center;margin:-14px 0 18px;font-size:12px';
       lb.textContent = { cover: 'Bìa trước', back: 'Bìa sau', intro: 'Trang ' + pg.n + ' · Mở đầu – bấm vào chữ để sửa', outro: 'Trang ' + pg.n + ' · Kết thúc – bấm vào chữ để sửa' }[pg.kind] || 'Trang ' + pg.n;
-      if (pg.kind === 'intro' || pg.kind === 'outro') {   // chỉ hai trang lời dẫn được sửa; sửa trên bản xem → ghi vào trang gốc (bản in) + lưu máy
+      if (pg.kind === 'intro' || pg.kind === 'outro' || pg.kind === 'thanks') {   // chỉ hai trang lời dẫn được sửa; sửa trên bản xem → ghi vào trang gốc (bản in) + lưu máy
         c.querySelectorAll('[data-field]').forEach(e => { e.contentEditable = 'plaintext-only'; if (e.contentEditable !== 'plaintext-only') e.contentEditable = 'true'; e.spellcheck = false;
           e.oninput = () => { const v = e.innerText.replace(/\n$/, ''); const o = pg.host.querySelector(`[data-field="${e.dataset.field}"]`); if (o) o.textContent = v; saveLetter(pg.kind, e.dataset.field, v); }; });
-        const rs = document.createElement('button'); rs.type = 'button'; rs.className = 'btn'; rs.textContent = 'Khôi phục nội dung gợi ý'; rs.style.cssText = 'margin-left:8px;font-size:12px;padding:2px 8px';
+        const rs = document.createElement('button'); rs.type = 'button'; rs.className = 'btn'; rs.textContent = 'Khôi phục nội dung từ file'; rs.style.cssText = 'margin-left:8px;font-size:12px;padding:2px 8px';
         rs.onclick = () => { resetLetter(pg.kind); build(); }; lb.appendChild(rs); }
       box.append(wrap, lb); });
   }

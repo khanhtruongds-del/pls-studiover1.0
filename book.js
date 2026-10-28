@@ -30,7 +30,7 @@
     let secNo = 0, curSec = ''; const SEC = text => (curSec = text, B(TPL('Block/Section Bar') ? 'Block/Section Bar' : 'Block/Section Heading', TPL('Block/Section Bar') ? { letter: String.fromCharCode(65 + secNo++), title: text, lesson: '' } : { text }));
     let exNo = 0; const ex = () => String(++exNo);
     const title = S(info['Tên buổi']) || 'Buổi ' + buoi;
-    B('Block/Lesson Header', { lesson: 'Bài ' + (info['Bài'] ? Number(info['Bài']) : buoi), 'title.vi': title.replace(/^Bài\s*\d+\s*[–-]\s*/i, ''), /* ô "Bài n" đã có số bài → tên không lặp "Bài n –" (28/10) */ 'title.native': course['Tên khoá'] || '' });
+    B('Block/Lesson Header', { lesson: info['Bài'] ? 'Bài ' + Number(info['Bài']) : 'Buổi ' + bNum(buoi),   /* buổi ôn – kiểm tra không có số Bài → ghi Buổi n (28/10) */ 'title.vi': title.replace(/^Bài\s*\d+\s*[–-]\s*/i, ''), /* ô "Bài n" đã có số bài → tên không lặp "Bài n –" (28/10) */ 'title.native': course['Tên khoá'] || '' });
     const objs = S(info['Mục tiêu bài'] || s5row['Mục tiêu bài']).split(/\n|;\s*|(?<=[.!?])\s+(?=[A-ZÀ-ỸĐ])/).map(x => x.replace(/^[-•\d.\s]+/, '').trim()).filter(Boolean).slice(0, 5);
     if (objs.length) { const d = { no: '', title: 'Mục tiêu bài học' }; objs.forEach((t, i) => { d[`obj_${i + 1}.bullet`] = '•'; d[`obj_${i + 1}.text`] = t; }); B('Block/Objectives', d); }
 
@@ -379,17 +379,18 @@
     const info = tab(s6, /Khoá & bài|Khóa & bài/).find(r => isB(r, buoi)) || {};
     const course = Object.fromEntries(tab(s6, /Thông tin khoá|Thông tin khóa/).map(r => [S(r['Mục']), S(r['Nội dung'])]));
     const objs = S(info['Mục tiêu bài']).split(/\n|;\s*|(?<=[.!?])\s+(?=[A-ZÀ-ỸĐ])/).map(x => x.replace(/^[-•\d.\s]+/, '').trim()).filter(Boolean).slice(0, 5);
-    return { course: course['Tên khoá'] || '', level: course['Cấp độ'] || '', bai: info['Bài'] ? Number(info['Bài']) : buoi, title: S(info['Tên buổi']) || 'Buổi ' + buoi, objs };
+    const ses = tab(s6, /Khoá & bài|Khóa & bài/).map(r => bNum(r['Buổi'])).filter(n => !isNaN(n));
+    const s5row = tab((books && books.s5) || {}, /^S5$/).find(r => isB(r, buoi)) || {};
+    return { course: course['Tên khoá'] || '', level: course['Cấp độ'] || '', bai: info['Bài'] ? Number(info['Bài']) : null, title: S(info['Tên buổi']) || 'Buổi ' + buoi, objs, label: info['Bài'] ? 'Bài ' + Number(info['Bài']) : 'Buổi ' + bNum(buoi),
+      buoi: bNum(buoi), desc: course['Mô tả khoá'] || '', dando: S(s5row['Dặn dò']),   // lời mở đầu = "Mô tả khoá" (S6) · lời dặn dò = cột "Dặn dò" (S5) của buổi – nguyên văn (28/10)
+      isFirst: ses.length ? bNum(buoi) === Math.min(...ses) : true, isLast: ses.length ? bNum(buoi) === Math.max(...ses) : true };
   }
+  // NỘI DUNG TRANG LỜI DẪN – chỉ lấy nguyên văn từ S5/S6, không tự viết (người dùng 28/10)
   function letterDefaults(kind, m, brand) {
     const team = `Đội ngũ biên soạn ${brand}`;
-    if (kind === 'intro') return { kicker: 'LỜI MỞ ĐẦU', title: `Chào mừng bạn đến với ${m.course || 'khoá học'}`,   // người dùng 28/10: lời chào gắn với tên khoá
-      body: [`Cuốn tài liệu này đồng hành cùng bạn trong Bài ${m.bai}: ${String(m.title).replace(/^Bài\s*\d+\s*[–-]\s*/i, '')}. Mỗi phần đi từ từ vựng, ngữ pháp đến luyện tập để bạn hiểu ngay trên lớp và nhớ lâu sau buổi học.`,
-        'Hãy đọc trước phần từ vựng, đánh dấu chỗ chưa rõ để hỏi giáo viên trên lớp. Mục tiêu của bài nằm ngay ở trang đầu bài học.',   /* người dùng 28/10: không lặp mục tiêu bài (S5/S6) – đã có ở khối Mục tiêu bài học */
-        'Chúc bạn học vui và tiến bộ mỗi ngày!'].join('\n\n'), sign: team };
-    return { kicker: 'LỜI KẾT', title: 'Bạn đã hoàn thành bài học!',
-      body: ['Kiến thức chỉ thật sự là của mình khi được ôn lại. Trước buổi học sau, bạn hãy:\n• Làm đầy đủ bài tập về nhà.\n• Đọc to lại các câu ví dụ và đoạn hội thoại.\n• Ghi lại những điểm còn băn khoăn để hỏi giáo viên.',
-        'Cảm ơn bạn đã luôn cố gắng. Hẹn gặp lại ở bài học tiếp theo!'].join('\n\n'), sign: team };
+    if (kind === 'intro') return { kicker: 'LỜI MỞ ĐẦU', title: `Chào mừng bạn đến với ${m.course || 'khoá học'}`, body: m.desc || '', sign: team };   // S6 › Thông tin khoá › Mô tả khoá
+    if (kind === 'thanks') return { kicker: 'LỜI CẢM ƠN', title: 'Lời cảm ơn', body: '', sign: team };   // S5/S6 không có nội dung cảm ơn → để trống cho người soạn tự điền
+    return { kicker: 'LỜI DẶN DÒ', title: `Buổi ${m.buoi}`, body: m.dando || '', sign: '' };   // S5 › cột Dặn dò của buổi
   }
   function letterCss() {
     if (typeof document === 'undefined' || document.getElementById('plsLetterCss')) return; const st = document.createElement('style'); st.id = 'plsLetterCss';
@@ -400,7 +401,8 @@
       + '.bk-letter .bk-body{font-size:10.5px;line-height:1.7;white-space:pre-wrap}'
       + '.bk-letter .bk-sign{margin-top:20px;align-self:flex-end;font-size:10.5px;font-style:italic;font-weight:500;color:var(--color-primary,#406864)}'
       + '.bk-letter [contenteditable]{outline:none;border-radius:4px}.bk-letter [contenteditable]:hover{box-shadow:0 0 0 1px #c9b8f5}.bk-letter [contenteditable]:focus{box-shadow:0 0 0 2px #7c5cd6;background:rgba(124,92,214,.05)}'
-      + '@media print{.bk-letter [contenteditable]{box-shadow:none!important;background:none!important}}';
+      + '.bk-letter [contenteditable]:empty::before{content:attr(data-ph);color:#a99bd6;font-style:italic}'
+      + '@media print{.bk-letter [contenteditable]{box-shadow:none!important;background:none!important}.bk-letter [contenteditable]:empty::before{content:none}}';
     document.head.appendChild(st);
   }
   // kind: 'cover' | 'intro' | 'outro' | 'back' · txt: nội dung đã sửa của trang lời dẫn {kicker,title,body,sign}
@@ -417,7 +419,7 @@
       const comp = `${pre}/${kind === 'cover' ? 'Cover' : 'Back Cover'}`; if (!TPL(comp)) return null;
       const short = (m.course || '').split(/\s+[–-]\s+|\s*\(/)[0];   // tên khoá dài → lấy phần trước dấu "–" / "("
       const ttl = (short && short.length <= 28 ? short : (m.level || short || 'TÀI LIỆU')).toUpperCase();
-      const data = kind === 'cover' ? { title: ttl, subtitle: `Bài ${m.bai} – ${String(m.title).replace(/^Bài\s*\d+\s*[–-]\s*/i, '')}`, tag_1: 'TỪ VỰNG', tag_2: 'NGỮ PHÁP', tag_3: 'HỘI THOẠI' } : {};
+      const data = kind === 'cover' ? { title: ttl, subtitle: `${m.label} – ${String(m.title).replace(/^Bài\s*\d+\s*[–-]\s*/i, '')}`, tag_1: 'TỪ VỰNG', tag_2: 'NGỮ PHÁP', tag_3: 'HỘI THOẠI' } : {};
       const r = E.render({ comp, data }, opt.brand); opt.stage.appendChild(r.host); r.host.classList.add('pls-book-cover');
       r.host.querySelectorAll('.pls-imgslot, .pls-imgempty').forEach(e => { e.style.display = 'none'; });   // mẫu chữ: không in khung "Ảnh minh hoạ" trống
       return { host: r.host, kind, n: null };
@@ -428,7 +430,7 @@
     const content = r.host.querySelector('[data-n="content"]'); [...content.children].forEach(c => c.remove());
     const t = Object.assign(letterDefaults(kind, m, opt.brand), opt.txt || {});
     const box = document.createElement('div'); box.className = 'bk-letter'; box.dataset.letter = kind;
-    [['kicker', 'div'], ['title', 'h1'], ['rule', 'div'], ['body', 'div'], ['sign', 'div']].forEach(([f, tag]) => { const e = document.createElement(tag); e.className = 'bk-' + f; if (f !== 'rule') { e.dataset.field = f; e.textContent = t[f] || ''; } box.appendChild(e); });
+    [['kicker', 'div'], ['title', 'h1'], ['rule', 'div'], ['body', 'div'], ['sign', 'div']].forEach(([f, tag]) => { const e = document.createElement(tag); e.className = 'bk-' + f; if (f !== 'rule') { e.dataset.field = f; e.textContent = t[f] || ''; if (f === 'body') e.dataset.ph = kind === 'thanks' ? 'S5/S6 không có nội dung lời cảm ơn – bấm vào đây để nhập (dòng này không in ra)' : 'S5/S6 để trống ô này – bấm vào đây để nhập (dòng này không in ra)'; } box.appendChild(e); });
     content.appendChild(box);
     return { host: r.host, kind, n };
   }
