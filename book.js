@@ -371,7 +371,7 @@
       const hit = pid && pid !== 'tpl' ? Object.values(C).flatMap(b => b.front.concat(b.back)).find(x => x.id === pid) : null;
       if (hit) { const [w, h] = opt.size === '19x27' ? [538.6, 765.4] : [595, 842];
         const host = document.createElement('div'); host.className = 'pls-book-cover'; host.dataset.coverId = hit.id;
-        host.style.cssText = `position:relative;width:${w}px;height:${h}px;overflow:hidden;background:#fff url("covers/${hit.id}.jpg") center/cover no-repeat;-webkit-print-color-adjust:exact;print-color-adjust:exact`;
+        host.style.cssText = `position:relative;transform-origin:0 0;width:${w}px;height:${h}px;overflow:hidden;background:#fff url("covers/${hit.id}.jpg") center/cover no-repeat;-webkit-print-color-adjust:exact;print-color-adjust:exact`;
         opt.stage.appendChild(host); return { host, kind, n: null, cover: hit }; }
       const comp = `${pre}/${kind === 'cover' ? 'Cover' : 'Back Cover'}`; if (!TPL(comp)) return null;
       const data = kind === 'cover' ? { title: [m.course || 'TÀI LIỆU', m.level].filter(Boolean).join(' ').toUpperCase(), subtitle: `Bài ${m.bai} – ${m.title}`, tag_1: 'TỪ VỰNG', tag_2: 'NGỮ PHÁP', tag_3: 'HỘI THOẠI' } : {};
