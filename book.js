@@ -66,10 +66,12 @@
 
     const speak = tab(s6, /Mẫu câu/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Câu']));
     const F_speak = T => { if (!speak.length) return; SEC(T || 'Mẫu câu giao tiếp'); 
-      // GOM CỤM theo chủ đề / tình huống ("… (câu 1)", "… (câu 2)" chung 1 cụm; không ghi tình huống → theo Loại) – giữ thứ tự xuất hiện trong S6 (28/10)
-      const grp = new Map(); speak.forEach(r => { const t = S(r['Chủ đề / tình huống']).replace(/^none$/i, '').replace(/\s*\(câu\s*\d+\)\s*$/i, ''); const k = t || S(r['Loại']) || 'Mẫu câu'; if (!grp.has(k)) grp.set(k, []); grp.get(k).push(r); });
-      for (const [k, rs] of grp) { B('Block/Sub Heading', { text: k });
-        for (const [pi, part] of chunkEven(rs, 8).entries()) { const d = { 'row_0.c1': 'Câu', 'row_0.c2': 'Phiên âm', 'row_0.c3': 'Nghĩa' }; part.forEach((r, i) => { const v = S(r['Vai']); d[`row_${i + 1}.c1`] = (v && /hội thoại/i.test(S(r['Loại'])) ? v + ': ' : '') + S(r['Câu']); d[`row_${i + 1}.c2`] = S(r['Phiên âm']); d[`row_${i + 1}.c3`] = S(r['Nghĩa']); }); B('Block/Table N', d); out[out.length - 1].role = 'speak'; if (pi) out[out.length - 1].cont = true; } } };
+      // THEO ĐÚNG BẢNG S6 (người dùng 28/10): giữ thứ tự dòng; đoạn liền nhau cùng "Chủ đề / tình huống" (+ Loại khi trống) = 1 bảng, tiêu đề nguyên văn
+      const blks = []; speak.forEach(r => { const t = S(r['Chủ đề / tình huống']).replace(/^none$/i, ''), lo = S(r['Loại']), l = blks[blks.length - 1]; if (l && l.t === t && (t || l.lo === lo)) l.rows.push(r); else blks.push({ t, lo, rows: [r] }); });
+      for (const bl of blks) { B('Block/Sub Heading', { text: bl.t || bl.lo || 'Mẫu câu' });
+        const hasV = bl.rows.some(r => S(r['Vai'])), hasT = bl.rows.some(r => S(r['Từ thay thế'])); const cols = [...(hasV ? [['Vai', 'Vai']] : []), ['Câu', 'Câu'], ['Phiên âm', 'Phiên âm'], ['Nghĩa', 'Nghĩa'], ...(hasT ? [['Từ thay thế', 'Từ thay thế']] : [])];
+        for (const [pi, part] of chunkEven(bl.rows, 8).entries()) { const d = {}; cols.forEach(([h], c) => { d[`row_0.c${c + 1}`] = h; }); part.forEach((r, i) => cols.forEach(([, k], c) => { d[`row_${i + 1}.c${c + 1}`] = S(r[k]); }));
+          B('Block/Table N', d); out[out.length - 1].role = 'speak' + cols.length + (hasV ? 'v' : ''); if (pi) out[out.length - 1].cont = true; } } };
 
     const segs = (rows, tk) => { const m = new Map(); rows.forEach(r => { const x = S(r['Mã đoạn']) || S(r[tk]); if (!m.has(x)) m.set(x, []); m.get(x).push(r); }); return [...m.values()]; };   // QC F03/F04: tách đoạn theo tiêu đề
     const lis = tab(s6, /^S6-Nghe$/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Câu'])), lq = tab(s6, /Nghe câu hỏi/).filter(r => isB(r, buoi) && onPDF(r));
@@ -117,10 +119,7 @@
     if (hw.length) { SEC('Bài tập về nhà'); exercises(hw, ''); }
     // TỰ ĐÁNH GIÁ cuối bài (như Cambridge "Review your progress"): mỗi mục tiêu khoanh 3 / 2 / 1
     const hasS5 = (() => { const gb = s5 || {}, gk = Object.keys(gb).find(k => /Hướng dẫn giảng dạy/.test(k)); return !!(gk && gb[gk].some(r => isB(r, buoi))); })();
-    if (objs.length >= 2 && !hasS5) { SEC('Tự đánh giá');   // có S5: không thêm mục tự sinh ngoài Excel (người dùng 28/10) const d = { 'row_0.c1': 'Sau bài học, mình có thể…', 'row_0.c2': '3', 'row_0.c3': '2', 'row_0.c4': '1' };
-      objs.forEach((t, i) => { d[`row_${i + 1}.c1`] = t.replace(/^học viên\s+(sẽ\s+)?/i, '').replace(/^./, c => c.toUpperCase()); d[`row_${i + 1}.c2`] = '○'; d[`row_${i + 1}.c3`] = '○'; d[`row_${i + 1}.c4`] = '○'; });
-      B('Block/Table N', d); out[out.length - 1].role = 'self';
-      B('Block/Paragraph', { text: '3 = làm tốt · 2 = tạm được · 1 = cần ôn thêm. Mục nào chọn 1: xem lại phần đó trong sách trước buổi sau.' }); }
+    /* bỏ mục Tự đánh giá tự sinh – không có trong S5/S6 (người dùng 28/10) */
 
     if (keys.length) { SEC('Đáp án');
       // ĐÁP ÁN THEO MỤC → THEO BÀI (người dùng chốt 23/10: như sách giáo trình – không dồn 1 khối chữ chạy liền):
@@ -232,9 +231,9 @@
       el.querySelectorAll('[data-n$="_cell"]').forEach(c => { Object.assign(c.style, { justifyContent: 'flex-start', padding: '5px 8px' }); const t = c.querySelector('[data-text]'); if (t) t.style.textAlign = 'left'; });
       el.querySelectorAll('[data-n^="row_"]').forEach(r => { if (!/^row_\d+$/.test(r.dataset.n)) return; r.style.height = 'auto'; const c1 = r.querySelector('[data-n="c1"]'); if (c1 && r.dataset.n !== 'row_0') c1.style.fontWeight = '600'; });
       // bảng đáp án: cột số câu hẹp, căn giữa, màu brand; giải thích chiếm phần lớn bề ngang
-      const AW = b && { ans3: { c1: 9, c2: 28, c3: 63 }, ans2: { c1: 10, c2: 90 }, ansgrid: { c1: 7, c2: 18, c3: 7, c4: 18, c5: 7, c6: 18, c7: 7, c8: 18 }, self: { c1: 76, c2: 8, c3: 8, c4: 8 }, pron: { c1: 15, c2: 9, c3: 40, c4: 18, c5: 18 }, vocab: { c1: 12, c2: 13, c3: 12, c4: 28, c5: 35 }, speak: { c1: 34, c2: 33, c3: 33 } }[b.role];
+      const AW = b && { ans3: { c1: 9, c2: 28, c3: 63 }, ans2: { c1: 10, c2: 90 }, ansgrid: { c1: 7, c2: 18, c3: 7, c4: 18, c5: 7, c6: 18, c7: 7, c8: 18 }, self: { c1: 76, c2: 8, c3: 8, c4: 8 }, pron: { c1: 15, c2: 9, c3: 40, c4: 18, c5: 18 }, vocab: { c1: 12, c2: 13, c3: 12, c4: 28, c5: 35 }, speak: { c1: 34, c2: 33, c3: 33 }, speak3: { c1: 34, c2: 33, c3: 33 }, speak4: { c1: 30, c2: 26, c3: 26, c4: 18 }, speak4v: { c1: 12, c2: 30, c3: 28, c4: 30 }, speak5v: { c1: 11, c2: 24, c3: 22, c4: 24, c5: 19 } }[b.role];
       if (AW) el.querySelectorAll('[data-n$="_cell"]').forEach(c => { const k = c.dataset.n.replace('_cell', ''); if (!AW[k]) return; c.style.flex = `${AW[k]} 1 0px`;
-        const num = AW[k] <= 10 && !/^(pron|speak|vocab)$/.test(b.role); if (num) { c.style.justifyContent = 'center'; c.style.padding = '5px 4px'; const t = c.querySelector('[data-text]'); if (t) { t.style.textAlign = 'center'; t.style.fontWeight = '700'; t.style.color = 'var(--color-primary-ink, var(--color-primary, #406864))'; } }
+        const num = AW[k] <= 10 && !/^(pron|speak\w*|vocab)$/.test(b.role); if (num) { c.style.justifyContent = 'center'; c.style.padding = '5px 4px'; const t = c.querySelector('[data-text]'); if (t) { t.style.textAlign = 'center'; t.style.fontWeight = '700'; t.style.color = 'var(--color-primary-ink, var(--color-primary, #406864))'; } }
         else if (b.role === 'ans3' && k === 'c3') { const t = c.querySelector('[data-text]'); if (t) t.style.fontWeight = '400'; } });
       if (/Vocab Table/.test(comp)) { const W = { c1: 27, c2: 22, c3: 14, c4: 37 }; el.querySelectorAll('[data-n$="_cell"]').forEach(c => { const k = c.dataset.n.replace('_cell', ''); if (W[k]) c.style.flex = `${W[k]} 1 0px`; }); }
     }
