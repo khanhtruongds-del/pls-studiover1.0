@@ -668,7 +668,7 @@
       const txt = el.textContent || '';
       let fam = role === 'native' ? native : role === 'heading' ? PPTX_CFG.heading : PPTX_CFG.body;
       if (fam === native && VIET.test(txt) && !CJK.test(txt)) fam = role === 'heading' ? PPTX_CFG.heading : PPTX_CFG.body;   // RB-CH-04 / fixFontViet: chữ Việt không nằm trong font Hán–Hàn–Nhật
-      if (native && CJK.test(txt) && PPTX_CFG.latinInNative.includes(brand)) fam = native;
+      if (native && CJK.test(txt) && !VIET.test(txt) && PPTX_CFG.latinInNative.includes(brand)) fam = native;   // câu Việt có chen chữ Hán → font Việt, chữ Hán tự rơi về Khải thư (28/10)
       el.style.fontFamily = `'${fam}'` + (native ? `, '${native}'` : '') + (/kai/i.test(native || '') ? ", 'KaiTi', 'Kaiti SC', 'STKaiti', 'LXGW WenKai'" : '') + ', sans-serif';   // máy không có Khải thư → xem bằng LXGW WenKai (web)
       // khối sách được xử lý TRƯỚC khi gắn vào trang → getComputedStyle rỗng → mọi chữ đậm thành thường (lỗi phân cấp sách);
       // chưa gắn thì đọc độ đậm từ style của mẫu (var(--fw-…, 700) → 700)

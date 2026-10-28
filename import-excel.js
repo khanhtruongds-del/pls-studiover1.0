@@ -243,14 +243,14 @@
           }
           // PHÁT ÂM TỪNG BƯỚC (mẫu bổ sung): ví dụ là cụm / câu (trung bình ≥ 3 từ) → Nghe (câu mẫu) → Chú ý (ý chính) → Đọc lại + "Luyện thêm"
           const exs = S(p['Ví dụ']).split(/;\s*/).filter(Boolean).map(x => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); return { w: m ? m[1] : x, ipa: m ? m[2] : '' }; });
-          if (exs.length && exs.reduce((a, x) => a + x.w.split(/\s+/).length, 0) / exs.length >= 3 && root.PLS_TPL && root.PLS_TPL.slides['Slide/Pronunciation Steps']) {
+          if (false && exs.length && exs.reduce((a, x) => a + x.w.split(/\s+/).length, 0) / exs.length >= 3 && root.PLS_TPL && root.PLS_TPL.slides['Slide/Pronunciation Steps']) {
             const d = { 'title': S(p['Chữ / âm']), 'step_1.head': 'Nghe', 'step_2.head': 'Chú ý', 'step_3.head': 'Đọc lại', 'step_1.no': '1', 'step_1.text': exs[0].w, 'step_1.sub': exs[0].ipa ? '/' + exs[0].ipa + '/' : '',
               'step_2.no': '2', 'step_2.text': sentences(p['Hướng dẫn phát âm'])[0] || S(p['Hướng dẫn phát âm']), 'step_2.sub': '',
               'step_3.no': '3', 'step_3.text': 'Nghe lại, đọc theo đúng nhịp, rồi tự nói 1 câu tương tự.', 'step_3.sub': '' };
             exs.slice(1, 6).forEach((x, i) => { d[`chip_${i + 1}.text`] = x.w; });
             slides.push({ comp: 'Slide/Pronunciation Steps', data: sec(L.pron, d), notes: pNote(p) }); continue;
           }
-          const d = { 'sound': S(p['Chữ / âm']), 'ipa': S(p['Bảng chữ / nhóm âm']), 'tip': S(p['Hướng dẫn phát âm']) + (S(p['Chữ phát âm tương tự']) && S(p['Hướng dẫn phát âm']).length + S(p['Chữ phát âm tương tự']).length < 240 ? '\nÂm tương tự: ' + S(p['Chữ phát âm tương tự']) : '') };
+          const d = { 'sound': S(p['Chữ / âm']), 'ipa': S(p['Bảng chữ / nhóm âm']), 'tip': S(p['Hướng dẫn phát âm']) };
           S(p['Ví dụ']).split(/;\s*/).filter(Boolean).slice(0, 4).forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.word`] = m ? m[1] : x; d[`ex_${i + 1}.vi`] = m ? '/' + m[2] + '/' : ''; });
           slides.push({ comp: 'Slide/Pronunciation', data: sec(L.pron, d), notes: pNote(p) });
         }
