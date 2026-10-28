@@ -4,7 +4,7 @@
   const S = I.state, $ = q => document.querySelector(q);
   S.view = 'slide'; { const v = $('#view'); if (v) v.value = 'slide'; }   // option đầu giờ là "Nghiên cứu" → mặc định vẫn mở Slide
   let book = null;
-  const COVERS_ONLY = true;
+  const COVERS_ONLY = false;   // người dùng 28/10: hiện đủ cả cuốn; ô chọn bìa chỉ đặt ngay trên bìa trước / bìa sau
   // NỘI DUNG SỬA TAY của trang mở đầu / kết thúc: lưu trên máy theo brand + bài + buổi
   const LK = 'pls.bookLetters';
   const lkey = kind => [S.brand, (S.spec && S.spec.lesson) || '', +($('#buoi') && $('#buoi').value) || 1, kind].join('|');
@@ -20,7 +20,7 @@
     if (part === 'front') { const C = (root.PLS_COVERS || {})[S.brand] || { front: [] }; const fr = C.front.find(x => x.id === id); const curFr = C.front.find(x => x.id === cur.front);
       if (fr && fr.back && (!all[S.brand] || !all[S.brand].back || (curFr && all[S.brand].back === curFr.back))) v.back = fr.back; }   // bìa trước có bìa sau đi cặp → tự đổi theo (trừ khi đã chọn tay bìa sau khác)
     all[S.brand] = v; try { localStorage.setItem(CK, JSON.stringify(all)); } catch (e) {} build(); }
-  function coverBar(box) {
+  function coverBar(box, only) {
     const C = (root.PLS_COVERS || {})[S.brand] || { front: [], back: [] }, cur = coverPick();
     const bar = document.createElement('div'); bar.className = 'cover-bar';
     const row = (part, title, list) => { const r = document.createElement('div'); r.className = 'cover-row'; const h = document.createElement('div'); h.className = 'cover-h'; h.textContent = title; r.appendChild(h);
@@ -29,7 +29,7 @@
         b.innerHTML = x.id === 'tpl' ? `<span class="tpl">Aa</span><span class="cap">${x.label}</span>` : `<img alt="" loading="lazy" src="covers/${x.id}_t.jpg"><span class="cap">${x.label}</span>`;
         b.onclick = () => setCover(part, x.id); strip.appendChild(b); });
       r.appendChild(strip); return r; };
-    bar.append(row('front', 'Bìa trước', C.front), row('back', 'Bìa sau', C.back));
+    if (!only || only === 'front') bar.appendChild(row('front', 'Bìa trước', C.front)); if (!only || only === 'back') bar.appendChild(row('back', 'Bìa sau', C.back));
     if (!document.getElementById('coverBarCss')) { const cs = document.createElement('style'); cs.id = 'coverBarCss';
       cs.textContent = '.cover-bar{background:var(--ui-bg,#fbf8f2);padding:8px 0 10px;margin-bottom:14px;border-bottom:1px solid var(--ui-line,#e7e0d2)}.cover-row{display:flex;gap:10px;align-items:center;margin:4px 0}.cover-h{flex:0 0 70px;font-size:12px;font-weight:600}.cover-strip{display:flex;gap:8px;overflow-x:auto;padding:4px 2px}.cover-opt{flex:0 0 auto;width:64px;padding:0;border:2px solid transparent;border-radius:6px;background:none;cursor:pointer;text-align:center}.cover-opt img,.cover-opt .tpl{display:block;width:60px;height:85px;object-fit:cover;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,.18)}.cover-opt .tpl{display:flex;align-items:center;justify-content:center;background:#fff;font-weight:700;color:#666}.cover-opt .cap{display:block;font-size:9px;line-height:1.2;margin-top:3px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--ui-ink,#333)}.cover-opt.on{border-color:#7c5cd6}';
       document.head.appendChild(cs); }
@@ -91,9 +91,8 @@
     const box = $('#bookView'); box.innerHTML = ''; if (!book) return;
     $('#selTitle').textContent = COVERS_ONLY ? `Sách ${B.SIZES[S.view].label} · bìa trước + bìa sau` : `Sách ${B.SIZES[S.view].label} · ${book.pages.length} trang`;
     $('#selMeta').textContent = COVERS_ONLY ? 'Phần nội dung sách đang tạm ẩn' : book.warns.length ? book.warns.join(' · ') : `${book.blocks} khối · không có khối cao hơn trang`;
-    coverBar(box);
     const W = Math.min(box.clientWidth - 24 || 700, 760);
-    book.pages.forEach(pg => { const w = parseFloat(pg.host.style.width), h = parseFloat(pg.host.style.height), k = W / w;
+    book.pages.forEach(pg => { if (pg.kind === 'cover') coverBar(box, 'front'); if (pg.kind === 'back') coverBar(box, 'back'); const w = parseFloat(pg.host.style.width), h = parseFloat(pg.host.style.height), k = W / w;
       const wrap = document.createElement('div'); wrap.className = 'book-page'; wrap.style.width = W + 'px'; wrap.style.height = Math.round(h * k) + 'px';
       const c = pg.host.cloneNode(true); c.style.transform = `scale(${k})`; wrap.appendChild(c);
       const lb = document.createElement('div'); lb.className = 'muted'; lb.style.cssText = 'text-align:center;margin:-14px 0 18px;font-size:12px';
