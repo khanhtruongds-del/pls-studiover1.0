@@ -1457,18 +1457,21 @@
     const nb = document.getElementById('notesBox'); if (nb) { const bk = !!(s && /^(A4|19x27)$/.test(s.view)); if (nb.hidden !== bk) nb.hidden = bk; } }   // sách in không có ghi chú giảng
 
   // ---------- TRANG ĐẦU NGHIÊN CỨU: thẻ "Khóa gần đây" (như File gần đây của Slide) – bấm là mở lại đúng khóa ----------
-  let rrList = null, rrAt = 0, rrBusy = false;
+  let rrList = null, rrAt = 0, rrBusy = false, rrP = null;
   const rrAgo = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'vừa xong' : m < 60 ? m + ' phút trước' : m < 1440 ? Math.round(m / 60) + ' giờ trước' : Math.round(m / 1440) + ' ngày trước'; };
-  async function rrLoad() { if (rrBusy) return; rrBusy = true;
-    try { const db = await new Promise((res, rej) => { const q = indexedDB.open('pls-research', 1); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+  // SỬA ĐƠ TAB NGHIÊN CỨU (28/10): đang tải thì trả về đúng lời hứa đang chờ (trước đây trả về ngay → rrEnhance gọi lại rrLoad liên tục trong vi tác vụ → treo trang);
+  // mở DB phải tạo kho 'proj' nếu chưa có (mở trước research.js thì DB v1 thiếu kho → lỗi + tải lại mãi)
+  function rrLoad() { if (rrBusy && rrP) return rrP; rrBusy = true; return (rrP = rrLoad0()); }
+  async function rrLoad0() {
+    try { const db = await new Promise((res, rej) => { const q = indexedDB.open('pls-research', 1); q.onupgradeneeded = () => { if (!q.result.objectStoreNames.contains('proj')) q.result.createObjectStore('proj', { keyPath: 'id' }); }; q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
       const all = await new Promise(res => { const g = db.transaction('proj').objectStore('proj').getAll(); g.onsuccess = () => res(g.result || []); g.onerror = () => res([]); });
       rrList = all.sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 8).map(p => { const L = (p.outline && p.outline.lessons) || [], n = Object.keys(p.lessons || {}).length, r = (p.releases || []).length;
         return { id: p.id, name: p.name || 'Khóa chưa đặt tên', sub: [(p.brief && [p.brief.lang, p.brief.level].filter(Boolean).join(' · ')) || '', L.length ? `${n}/${L.length} buổi đã soạn` : `${(p.sources || []).length} nguồn · chưa có khung`, r ? `đã phát hành bản ${r}` : ''].filter(Boolean).join(' · '), at: p.at || 0 }; });
-      rrAt = Date.now(); } catch (e) { rrList = rrList || []; } finally { rrBusy = false; } }
+      rrAt = Date.now(); } catch (e) { rrList = rrList || []; rrAt = Date.now(); } finally { rrBusy = false; rrP = null; } }
   function rrEnhance() {
     const sec = [...document.querySelectorAll('section.w-side')].find(s => s.offsetParent && (s.dataset.rr || /Cần biết/.test((s.querySelector('h2') || {}).textContent || '')));
     if (!sec) return; if (!sec.dataset.rr) { sec.dataset.rr = '1'; sec._keep = [...sec.querySelectorAll('.item')].map(x => x.outerHTML).join(''); }
-    if (!rrList || Date.now() - rrAt > 4000) { rrLoad().then(() => rrEnhance()); if (!rrList) return; }
+    if (!rrBusy && (!rrList || Date.now() - rrAt > 4000)) { rrLoad().then(() => setTimeout(rrEnhance, 0)); if (!rrList) return; } else if (!rrList) return;
     const cur = (() => { try { return localStorage.getItem('pls.rs.cur'); } catch (e) { return null; } })();
     const h = '<p class="muted" style="margin:0 0 2px;font-size:12px">Mở lại</p><h2>Khóa gần đây</h2><p class="sub">Các khóa đang soạn trên máy này – bấm để mở lại đúng chỗ đang làm.</p>' +
       (rrList.length ? `<div class="rc-list">${rrList.map(p => `<div class="item recent"><button type="button" class="rc-open" data-rr-open="${esc(p.id)}"><b>${esc(p.name)}</b><span class="muted">${esc(p.sub)}</span><span class="tag" style="--c:var(--ui-accent)">${p.id === cur ? 'Đang mở · ' : ''}cập nhật ${rrAgo(p.at)}</span></button></div>`).join('')}</div>`
