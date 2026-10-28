@@ -163,7 +163,7 @@
         for (const [lab, rs] of pics) { const d = { title: lab, 'img:img': lab }; rs.forEach((r, i) => { d[`item_${i + 1}.no`] = String(i + 1); d[`item_${i + 1}.de`] = S(r['Từ']); d[`item_${i + 1}.vi`] = S(r['Nghĩa']); }); slides.push({ comp: 'Slide/Vocab Picture', data: sec(L.vocab, d), notes: NOTE({ g: ['Cho HV nhìn hình đoán từ trước, rồi đọc mẫu.', ...rs.map(wordNote)], l: rs.map(wordWarn) }) }); }
         // SƠ ĐỒ QUAN HỆ TỪ (mẫu bổ sung): ≥ 3 cặp đồng nghĩa / trái nghĩa trong từ của buổi → 1 slide (tối đa 6 cặp)
         if (TPL['Slide/Vocab Map']) {
-          const mean = {}; tab(s6, /Từ vựng$/).forEach(r => { const w = S(r['Từ']).toLowerCase(); if (w && !mean[w]) mean[w] = S(r['Nghĩa']); });
+          const mean = {}; vocab.forEach(r => { const w = S(r['Từ']).toLowerCase(); if (w && !mean[w]) mean[w] = S(r['Nghĩa']); });
           const pairs = [], seen = new Set();
           for (const r of vocab) for (const [col, rel] of [['Đồng nghĩa', '='], ['Trái nghĩa', '≠']]) for (const o of S(r[col]).split(/[;,]\s*/).map(S).filter(Boolean)) {
             const a = S(r['Từ']), key = [a.toLowerCase(), o.toLowerCase()].sort().join('|') + rel; if (seen.has(key) || o.length > 24 || a.length > 24) continue; seen.add(key); pairs.push({ a, b: o, rel }); }
@@ -310,9 +310,9 @@
         // SỬA BTVN: bài tập về nhà của buổi trước (Lên PPT = Có), bỏ dạng không trình chiếu được (thu âm, flashcard, viết tay)
         used.add('btvn'); const A = root.PLS_AUTO;
         const noQ = st.g && /không chiếu câu hỏi/i.test(S(st.g['Lưu ý']) + ' ' + S(st.g['Cách triển khai từng bước']));   // S5 dặn không chiếu câu hỏi BTVN → theo S5
-        const rows = noQ ? [] : tab(s6, /BTVN/).filter(r => isB(r, Number(buoi) - 1) && onPPT(r));
+        const rows = [];   // buổi nào ra buổi đó: không kéo BTVN của buổi khác vào slide (28/10) → theo S5 của buổi này
         const ex = A.exercises(rows, L.check || L.homework, 1);
-        divider(st.name, [mins, ex.groups.length ? `BTVN buổi ${Number(buoi) - 1} · ${ex.next - 1} câu` : noQ ? 'chữa lỗi chung theo thống kê app' : 'không có BTVN trình chiếu'].filter(Boolean).join(' · '));
+        divider(st.name, [mins, noQ ? 'chữa lỗi chung theo thống kê app' : ''].filter(Boolean).join(' · '));
         slides.push(...ex.groups); if (!ex.groups.length) actSteps(st, L.check || L.homework);
         if (ex.keys.length) slides.push(...A.answerSlides(ex.keys, L.answers || L.homework, `Đáp án BTVN buổi ${Number(buoi) - 1}`));
       } else if (/^nghe/.test(n) && !used.has('listen') && root.PLS_AUTO) {
