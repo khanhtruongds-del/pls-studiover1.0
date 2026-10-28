@@ -80,6 +80,10 @@
     rootEl.querySelectorAll('[data-n$="audio_box"]').forEach(b => { const k = b.dataset.n.replace(/_box$/, ''); if (!data[k]) hide(b); });
     // bài nghe: luôn hiện ô audio (biểu tượng tai nghe + tên bài); file âm thanh tích hợp sau
     if (spec.comp === 'Slide/Listening') { const ti = rootEl.querySelector('[data-n="track.icon"]'); if (ti) show(ti, rootEl); }
+    // KHẢI THƯ (Đắc Nhân): mặt chữ Kaiti nhỏ hơn chữ Latin cùng cỡ → chữ Hán thuần trên slide phóng 1,15 lần (28/10); câu Việt chen Hán giữ font Việt
+    if (t.w === 1920 && KAI_BRANDS.includes(brand)) filled.forEach(el => { const tx = el.textContent || ''; if (!CJK.test(tx) || VIET.test(tx)) return;
+      const ff = (el.style.fontFamily || '') + ' ' + ((el.closest('[style*="font-family"]') || {}).style || {}).fontFamily; if (!/native|kai/i.test(ff)) return;
+      const fs = parseFloat(el.style.fontSize) || parseFloat(el.dataset.fs); if (!fs) return; const nf = Math.round(fs * 1.15 * 2) / 2; el.style.fontSize = nf + 'px'; el.dataset.fs = String(nf); });
     applyIcons(host);
     { const hk = (root.PLS_TPL_HOOKS || {})[spec.comp]; if (hk) hk(rootEl, data); }   // mẫu bổ sung (templates-extra.js): xử lý riêng sau khi đổ chữ
     // Pronunciation: hàng ví dụ không kéo cao/kéo dài hết cột – hàng ôm chữ, cột ví dụ rộng theo hàng dài nhất, từ và phiên âm gần nhau, cả cụm giữa dọc
@@ -655,6 +659,7 @@
     },
     latinInNative: ['Đắc Nhân']
   };
+  const KAI_BRANDS = ['Đắc Nhân'];
   const VIET = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
   const CJK_FONT = /Gothic A1|Noto Sans (JP|KR|SC)|Noto Serif (JP|KR|SC)|KaiTi|Kaiti|WenKai|Malgun|Yu Gothic|YaHei|Hiragino|PingFang|Apple SD/i;
   const CJK = /[\u3000-\u30ff\u3400-\u9fff\uac00-\ud7af\u1100-\u11ff\uf900-\ufaff\uff00-\uffef]/;

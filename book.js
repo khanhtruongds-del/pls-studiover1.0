@@ -39,8 +39,8 @@
       const capH = s => /\s/.test(s) ? s.replace(/^[a-zà-ỹđ]/, c => c.toUpperCase()) : s;
       for (const [ck, rs] of pronClusters(pron)) { B('Block/Sub Heading', { text: capH(ck) });
         const subs = new Set(rs.map(r => S(r['Bảng chữ / nhóm âm']))).size > 1;
-        for (const [pi, part] of chunkEven(rs, 6).entries()) { const d = { 'row_0.c1': 'Âm', 'row_0.c2': 'Hướng dẫn phát âm', 'row_0.c3': 'Âm tương tự', 'row_0.c4': 'Ví dụ' };
-          part.forEach((r, i) => { const sub = pronSub(r); d[`row_${i + 1}.c1`] = S(r['Chữ / âm']) + (subs && sub ? '\n(' + sub + ')' : ''); d[`row_${i + 1}.c2`] = S(r['Hướng dẫn phát âm']); d[`row_${i + 1}.c3`] = S(r['Chữ phát âm tương tự']); d[`row_${i + 1}.c4`] = S(r['Ví dụ']).split(/;\s*/).filter(Boolean).join(', '); });
+        for (const [pi, part] of chunkEven(rs, 6).entries()) { const d = { 'row_0.c1': 'Bảng chữ / nhóm âm', 'row_0.c2': 'Âm', 'row_0.c3': 'Hướng dẫn phát âm', 'row_0.c4': 'Âm tương tự', 'row_0.c5': 'Ví dụ' };
+          part.forEach((r, i) => { d[`row_${i + 1}.c1`] = S(r['Bảng chữ / nhóm âm']); d[`row_${i + 1}.c2`] = S(r['Chữ / âm']); d[`row_${i + 1}.c3`] = S(r['Hướng dẫn phát âm']); d[`row_${i + 1}.c4`] = S(r['Chữ phát âm tương tự']); d[`row_${i + 1}.c5`] = S(r['Ví dụ']); });
           B('Block/Table N', d); out[out.length - 1].role = 'pron'; if (pi) out[out.length - 1].cont = true; }
         /* bỏ bài "Đọc to các từ sau" – ví dụ đã nằm trong bảng (người dùng 28/10) */ } };
 
@@ -231,7 +231,7 @@
       el.querySelectorAll('[data-n$="_cell"]').forEach(c => { Object.assign(c.style, { justifyContent: 'flex-start', padding: '5px 8px' }); const t = c.querySelector('[data-text]'); if (t) t.style.textAlign = 'left'; });
       el.querySelectorAll('[data-n^="row_"]').forEach(r => { if (!/^row_\d+$/.test(r.dataset.n)) return; r.style.height = 'auto'; const c1 = r.querySelector('[data-n="c1"]'); if (c1 && r.dataset.n !== 'row_0') c1.style.fontWeight = '600'; });
       // bảng đáp án: cột số câu hẹp, căn giữa, màu brand; giải thích chiếm phần lớn bề ngang
-      const AW = b && { ans3: { c1: 9, c2: 28, c3: 63 }, ans2: { c1: 10, c2: 90 }, ansgrid: { c1: 7, c2: 18, c3: 7, c4: 18, c5: 7, c6: 18, c7: 7, c8: 18 }, self: { c1: 76, c2: 8, c3: 8, c4: 8 }, pron: { c1: 16, c2: 46, c3: 19, c4: 19 }, vocab: { c1: 12, c2: 13, c3: 12, c4: 28, c5: 35 }, speak: { c1: 34, c2: 33, c3: 33 } }[b.role];
+      const AW = b && { ans3: { c1: 9, c2: 28, c3: 63 }, ans2: { c1: 10, c2: 90 }, ansgrid: { c1: 7, c2: 18, c3: 7, c4: 18, c5: 7, c6: 18, c7: 7, c8: 18 }, self: { c1: 76, c2: 8, c3: 8, c4: 8 }, pron: { c1: 15, c2: 9, c3: 40, c4: 18, c5: 18 }, vocab: { c1: 12, c2: 13, c3: 12, c4: 28, c5: 35 }, speak: { c1: 34, c2: 33, c3: 33 } }[b.role];
       if (AW) el.querySelectorAll('[data-n$="_cell"]').forEach(c => { const k = c.dataset.n.replace('_cell', ''); if (!AW[k]) return; c.style.flex = `${AW[k]} 1 0px`;
         const num = AW[k] <= 10 && !/^(pron|speak|vocab)$/.test(b.role); if (num) { c.style.justifyContent = 'center'; c.style.padding = '5px 4px'; const t = c.querySelector('[data-text]'); if (t) { t.style.textAlign = 'center'; t.style.fontWeight = '700'; t.style.color = 'var(--color-primary-ink, var(--color-primary, #406864))'; } }
         else if (b.role === 'ans3' && k === 'c3') { const t = c.querySelector('[data-text]'); if (t) t.style.fontWeight = '400'; } });
