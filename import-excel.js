@@ -260,7 +260,8 @@
         used.add('speak:' + n); used.add('speak'); divider(st.name, mins);
         // timeline có cả bước "Mẫu câu" và bước "Hội thoại" riêng → mỗi bước chỉ lấy đúng loại của mình
         const splitDl = steps.some(x => /hội thoại/i.test(x.name)) && steps.some(x => /mẫu câu|giao tiếp|nói/i.test(x.name) && !/hội thoại/i.test(x.name));
-        const mine = !splitDl ? speak : /hội thoại/.test(n) ? speak.filter(r => /hội thoại/i.test(S(r['Loại']))) : speak.filter(r => !/hội thoại/i.test(S(r['Loại'])));
+        const dlOnly = /hội thoại/.test(n) && !/mẫu câu|giao tiếp|nói/.test(n);   // bước "Hội thoại" chỉ lấy dòng Loại = Hội thoại (người dùng 28/10)
+        const mine = dlOnly ? speak.filter(r => /hội thoại/i.test(S(r['Loại']))) : splitDl ? speak.filter(r => !/hội thoại/i.test(S(r['Loại']))) : speak;
         // THEO ĐÚNG BẢNG S6 (người dùng 28/10): giữ thứ tự dòng; mỗi đoạn liền nhau cùng "Chủ đề / tình huống" + cùng Loại = 1 nhóm, tiêu đề = nguyên văn cột Chủ đề / tình huống (trống → Loại)
         const blocks = []; mine.forEach(r => { const t = S(r['Chủ đề / tình huống']).replace(/^none$/i, ''), lo = S(r['Loại']), dlg = /hội thoại/i.test(lo), last = blocks[blocks.length - 1];
           if (last && last.t === t && last.dlg === dlg && (t || last.lo === lo)) last.rows.push(r); else blocks.push({ t, lo, dlg, rows: [r] }); });
@@ -383,6 +384,7 @@
     }
     slides.push({ comp: 'Slide/End', data: { 'thanks.de': L.thanks, 'thanks.vi': 'Cảm ơn các bạn!' }, notes: NOTE({ g: ['Cảm ơn lớp, nhắc lại bài tập về nhà và hạn nộp.', S(s5row['Dặn dò'])], l: [S(s5row['Lưu ý'])] }) });
     const meta = { level: course['Cấp độ'] || '', no: Number(buoi), sessionType: S(info['Loại buổi']), title: name, course: course['Tên khoá'] || '' };
+    { const nd = speak.filter(r => !/hội thoại/i.test(S(r['Loại']))).length; if (nd && !steps.some(x => /mẫu câu|giao tiếp|nói/i.test(x.name))) warns.push(`S6 có ${nd} dòng Mẫu câu / Luyện đọc / Luyện viết cho buổi ${buoi} nhưng timeline S5 chỉ có bước “Hội thoại” – các dòng này chưa lên slide / sách (thêm bước “Mẫu câu” vào S5 nếu cần).`); }
     // QC 24/10: nội dung S6 của buổi mà timeline S5 không có bước tương ứng → không lên slide; báo rõ thay vì bỏ im lặng
     [['vocab', vocab.length, 'Từ vựng', 'từ'], ['grammar', grammar.length, 'Ngữ pháp', 'điểm'], ['listen', tab(s6, /^S6-Nghe$/).filter(r => isB(r, buoi) && onPPT(r)).length, 'Nghe', 'dòng'], ['read', tab(s6, /^S6-Đọc$/).filter(r => isB(r, buoi) && onPPT(r)).length, 'Đọc', 'dòng']]
       .forEach(([k, n, nm, u]) => { if (n && !used.has(k)) warns.push(`S6 có ${n} ${u} ${nm} cho buổi ${buoi} nhưng timeline S5 không có bước “${nm}” – phần này chưa lên slide (thêm bước vào timeline hoặc đặt Lên PPT = Không).`); });

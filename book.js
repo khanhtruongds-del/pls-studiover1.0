@@ -64,8 +64,8 @@
       if (gqs.length) { B('Block/Sub Heading', { text: 'Luyện tập' }); out[out.length - 1].role = 'practice'; exercises(gqs, ''); }   // bài tập tách khỏi điểm ngữ pháp cuối, có tiêu đề riêng
     };
 
-    const speak = tab(s6, /Mẫu câu/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Câu']));
-    const F_speak = T => { if (!speak.length) return; SEC(T || 'Mẫu câu giao tiếp'); 
+    const speak0 = tab(s6, /Mẫu câu/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Câu']));
+    const F_speak = (T, only) => { const speak = only ? speak0.filter(only) : speak0; if (!speak.length) return; SEC(T || 'Mẫu câu giao tiếp'); 
       // THEO ĐÚNG BẢNG S6 (người dùng 28/10): giữ thứ tự dòng; đoạn liền nhau cùng "Chủ đề / tình huống" (+ Loại khi trống) = 1 bảng, tiêu đề nguyên văn
       const blks = []; speak.forEach(r => { const t = S(r['Chủ đề / tình huống']).replace(/^none$/i, ''), lo = S(r['Loại']), l = blks[blks.length - 1]; if (l && l.t === t && (t || l.lo === lo)) l.rows.push(r); else blks.push({ t, lo, rows: [r] }); });
       for (const bl of blks) { B('Block/Sub Heading', { text: bl.t || bl.lo || 'Mẫu câu' });
@@ -108,8 +108,10 @@
       steps = steps.filter(n => !/dặn dò/i.test(n));
       { const RANK = n => /cttt|khai giảng/i.test(n) ? 0 : /từ vựng/i.test(n) ? 1 : /hán tự/i.test(n) ? 2 : /bảng chữ/i.test(n) ? 3 : /phát âm/i.test(n) ? 4 : /mẫu câu|giao tiếp|hội thoại|nói/i.test(n) ? 5 : null;   // cùng thứ tự chốt với slide (28/10)
         const slots = steps.map((x, i) => RANK(x) != null ? i : -1).filter(i => i >= 0), ranked = slots.map(i => steps[i]).sort((a, b) => RANK(a) - RANK(b)); slots.forEach((i, k) => { steps[i] = ranked[k]; }); }
-      const KIND = n => /phát âm|bảng chữ/i.test(n) ? 'pron' : /hán tự/i.test(n) ? 'hanzi' : /từ vựng/i.test(n) ? 'vocab' : /ngữ pháp/i.test(n) ? 'grammar' : /mẫu câu|giao tiếp|hội thoại|nói/i.test(n) ? 'speak' : /^nghe/i.test(n) ? 'listen' : /^đọc/i.test(n) ? 'read' : /văn hó?a|văn hoá/i.test(n) ? 'culture' : null;
-      const F = { culture: F_culture, pron: F_pron, hanzi: F_hanzi, vocab: F_vocab, grammar: F_grammar, speak: F_speak, listen: F_listen, read: F_read }, done = new Set();
+      const KIND = n => /phát âm|bảng chữ/i.test(n) ? 'pron' : /hán tự/i.test(n) ? 'hanzi' : /từ vựng/i.test(n) ? 'vocab' : /ngữ pháp/i.test(n) ? 'grammar' : /mẫu câu|giao tiếp|nói/i.test(n) ? 'speak' : /hội thoại/i.test(n) ? 'dlg' : /^nghe/i.test(n) ? 'listen' : /^đọc/i.test(n) ? 'read' : /văn hó?a|văn hoá/i.test(n) ? 'culture' : null;
+      const isDl = r => /hội thoại/i.test(S(r['Loại'])), hasDl = steps.some(n => KIND(n) === 'dlg');
+      // bước "Hội thoại" chỉ in dòng Loại = Hội thoại; bước Mẫu câu / Nói in phần còn lại (nếu S5 có bước Hội thoại riêng) – người dùng 28/10
+      const F = { culture: F_culture, pron: F_pron, hanzi: F_hanzi, vocab: F_vocab, grammar: F_grammar, speak: T => F_speak(T, hasDl ? r => !isDl(r) : null), dlg: T => F_speak(T, isDl), listen: F_listen, read: F_read }, done = new Set();
       const nice = n => { const t = n.replace(/\s*\d+\s*PHÚT\b/i, '').replace(/\s*\n.*$/, '').trim().toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1); };
       for (const n of steps) { const k = KIND(n); if (k && !done.has(k)) { done.add(k); F[k](nice(n)); } }
       if (!steps.length) for (const k of ['pron', 'hanzi', 'vocab', 'grammar', 'speak', 'listen', 'read']) F[k]();   // không có S5 → in đủ phần S6 như cũ
