@@ -42,8 +42,7 @@
         for (const [pi, part] of chunkEven(rs, 6).entries()) { const d = { 'row_0.c1': 'Âm', 'row_0.c2': 'Hướng dẫn phát âm', 'row_0.c3': 'Âm tương tự', 'row_0.c4': 'Ví dụ' };
           part.forEach((r, i) => { const sub = pronSub(r); d[`row_${i + 1}.c1`] = S(r['Chữ / âm']) + (subs && sub ? '\n(' + sub + ')' : ''); d[`row_${i + 1}.c2`] = S(r['Hướng dẫn phát âm']); d[`row_${i + 1}.c3`] = S(r['Chữ phát âm tương tự']); d[`row_${i + 1}.c4`] = S(r['Ví dụ']).split(/;\s*/).filter(Boolean).join(', '); });
           B('Block/Table N', d); out[out.length - 1].role = 'pron'; if (pi) out[out.length - 1].cont = true; }
-        const exs = rs.flatMap(r => { const x = S(r['Ví dụ']); return x.split(x.includes(';') ? /;\s*/ : /,\s*/).filter(Boolean); }).filter((x, i, a) => a.indexOf(x) === i);
-        for (const part of chunkEven(exs, 12)) { const d = { no: 'Bài ' + ex(), instruction: 'Đọc to các từ sau.', 'head.track': '', 'head.ab': '' }; part.forEach((x, i) => { const m = x.match(/^(.*?)\s*\(([^)]*)\)\s*$/); d[`ex_${i + 1}.word`] = m ? m[1] : x; d[`ex_${i + 1}.vi`] = m ? '/' + m[2] + '/' : ''; }); for (let i = part.length; i < 12; i++) { d[`ex_${i + 1}.word`] = ''; d[`ex_${i + 1}.vi`] = ''; } B('Block/Pronunciation', d); } } };
+        /* bỏ bài "Đọc to các từ sau" – ví dụ đã nằm trong bảng (người dùng 28/10) */ } };
 
     const vocab = tab(s6, /Từ vựng$/).filter(r => isB(r, buoi) && onPDF(r) && S(r['Từ']));
     const F_vocab = T => { if (!vocab.length) return; SEC(T || 'Từ vựng'); 
