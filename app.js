@@ -622,13 +622,13 @@
           const ta = document.createElement('textarea'); ta.className = 'prompt'; ta.value = ((state.imgOv[ok] || {})[dk]) || pk.prompt; ta.setAttribute('aria-label', 'Prompt tạo ảnh');
           ta.oninput = () => { const o = (state.imgOv[ok] = state.imgOv[ok] || {}); const v = ta.value; if (v.trim() && v !== pk.prompt) o[dk] = v; else delete o[dk]; };
           const LA = window.PLS_LOCAL_AI, extra = [];
-          if (LA && LA.cfg().model) {   // AI chạy trên máy người dùng (Ollama / LM Studio) – miễn phí; soạn lại dòng "Cảnh:" trong prompt
-            const ai = document.createElement('button'); ai.type = 'button'; ai.className = 'btn'; ai.textContent = 'Soạn cảnh bằng AI cục bộ';
+          if (LA && LA.cfg().on && (!LA.state.at || LA.state.slide)) {   // AI trên máy (Ollama, model Slide – mặc định pls-tools) – miễn phí; soạn lại dòng "Cảnh:" trong prompt
+            const ai = document.createElement('button'); ai.type = 'button'; ai.className = 'btn'; ai.textContent = 'Soạn cảnh bằng AI trên máy';
             ai.onclick = async () => { ai.disabled = true; ai.textContent = 'Đang soạn…';
-              try { const t = await LA.chat([{ role: 'user', content: `Viết 1–2 câu tiếng Việt mô tả CỤ THỂ một bức tranh minh hoạ cho từ vựng dạy ngoại ngữ, để hoạ sĩ vẽ: ai/cái gì, đang làm gì, ở đâu, đồ vật nào. Không chữ trong tranh. Chỉ trả về đoạn mô tả.\nTừ: ${ctx.term || ''} ${ctx.ipa || ''}\nNghĩa: ${w0}\n${ctx.ex ? 'Câu ví dụ: ' + ctx.ex + '\n' : ''}Chủ đề: ${ctx.title || state.spec.lesson || ''}` }], { maxTokens: 200 });
+              try { const t = (await LA.ask('slide', [{ role: 'user', content: `Viết 1–2 câu tiếng Việt mô tả CỤ THỂ một bức tranh minh hoạ cho từ vựng dạy ngoại ngữ, để hoạ sĩ vẽ: ai/cái gì, đang làm gì, ở đâu, đồ vật nào. Không chữ trong tranh. Chỉ trả về đoạn mô tả.\nTừ: ${ctx.term || ''} ${ctx.ipa || ''}\nNghĩa: ${w0}\n${ctx.ex ? 'Câu ví dụ: ' + ctx.ex + '\n' : ''}Chủ đề: ${ctx.title || state.spec.lesson || ''}` }], { maxTokens: 200 })).text;
                 const line = '- Cảnh: ' + String(t).trim().replace(/\s*\n+\s*/g, ' ');
-                ta.value = /^- Cảnh:.*$/m.test(ta.value) ? ta.value.replace(/^- Cảnh:.*$/m, line) : line + '\n' + ta.value; ta.oninput(); ai.textContent = 'Soạn lại cảnh bằng AI cục bộ'; }
-              catch (e) { ai.textContent = 'Lỗi AI cục bộ: ' + e.message; } ai.disabled = false; };
+                ta.value = /^- Cảnh:.*$/m.test(ta.value) ? ta.value.replace(/^- Cảnh:.*$/m, line) : line + '\n' + ta.value; ta.oninput(); ai.textContent = 'Soạn lại cảnh bằng AI trên máy'; }
+              catch (e) { ai.textContent = 'Lỗi AI trên máy: ' + e.message; } ai.disabled = false; };
             extra.push(ai);
           }
           const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'btn'; cp.textContent = 'Sao chép prompt';

@@ -42,6 +42,7 @@
         'ĐIỀU HƯỚNG  PLS.select(n) cho người dùng thấy slide đang sửa',
         'YÊU CẦU  PLS.inbox() việc người dùng nhờ · PLS.reply(id,"đã sửa…") trả lời + đóng việc',
         'XUẤT  PLS.exportPptx(device?) tải file .pptx (hỏi người dùng trước khi tải)',
+        'AI TRÊN MÁY  await PLS.localFix(n,"yêu cầu") – model Slide (Ollama) sửa slide n bằng set/choose',
         'KHÁC  PLS.undo() · PLS.journal() nhật ký thao tác'
       ].join('\n');
     },
@@ -67,6 +68,26 @@
     journal() { return store.log.slice(-30).map(x => `${x.t} ${x.cmd} ${x.args}`).join('\n'); },
     inbox() { const open = store.notes.filter(x => !x.done); return open.length ? open.map(x => ({ id: x.id, slide: slideNo(x.key) || null, comp: x.comp, note: x.text, at: x.at })) : 'Không có việc nào'; },
     reply(id, msg) { const x = store.notes.find(n => n.id === id); if (!x) throw new Error('Không có việc ' + id); x.done = true; x.reply = String(msg || 'Đã xử lý'); save(); log('reply', [id, msg]); return 'Đã trả lời việc ' + id; },
+    // AI TRÊN MÁY sửa slide (người dùng chốt 28/10): model Slide (mặc định pls-tools) đọc dữ liệu slide + yêu cầu → trả danh sách lệnh;
+    // trang chỉ cho chạy 2 lệnh an toàn (set ô có sẵn, choose phương án có sẵn), chụp trạng thái trước để PLS.undo() được.
+    async localFix(n, text) {
+      const LA = root.PLS_LOCAL_AI; if (!LA) throw new Error('Thiếu pls-local-ai.js – tải lại trang');
+      if (!(await LA.ready('slide'))) throw new Error('AI trên máy chưa sẵn sàng – bấm nút "AI trên máy" ở góc dưới để kiểm tra kết nối');
+      const r = S.slides[n - 1]; if (!r) throw new Error('Không có slide ' + n);
+      const info = P.slide(n), slots = Object.keys(info.data), plans = (r.plans || []).map(p => p.label);
+      const sys = 'Bạn là công cụ sửa slide bài giảng ngoại ngữ của PLS Studio. Bạn chỉ có 2 lệnh:\n' +
+        '{"cmd":"set","slot":"<tên ô, đúng một khoá trong data>","text":"<chữ mới cho cả ô>"}\n' + (plans.length ? '{"cmd":"choose","plan":"<đúng một tên trong: ' + plans.join(' | ') + '>"}\n' : '') +
+        'Trả về đúng MỘT JSON: {"actions":[…],"reply":"<1 câu tiếng Việt nói đã sửa gì>"}. Chỉ sửa ô liên quan yêu cầu, giữ nguyên định dạng (xuống dòng, dấu, ký hiệu) của ô; ngôn ngữ đích đúng chính tả và đúng trình độ. Yêu cầu không làm được bằng các lệnh trên thì "actions":[] và giải thích trong reply.';
+      const user = 'SLIDE ' + n + ' (' + info.comp + '):\n' + JSON.stringify({ data: info.data, issues: info.issues, plans: info.plans }) + '\n\nYÊU CẦU: ' + String(text || 'Sửa các lỗi đỏ và vàng của slide này');
+      const out = await LA.ask('slide', [{ role: 'system', content: sys }, { role: 'user', content: user }], { json: true, maxTokens: 1500 });
+      let d; try { d = JSON.parse(out.text); } catch (e) { throw new Error('AI trên máy trả về không đúng dạng – thử lại hoặc gửi Claude'); }
+      const acts = (Array.isArray(d.actions) ? d.actions : []).filter(a => a && ((a.cmd === 'set' && slots.includes(a.slot) && typeof a.text === 'string') || (a.cmd === 'choose' && plans.includes(a.plan))));
+      const skipped = (Array.isArray(d.actions) ? d.actions.length : 0) - acts.length;
+      if (acts.length) { snap(); log('AI trên máy sửa', [n]);
+        for (const a of acts) { if (a.cmd === 'set') I.setSlot(r, a.slot, a.text); else S.choice[r.src] = a.plan; }
+        await I.build(); }
+      return { slide: n, model: out.model, applied: acts.length, skipped, reply: String(d.reply || (acts.length ? 'Đã sửa ' + acts.length + ' chỗ' : 'Không sửa gì')) + (skipped ? ` (bỏ ${skipped} lệnh không hợp lệ)` : ''), actions: acts };
+    },
     async loadDrive(idS6, idS5, buoi) {
       const key = (root.PLS_CONFIG || {}).driveKey; if (!key) throw new Error('Chưa có key Drive (config.js)'); if (!root.XLSX) throw new Error('Chưa tải thư viện đọc Excel');
       const get = async id => { const res = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media&key=' + encodeURIComponent(key)); if (!res.ok) throw new Error('Drive ' + res.status + ' – file phải chia sẻ "Bất kỳ ai có đường liên kết"'); return root.PLS_IMPORT.readWorkbook(root.XLSX.read(await res.arrayBuffer(), { type: 'array' }), root.XLSX); };
@@ -83,9 +104,13 @@
     box.innerHTML = `<p class="muted">Claude điều khiển trang này từ khung chat (thay PLS Bridge của Figma). Mở Claude, bật tiện ích <b>Claude in Chrome</b> rồi nhắn ví dụ: <i>"Mở tab PLS Studio, soát bài và sửa các lỗi đỏ"</i>. Mở file từ máy (file://) thì bật "Cho phép truy cập URL tệp" trong chi tiết tiện ích.</p>
       <h3 style="margin:12px 0 4px;font-size:14px">Nhờ Claude sửa slide ${n}${r ? ' · ' + esc(r.host.dataset.comp.replace('Slide/', '')) : ''}</h3>
       <textarea id="claudeNote" rows="3" style="height:88px;min-height:0;flex:none;width:100%;box-sizing:border-box" aria-label="Việc nhờ Claude" placeholder="VD: đổi ví dụ 2 cho dễ hơn, tiêu đề ngắn lại"></textarea>
-      <button type="button" class="primary" id="claudeSend">Gửi cho Claude</button>
-      <p class="muted" style="font-size:12px">Sau khi gửi, nhắn Claude: <i>"xem việc trong PLS Studio"</i>.</p>`;
+      <button type="button" class="primary" id="claudeSend">Gửi cho Claude</button> <button type="button" id="localFix">Sửa ngay bằng AI trên máy</button>
+      <p class="muted" style="font-size:12px" id="localFixMsg">Sau khi gửi, nhắn Claude: <i>"xem việc trong PLS Studio"</i>. Hoặc bấm <b>Sửa ngay bằng AI trên máy</b> (Ollama, không cần Claude; để trống ô thì sửa lỗi đỏ/vàng; PLS.undo() để hoàn tác).</p>`;
     p.appendChild(box);
+    box.querySelector('#localFix').onclick = async e => { const btn = e.currentTarget, ta = box.querySelector('#claudeNote'), msg = box.querySelector('#localFixMsg'), t = ta.value.trim(); if (!r) return;
+      btn.disabled = true; btn.textContent = 'AI trên máy đang sửa…';
+      try { const res = await P.localFix(n, t); store.notes.push({ id: 'v' + Date.now().toString(36), key: keyOf(r), comp: r.host.dataset.comp, text: t || 'Sửa lỗi đỏ/vàng', at: new Date().toLocaleString('vi-VN'), done: true, reply: 'AI trên máy (' + res.model + '): ' + res.reply }); save(); ta.value = ''; I.redraw(); }
+      catch (err) { btn.disabled = false; btn.textContent = 'Sửa ngay bằng AI trên máy'; msg.textContent = 'Lỗi: ' + err.message; } };
     box.querySelector('#claudeSend').onclick = () => { const ta = box.querySelector('#claudeNote'); const t = ta.value.trim(); if (!t || !r) return; store.notes.push({ id: 'v' + Date.now().toString(36), key: keyOf(r), comp: r.host.dataset.comp, text: t, at: new Date().toLocaleString('vi-VN') }); save(); ta.value = ''; I.redraw(); };
     const notes = store.notes.slice(-12).reverse();
     if (notes.length) { const ul = document.createElement('ul'); ul.style.cssText = 'list-style:none;padding:0;margin:8px 0'; ul.innerHTML = notes.map(x => `<li style="padding:6px 0;border-bottom:1px solid var(--line,#ddd)"><b>${x.done ? '✓' : '•'} Slide ${slideNo(x.key) || '?'}</b> ${esc(x.text)}${x.reply ? `<br><span class="muted">Claude: ${esc(x.reply)}</span>` : ''}</li>`).join(''); const h = document.createElement('h3'); h.style.cssText = 'margin:12px 0 4px;font-size:14px'; h.textContent = 'Việc đã nhờ'; p.append(h, ul); }
