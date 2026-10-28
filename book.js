@@ -101,7 +101,8 @@
     const hw = tab(s6, /BTVN/).filter(r => isB(r, buoi) && onPDF(r));
     if (hw.length) { SEC('Bài tập về nhà'); exercises(hw, ''); }
     // TỰ ĐÁNH GIÁ cuối bài (như Cambridge "Review your progress"): mỗi mục tiêu khoanh 3 / 2 / 1
-    if (objs.length >= 2) { SEC('Tự đánh giá'); const d = { 'row_0.c1': 'Sau bài học, mình có thể…', 'row_0.c2': '3', 'row_0.c3': '2', 'row_0.c4': '1' };
+    const hasS5 = (() => { const gb = s5 || {}, gk = Object.keys(gb).find(k => /Hướng dẫn giảng dạy/.test(k)); return !!(gk && gb[gk].some(r => isB(r, buoi))); })();
+    if (objs.length >= 2 && !hasS5) { SEC('Tự đánh giá');   // có S5: không thêm mục tự sinh ngoài Excel (người dùng 28/10) const d = { 'row_0.c1': 'Sau bài học, mình có thể…', 'row_0.c2': '3', 'row_0.c3': '2', 'row_0.c4': '1' };
       objs.forEach((t, i) => { d[`row_${i + 1}.c1`] = t.replace(/^học viên\s+(sẽ\s+)?/i, '').replace(/^./, c => c.toUpperCase()); d[`row_${i + 1}.c2`] = '○'; d[`row_${i + 1}.c3`] = '○'; d[`row_${i + 1}.c4`] = '○'; });
       B('Block/Table N', d); out[out.length - 1].role = 'self';
       B('Block/Paragraph', { text: '3 = làm tốt · 2 = tạm được · 1 = cần ôn thêm. Mục nào chọn 1: xem lại phần đó trong sách trước buổi sau.' }); }

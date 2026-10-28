@@ -367,10 +367,7 @@
         const ACT = root.PLS_ACT;
         if (hz.length && ACT) {
           slides.push(...ACT.plan('vocab', { title: st.name.replace(/\s*\d+\s*phút/i, ''), instruction: 'Nhìn chữ – đọc to – đoán nghĩa', items: hz.map(r => ({ de: S(r['Hán tự']), ipa: S(r['Âm đọc']), vi: S(r['Nghĩa']) })) }, ['guess'], { section: L.pron || L.vocab }).map(x => Object.assign(x, { divider: false, time: T })));
-          const byR = {}; hz.forEach(r => { const k = S(r['Bộ thủ']).split(/\s+/)[0]; if (k) (byR[k] = byR[k] || []).push(r); });
-          const [rad, rs] = Object.entries(byR).sort((a, b) => b[1].length - a[1].length)[0] || [];
-          if (rs && rs.length >= 2) { const others = hz.filter(r => !rs.includes(r)).slice(0, Math.max(0, 8 - rs.length));
-            slides.push(...ACT.plan('hanzi', { radical: rad, name: S(rs[0]['Bộ thủ']).replace(rad, '').trim(), chars: rs.slice(0, 8).map(r => ({ char: S(r['Hán tự']), py: S(r['Âm đọc']), ok: 1 })).concat(others.map(r => ({ char: S(r['Hán tự']), py: S(r['Âm đọc']) }))) }, ['radical'], { section: L.pron || L.vocab }).map(x => Object.assign(x, { divider: false }))); }
+          // (bỏ hoạt động "Tìm bạn cho bộ thủ" tự sinh – người dùng 28/10: chỉ đúng nội dung Excel)
         }
       } else if (/phản xạ/.test(n) && !used.has('reflex')) {
         // PHẢN XẠ PINYIN: âm tiết trong "Cách triển khai" của S5 (vd bā, pó, mǐ…) → bảng khoanh đọc nhanh; không có thì lấy ví dụ phát âm các buổi trước
@@ -381,13 +378,13 @@
         const SYL = /^(zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?(iang|iong|uang|ueng|ang|eng|ing|ong|ian|iao|uai|uan|üan|ai|ei|ao|ou|an|en|in|un|ün|ia|ie|iu|ua|uo|ui|üe|ue|er|a|o|e|i|u|ü)(r)?$/;
         const isPy = w => TONE.test(w) && !/[đơưăâêôạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i.test(w) && (SYL.test(plain(w)) || /^[a-zü]+$/.test(plain(w)) && plain(w).length >= 4 && plain(w).split(/(?=(?:zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])[aeiouü])/).filter(Boolean).every(x => SYL.test(x)));
         let cells = [...new Set(S(st.g && st.g['Cách triển khai từng bước']).split(/[^A-Za-zÀ-ɏüÜ]+/).filter(w => w.length <= 8 && isPy(w)))];
-        if (cells.length < 6) cells = [...new Set(tab(s6, /Phát âm/).filter(r => Number(r['Buổi']) <= Number(buoi)).flatMap(r => S(r['Ví dụ']).split(/[;,]\s*/)).map(x => x.replace(/\(.*?\)/g, '').trim()).filter(w => !/\s/.test(w) && isPy(w)))].slice(-24);
+        // chỉ dùng âm tiết ghi trong S5 của bước này (không kéo âm của buổi khác); không có → slide các bước S5
+        if (!cells.length) actSteps(st, L.pron || L.vocab);
         if (cells.length && root.PLS_ACT) slides.push(...root.PLS_ACT.plan('pinyin', { cells: cells.slice(0, 48), title: st.name }, ['grid'], { section: L.pron || L.vocab }).map(x => Object.assign(x, { divider: false, time: T })));
       } else if (/ôn tập|ôn trước/.test(n) && !used.has('review:' + n)) {
         // ÔN TẬP BÀI CŨ: từ vựng 2 buổi trước → đoán nghĩa (4 thẻ/slide)
         used.add('review:' + n); divider(st.name, mins);
-        const old = tab(s6, /Từ vựng$/).filter(r => Number(r['Buổi']) < Number(buoi) && Number(r['Buổi']) >= Number(buoi) - 2 && onPPT(r) && S(r['Từ']) && !/^nâng cao$/i.test(S(r['Nhóm'])));
-        if (old.length && root.PLS_ACT) slides.push(...root.PLS_ACT.plan('vocab', { title: 'Ôn tập bài cũ', instruction: 'Đọc nhanh và nói nghĩa', items: old.slice(0, 12).map(r => ({ de: S(r['Từ']), ipa: S(r['Phiên âm / cách đọc']), vi: S(r['Nghĩa']) })) }, ['guess'], { section: L.vocab }).map(x => Object.assign(x, { divider: false, time: T })));
+        actSteps(st, L.vocab);   // ÔN TẬP: đúng các bước ghi trong S5 (không tự kéo từ vựng buổi trước – người dùng 28/10)
       } else if (/văn hó?a|văn hoá/.test(n) && !used.has('culture')) {
         used.add('culture'); divider(st.name, mins);
         const cu = extra.filter(r => /văn hó?a|văn hoá/i.test(S(r['Loại']))); (cu.length ? cu : extra).slice(0, 4).forEach(x => slides.push({ comp: 'Slide/Key Point', data: sec(L.extra || L.speak, { title: S(x['Loại']) || 'Văn hoá', point: S(x['Tiêu đề']), note: S(x['Nội dung']) }), notes: NOTE({ g: [S(x['Tiêu đề']), S(x['Nội dung'])], l: [S(x['Nguồn']) ? 'Nguồn: ' + S(x['Nguồn']) : ''] }) }));
