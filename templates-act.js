@@ -100,6 +100,17 @@
     div('ans', `flex:0 0 auto;align-self:flex-start;display:flex;flex-direction:row;align-items:center;gap:14px;padding:12px 28px;border-radius:999px;background-color:${C.fill}`,
       txt('label', 'bold', 30, C.inv, 'Thứ tự đúng:', false) + txt('order', 'bold', 34, C.inv, 'D – A – E – B – C', false)), 'gap:22px');
 
+  // 9) CÁC BƯỚC HOẠT ĐỘNG (từ S5 "Hướng dẫn giảng dạy"): mục tiêu + tối đa 5 bước (tên, phút, ý chính) – cho bước không có nội dung S6 (CTTT, HD App, Sửa BTVN…)
+  build('Slide/Activity Steps',
+    div('goal_box', `flex:0 0 auto;align-self:stretch;display:flex;flex-direction:row;gap:20px;align-items:flex-start;padding:22px 32px;border-radius:16px;background-color:${C.soft}`,
+      txt('goal.label', 'bold', 30, C.ink, 'Mục tiêu', false) + txt('goal', 'body', 30, C.text, 'Học viên làm quen nhau, nắm mục tiêu và lộ trình khoá.', true, 'flex:1 1 0px')) +
+    div('steps', 'flex:1 1 0px;min-height:0;align-self:stretch;display:flex;flex-direction:column;gap:18px;justify-content:flex-start;align-items:stretch',
+      range(5).map(i => div(`st_${i}`, `flex:0 0 auto;display:flex;flex-direction:row;gap:22px;align-items:flex-start;padding:14px 24px;border-radius:14px;box-shadow:inset 0 0 0 1.5px ${C.border};background-color:${C.white}`,
+        circle('no_box', 52, C.fill, C.inv, String(i)) +
+        div('body', 'flex:1 1 0px;min-width:0;display:flex;flex-direction:column;gap:4px;align-items:flex-start',
+          div('head', 'flex:0 0 auto;display:flex;flex-direction:row;gap:14px;align-items:center', txt('name', 'bold', 34, C.text, 'Làm quen', true) + div('min_box', `flex:0 0 auto;display:flex;flex-direction:row;align-items:center;padding:4px 14px;border-radius:999px;background-color:${C.soft}`, txt('min', 'bold', 24, C.ink, '8 phút', false))) +
+          txt('text', 'body', 28, C.muted, 'GV chào, tự giới thiệu ngắn; mỗi HV nói 1–2 câu.', true)))).join('')), 'gap:22px');
+
   root.PLS_TPL_HOOKS = root.PLS_TPL_HOOKS || {};
   // Đặt câu với từ: không có câu mẫu → bỏ khung đáp án, ô từ chiếm giữa
   root.PLS_TPL_HOOKS['Slide/Word Sentence'] = function (rootEl, data) { if (!String(data.de || '').trim()) { const a = rootEl.querySelector('[data-n="ans"]'); if (a) a.style.display = 'none'; const w = rootEl.querySelector('[data-n="word_box"]'); if (w) w.style.flex = '0 0 60%'; const c = rootEl.querySelector('[data-n="columns"]'); if (c) c.style.justifyContent = 'center'; } };

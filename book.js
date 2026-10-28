@@ -95,7 +95,8 @@
       const F = { culture: F_culture, pron: F_pron, hanzi: F_hanzi, vocab: F_vocab, grammar: F_grammar, speak: F_speak, listen: F_listen, read: F_read }, done = new Set();
       const nice = n => { const t = n.replace(/\s*\d+\s*PHÚT\b/i, '').replace(/\s*\n.*$/, '').trim().toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1); };
       for (const n of steps) { const k = KIND(n); if (k && !done.has(k)) { done.add(k); F[k](nice(n)); } }
-      for (const k of ['pron', 'hanzi', 'vocab', 'grammar', 'speak', 'listen', 'read']) if (!done.has(k)) F[k]();   // phần S6 có mà S5 không nhắc → giữ sau, không bỏ mất
+      if (!steps.length) for (const k of ['pron', 'hanzi', 'vocab', 'grammar', 'speak', 'listen', 'read']) F[k]();   // không có S5 → in đủ phần S6 như cũ
+      // có S5: CHỈ in các phần có bước trong S5 (người dùng 28/10: nội dung phải khớp S5 + S6, không thêm phần S5 không có)
     }
     const hw = tab(s6, /BTVN/).filter(r => isB(r, buoi) && onPDF(r));
     if (hw.length) { SEC('Bài tập về nhà'); exercises(hw, ''); }

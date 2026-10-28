@@ -110,6 +110,18 @@
     const extra = tab(s6, /Ngoài kiến thức/).filter(r => isB(r, buoi) && onPPT(r));
     let curG = null;   // dòng "Hướng dẫn giảng dạy" (S5) của bước đang dựng → ghi chú giảng của slide chuyển mục
     const gNote = (g, t) => g ? { t, g: [S(g['Mục tiêu']) ? 'Mục tiêu: ' + S(g['Mục tiêu']) : '', ...S(g['Cách triển khai từng bước']).split(/\n+|(?<=\.)\s+(?=\d+\.\s)/).map(S).filter(Boolean)], l: [S(g['GV chuẩn bị trước']) ? 'Chuẩn bị: ' + S(g['GV chuẩn bị trước']) : '', S(g['Sai lầm hay gặp']) ? 'Sai lầm hay gặp: ' + S(g['Sai lầm hay gặp']) : '', S(g['Lưu ý'])] } : null;
+    // NỘI DUNG THEO S5 cho bước không có dữ liệu S6: "1. Làm quen (8'): …  2. …" → slide Các bước hoạt động (tên bước, phút, ý chính)
+    const actSteps = (st, label) => { const g = st.g; if (!g || !(root.PLS_TPL && root.PLS_TPL.slides['Slide/Activity Steps'])) return false;
+      const raw = S(g['Cách triển khai từng bước']); if (!raw) return false;
+      const parts = raw.split(/(?:^|\n|\s)(?=\d+\.\s)/).map(S).filter(x => /^\d+\.\s/.test(x));
+      const items = parts.map(x => { x = x.replace(/^\d+\.\s*/, ''); const m = x.match(/^(.{2,60}?)\s*\((\d+)['’]?\)\s*:\s*([\s\S]*)$/) || x.match(/^(.{2,60}?)\s*:\s*([\s\S]*)$/);
+        let name = m ? m[1] : '', min = m && m.length === 4 ? m[2] : '', text = m ? m[m.length - 1] : x; if (!min) { const mm = text.match(/\((\d+)['’]\)\s*\.?\s*$/); if (mm) { min = mm[1]; text = text.replace(mm[0], ''); } }
+        const first = (text.split(/(?<=[.;])\s+/)[0] || text).trim().replace(/[;,:]\s*$/, ''); return { name: name || first.slice(0, 50), min, text: name ? (first.length > 150 ? first.slice(0, 147).replace(/\s+\S*$/, '') + '…' : first) : '' }; });
+      if (!items.length) return false;
+      for (const [ci, part] of chunk(items, 5).entries()) { const d = { title: st.name + (ci ? ` (${ci + 1})` : ''), 'goal.label': 'Mục tiêu', goal: ci ? '' : S(g['Mục tiêu']) };
+        part.forEach((x, k) => { d[`st_${k + 1}.no_box.no`] = String(ci * 5 + k + 1); d[`st_${k + 1}.name`] = x.name; d[`st_${k + 1}.min`] = x.min ? x.min + ' phút' : ''; d[`st_${k + 1}.text`] = x.text; });
+        slides.push({ comp: 'Slide/Activity Steps', data: sec(label || L.overview, d), notes: NOTE(Object.assign({ t: st.min != null ? st.min + ' phút' : '' }, gNote(g) || {})) }); }
+      return true; };
     const divider = (title, sub, nt) => slides.push({ comp: 'Slide/Section', data: { 'section.title': title, 'section.sub': sub || '' }, notes: NOTE(Object.assign({ g: [`Chuyển sang phần: ${title}.`] }, gNote(curG) || {}, nt || {})) });
     const used = new Set(); let state_testAns = null;
     const T5 = (re) => { const b = s5 || {}; const k = Object.keys(b).find(n => re.test(n)); return k ? b[k] : []; };
@@ -291,10 +303,11 @@
       } else if (/sửa btvn/.test(n) && !used.has('btvn') && root.PLS_AUTO) {
         // SỬA BTVN: bài tập về nhà của buổi trước (Lên PPT = Có), bỏ dạng không trình chiếu được (thu âm, flashcard, viết tay)
         used.add('btvn'); const A = root.PLS_AUTO;
-        const rows = tab(s6, /BTVN/).filter(r => isB(r, Number(buoi) - 1) && onPPT(r));
+        const noQ = st.g && /không chiếu câu hỏi/i.test(S(st.g['Lưu ý']) + ' ' + S(st.g['Cách triển khai từng bước']));   // S5 dặn không chiếu câu hỏi BTVN → theo S5
+        const rows = noQ ? [] : tab(s6, /BTVN/).filter(r => isB(r, Number(buoi) - 1) && onPPT(r));
         const ex = A.exercises(rows, L.check || L.homework, 1);
-        divider(st.name, [mins, ex.groups.length ? `BTVN buổi ${Number(buoi) - 1} · ${ex.next - 1} câu` : 'không có BTVN trình chiếu'].filter(Boolean).join(' · '));
-        slides.push(...ex.groups);
+        divider(st.name, [mins, ex.groups.length ? `BTVN buổi ${Number(buoi) - 1} · ${ex.next - 1} câu` : noQ ? 'chữa lỗi chung theo thống kê app' : 'không có BTVN trình chiếu'].filter(Boolean).join(' · '));
+        slides.push(...ex.groups); if (!ex.groups.length) actSteps(st, L.check || L.homework);
         if (ex.keys.length) slides.push(...A.answerSlides(ex.keys, L.answers || L.homework, `Đáp án BTVN buổi ${Number(buoi) - 1}`));
       } else if (/^nghe/.test(n) && !used.has('listen') && root.PLS_AUTO) {
         // NGHE: mỗi bài (Mã bài) → câu hỏi trước khi nghe (Listening) + trắc nghiệm + lời bài (hội thoại); đáp án cuối mục
@@ -380,6 +393,7 @@
         const cu = extra.filter(r => /văn hó?a|văn hoá/i.test(S(r['Loại']))); (cu.length ? cu : extra).slice(0, 4).forEach(x => slides.push({ comp: 'Slide/Key Point', data: sec(L.extra || L.speak, { title: S(x['Loại']) || 'Văn hoá', point: S(x['Tiêu đề']), note: S(x['Nội dung']) }), notes: NOTE({ g: [S(x['Tiêu đề']), S(x['Nội dung'])], l: [S(x['Nguồn']) ? 'Nguồn: ' + S(x['Nguồn']) : ''] }) }));
       } else {
         divider(st.name, [mins, /kiểm tra|btvn|nghe|đọc|hd app/.test(n) ? 'thực hiện trên app' : ''].filter(Boolean).join(' · '));
+        actSteps(st);   // nội dung lấy đúng từ S5 (CTTT, HD App, …)
         if (/warm|khởi động/.test(n) && !used.has('lead')) { used.add('lead'); leadIn(); }
       }
     }
