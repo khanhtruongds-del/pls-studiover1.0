@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"><title>Demo CLIP – PLS Studio</title>
+<style>body{font:15px system-ui;margin:20px;max-width:960px}input{padding:8px;font-size:16px;width:260px}button{padding:8px 14px}
+.r{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}.c{width:200px}.c img{width:200px;height:200px;object-fit:contain;background:#f3f3f3;border-radius:8px}small{color:#666}</style>
+<h3>Demo khớp hình CLIP</h3>
+<p><small>Nhập từ (tiếng Anh, vd: dog, apple, hospital). Lần đầu tải model ~100 MB. Chỉ mục: <span id="st">chưa nạp</span></small></p>
+<input id="q" placeholder="dog"> <select id="s"><option value="">Cả hai kho</option><option value="eu">Châu Âu</option><option value="as">Châu Á</option></select>
+<button id="go">Tìm</button> <input type="file" id="f" accept=".json" title="hoặc chọn image-index.json từ máy">
+<div id="o"></div>
+<script src="config.js"></script><script src="pls-clip.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+$('f').onchange=async e=>{const j=JSON.parse(await e.target.files[0].text());PLS_CLIP.setIndex(j);$('st').textContent='đã nạp từ file ('+j.items.length+' ảnh)'};
+$('go').onclick=async()=>{
+  $('o').textContent='Đang tìm…';
+  try{
+    const r=await PLS_CLIP.search($('q').value,3,$('s').value||undefined);
+    if(!$('st').textContent.startsWith('đã'))$('st').textContent='đã nạp từ Drive';
+    $('o').innerHTML=(r.unsure?'<p><b>Không chắc</b> – điểm thấp, nên để người chọn.</p>':'')+'<div class="r">'+r.map(x=>`<div class="c"><img src="https://lh3.googleusercontent.com/d/${x.id}=w400"><div>${x.name}</div><small>${x.src} · điểm ${x.score}</small></div>`).join('')+'</div>';
+  }catch(e){$('o').textContent='Lỗi: '+e.message}
+};
+</script>
