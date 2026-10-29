@@ -1,0 +1,22 @@
+DANH MỤC FONT PLS STUDIO (29/10/2026)
+Cài: chọn hết file .ttf trong thư mục → chuột phải → Install for all users (Windows) / mở bằng Font Book (Mac).
+File có [wght] là font biến thiên: 1 file đủ mọi độ đậm (Regular, SemiBold, Bold…).
+
+Chung (mọi brand)
+  Montserrat ............ nội dung slide + sách PDF
+  Source Sans 3 ......... tài liệu (doc)
+Betreux ................. Zalando Sans Expanded (tiêu đề)
+Creative English ........ Barlow Condensed (tiêu đề)
+Creatis ................. Lexend (tiêu đề), Inter (nội dung)
+Saechang ................ Gothic A1 (chữ Hàn trên slide), Noto Sans KR (sách), Noto Serif KR (tài liệu)
+Sakumi .................. Noto Sans JP (chữ Nhật slide + sách), Noto Serif JP (tài liệu)
+Dac Nhan ................ LXGW WenKai (chữ Khải – slide Android/Google Slides + sách PDF), Noto Sans SC (tiêu đề sách)
+
+KHÔNG có trong thư mục (font bản quyền, có sẵn trong máy):
+  Verdana, Arial (tiêu đề / nội dung PPTX) – có sẵn Windows, Mac
+  KaiTi (Windows), Kaiti SC / STKaiti (Mac) – chữ Khải Đắc Nhân
+  Malgun Gothic (Windows), Apple SD Gothic Neo (Mac) – chữ Hàn PPTX
+  Yu Gothic (Windows), Hiragino Sans (Mac) – chữ Nhật PPTX
+Máy thiếu KaiTi → cài LXGW WenKai trong thư mục Dac Nhan.
+
+Bản quyền: tất cả font trong thư mục là SIL Open Font License – dùng, chia sẻ miễn phí.
