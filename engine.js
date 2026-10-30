@@ -1,0 +1,953 @@
+// PLS engine: đổ nội dung vào mẫu, co chữ theo thang chuẩn, tự chọn mẫu + chia slide, soát lỗi, xuất PPTX.
+// Mọi thuộc tính chỉ có MỘT nơi quyết định (không có lượt "dọn" chồng nhau). Lỗi được báo ra, không nuốt.
+(function (root) {
+  'use strict';
+  const TPL = () => root.PLS_TPL;
+  const LADDER = [120, 79.5, 64.5, 55.5, 48, 40.5, 36, 30, 28, 26, 24, 22, 20];   // thang cỡ chữ slide (Core size/*)
+  const STD = { minFont: 20, warnFont: 24, safe: 48, maxWords: 0 /* 23/10: bỏ báo 'quá 40 từ' – slide bài tập / tổng quan luôn vượt, báo vàng hàng loạt không ai sửa được */, wordsSkip: /Reading|Transcript|Dialog|Answer Key/ }; // chuẩn v2.0 RB-PPT-02/03/06
+  const CONTENT_IMG = n => n !== 'bg.img' && /^(img(_\d+)?|.+\.img)$/.test(n);   // ô ảnh nội dung → khung chờ ảnh; ảnh khác (nền, trang trí brand, logo) giữ nguyên
+  const ASSET = h => { const v = root.PLS_ASSETS && root.PLS_ASSETS[h]; return v ? (v.startsWith('data:') ? v : 'assets/' + v) : null; };   // bản 1 file: ảnh nhúng sẵn data:
+
+  // ---------- tìm ô theo tên (giống F.find nhưng không tách nhầm tên có dấu chấm) ----------
+  function byName(scope, name) { return [...scope.querySelectorAll('[data-n]')].filter(e => e.dataset.n === name); }
+  function find(scope, key) {
+    const exact = byName(scope, key); if (exact.length) return exact.find(e => !e.closest('[data-n="header"]')) || exact[0];   // "text" của mẫu Reading ≠ chữ trong nhãn header
+    const sl = key.indexOf('/');   // "options_1/opt_A.text": khung lồng (MC Duo, Reading Quiz)
+    if (sl > 0 && !/^(Slide|Block|A4|Part)\//.test(key)) { for (const h of byName(scope, key.slice(0, sl))) { const r = find(h, key.slice(sl + 1)); if (r) return r; } }
+    const parts = key.split('.');
+    for (let i = parts.length - 1; i >= 1; i--) {               // tiền tố dài nhất trước: "item_1.text" → "item_1" › "text"
+      const head = parts.slice(0, i).join('.'), rest = parts.slice(i).join('.');
+      for (const h of byName(scope, head)) { const r = find(h, rest); if (r) return r; }
+    }
+    return null;
+  }
+  function textEl(el) {   // ô là khung → lấy lớp chữ chính bên trong (ưu tiên "text", tránh dấu/ số/ icon)
+    if (!el) return null; if (el.dataset.text) return el;
+    const all = [...el.querySelectorAll('[data-text]')];
+    return all.find(t => t.dataset.n === 'text') || all.find(t => !/(^|\.)(mark|no|icon|key|min)$/.test(t.dataset.n)) || all[0] || null;
+  }
+  function show(el, stop) { for (let p = el; p && p !== stop; p = p.parentElement) if (p.dataset && p.dataset.hid) { p.style.display = p.dataset.disp || ''; delete p.dataset.hid; } }
+  function hide(el) { if (!el.dataset.hid && el.style.display && el.style.display !== 'none' && !el.dataset.disp) el.dataset.disp = el.style.display; el.style.display = 'none'; el.dataset.hid = '1'; }
+
+  // ---------- PINYIN DƯỚI CHỮ HÁN (người dùng 29/10: mọi chữ Hán của khoá HSK1, HSK2) ----------
+  // "汉字 {pīnyīn}" (S6 ghi pinyin trong ngoặc nhọn) → {汉字|pīnyīn}; chữ Hán chưa có pinyin → tự tra (vendor/pinyin-pro, chạy trong trình duyệt)
+  // → typo.js vẽ ruby: pinyin nhỏ nằm dưới chữ Hán. Ô đã có ô pinyin riêng (thẻ từ, dòng hội thoại…) không thêm.
+  const HAN = /[\u3400-\u9fff]/, HAN_RUN = /[\u3400-\u9fff]+/g;
+  // DẤU CÂU TOÀN KHỔ (：（）) đi với chữ Latin / Việt → dấu thường (khoảng trắng rộng, trông lạ – người dùng 30/10); chữ Hán giữ dấu toàn khổ
+  // CÂU CÓ VÀI CHÚ THÍCH "还(hái: còn)": vẫn gắn pinyin cả câu, chú thích chỉ giữ nghĩa "还(còn)" (30/10: đoạn đọc / ví dụ thiếu pinyin, khác kiểu các câu khác)
+  const PYS = "[a-zü]*[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ][a-zü]*";
+  const noGlossPy = v => v.replace(new RegExp('([\\u3400-\\u9fff])\\s*([(（])\\s*(?:' + PYS + "|[a-zü]+)(?:[\\s'’-]*(?:" + PYS + '|[a-zü]+))*\\s*[:：]\\s*([^)）]+)([)）])', 'gi'), '$1$2$3$4');
+  // câu ĐÃ CÓ pinyin (pinyin phủ ≥ 60% số chữ Hán) → không gắn ruby
+  const pyDense = v => { const han = (v.match(/[\u3400-\u9fff]/g) || []).length, py = (v.match(new RegExp(PYS, 'gi')) || []).length; return han ? py >= han * 0.6 : py > 0; };
+  const latinPunct = v => v.replace(/([A-Za-zÀ-ỹ0-9])\s*：\s*/g, '$1: ').replace(/\s*（([^（）]*[A-Za-zÀ-ỹ][^（）]*)）/g, (m0, x, at, all) => /[\u3400-\u9fff]/.test(x) && !/[A-Za-zÀ-ỹ]{2}/.test(x) ? m0 : (at && /[^\s\u3000-\u303f\u3400-\u9fff\uff00-\uffef]/.test(all[at - 1]) ? ' (' : '(') + x.trim() + ')');
+  const RUBY_SKIP = /^(header\.|section\.|situation$|tagline|logo|page_no|running|lesson$|course|thanks|info\/|exde$|exvi$|cando_\d+$|goal$|(.+\.)?vi$|.*\.(no|mark|label|min)$)/;   /* 29/10: mục tiêu buổi học (chữ Việt dài) không gắn pinyin – rối */   // exde: thẻ từ đã có dòng pinyin ví dụ riêng
+  const PY_ONLY = /^[\sA-Za-züāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜÜĀÁǍÀĒÉĚÈĪÍǏÌŌÓǑÒŪÚǓÙǕǗǙǛ'’‘“”".,?!:;()（）-]+$/;
+  let rubyKey = null, rubyVal = false;
+  function rubyOn() {
+    const st = root.PLS && root.PLS._int && root.PLS._int.state; const t = (st && st.spec && st.spec.lesson) || '';
+    if (t !== rubyKey) { rubyKey = t; rubyVal = /HSK\s*[12](?![0-9])/i.test(t) && !!root.pinyinPro; }
+    return rubyVal;
+  }
+  function hasPy(k, data) {   // ô có sẵn pinyin đi kèm (ipa / _…py) → không thêm ruby
+    const base = k.replace(/\.?(de|word|text)$/, ''), pre = base ? base + '.' : '';
+    return !!(String(data[pre + 'ipa'] || '').trim() || String(data['_' + pre + 'py'] || '').trim() || String(data['_' + k + '.py'] || '').trim());
+  }
+  function rubyfy(s) {
+    if (!HAN.test(s) || /\{[^{}]*\|[^{}]*\}/.test(s)) return s;
+    s = s.replace(/([\u3400-\u9fff][\u3400-\u9fff\u3000-\u303f\uff01-\uff5e“”‘’"'…]*)\s*\{([^{}|]+)\}/g, (m, h, py) => PY_ONLY.test(py) ? `{${h}|${py.trim()}}` : m);   // cả câu kèm dấu câu Hán: 我是越南人。{Wǒ shì Yuènánrén.}
+    return s.split(/(\{[^{}]*\})/).map(part => /^\{[^{}]*\}$/.test(part) ? part : part.replace(HAN_RUN, run => {
+      let py = []; try { py = root.pinyinPro.pinyin(run, { type: 'array' }); } catch (e) { return run; }
+      return [...run].map((c, i) => `{${c}|${py[i] || ''}}`).join(''); })).join('');
+  }
+
+  // ---------- dựng 1 slide ----------
+  function sentenceCase(t) {
+    if (!/\p{Lu}/u.test(t) || t !== t.toUpperCase() || (t.match(/\p{L}/gu) || []).length < 4) return t;
+    const plain = w => w.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Đ/g, 'D');
+    let out = t.split(/(\s+)/).map(w => /^\p{Lu}{2,5}$/u.test(w) && !/[AEIOUY]/.test(plain(w)) ? w : w.toLowerCase()).join('');
+    return out.replace(/\p{L}/u, c => c.toUpperCase());
+  }
+  function render(spec, brand) {
+    const t = TPL().slides[spec.comp] || TPL().blocks[spec.comp];
+    if (!t) throw new Error('Không có mẫu "' + spec.comp + '"');
+    const host = document.createElement('div');
+    host.className = 'pls-slide'; host.dataset.brand = brand; host.dataset.comp = spec.comp;
+    host.style.width = t.w + 'px'; host.style.height = t.h + 'px';
+    host.innerHTML = t.html;
+    const rootEl = host.firstElementChild;
+    const data = Object.assign({}, spec.common || {}, spec.data || {});
+    const filled = [], missing = [];
+    // chữ theo biến brand (info/web, info/tagline…)
+    const BS = (root.PLS_BRAND_STR || {})[brand] || {};
+    host.querySelectorAll('[data-var-text]').forEach(e => { const v = BS[e.dataset.varText]; if (v != null) setText(e, v); });
+    // chữ thương hiệu viết cứng trong mẫu (tagline, web, fanpage của Betreux) → đổi sang brand đang dựng (RB-CH-03)
+    const B0 = (root.PLS_BRAND_STR || {})['Betreux'] || {};
+    if (brand !== 'Betreux') host.querySelectorAll('[data-text]:not([data-var-text])').forEach(t => { for (const k of ['info/tagline', 'info/web', 'info/fanpage']) if (B0[k] && BS[k] && t.textContent.trim() === B0[k]) setText(t, BS[k]); });
+    // ảnh của mẫu
+    host.querySelectorAll('[data-img]').forEach(e => {
+      const url = ASSET(e.dataset.img), n = e.dataset.n;
+      if (!CONTENT_IMG(n)) { if (url) { e.style.backgroundImage = `url("${url}")`; e.style.backgroundSize = e.dataset.fit === 'FIT' ? 'contain' : 'cover'; e.style.backgroundPosition = 'center'; e.style.backgroundRepeat = 'no-repeat'; } }
+      else { e.classList.add('pls-imgslot'); e.dataset.imgLabel = ''; }
+    });
+    host.querySelectorAll('[data-n]').forEach(e => { if (!e.dataset.img && CONTENT_IMG(e.dataset.n) && !e.querySelector('[data-text]')) e.classList.add('pls-imgslot'); });
+    if (spec.comp === 'Slide/Answer Key' && spec.layout === 'flow') ansFlow(rootEl, data);
+    // đổ nội dung
+    for (let [k, v] of Object.entries(data)) {
+      if (k.startsWith('img:') || k.startsWith('imgdesc:') || k.startsWith('_')) continue;   // khoá "_…" = tham số cho hook mẫu, không phải ô chữ
+      const el = find(rootEl, k); const te = textEl(el);
+      if (typeof v === 'string') v = latinPunct(v);
+      if (typeof v === 'string' && /^(header\.|situation$)/.test(k)) v = v.replace(/\s*\{[^{}]*\}/g, '');   // tiêu đề không gắn pinyin → bỏ phần pinyin {…} của dữ liệu (30/10: hiện nguyên '{wǒmen…}')   // "A：" / "（Anh ấy…）" → dấu thường cạnh chữ Latin/Việt (30/10)
+      if (t.w === 1920 && typeof v === 'string' && rubyOn() && !RUBY_SKIP.test(k) && !hasPy(k, data) && !/[A-Za-zÀ-ỹü]+\s*[(（][\u3400-\u9fff]/.test(v)) { let g = noGlossPy(v); if (/\.de$/.test(k) && String(data[k.replace(/\.de$/, '.vi')] || '').trim()) g = g.replace(/([\u3400-\u9fff])\s*[(（][^)）]*[)）]/g, '$1');   /* câu đã có dòng dịch riêng (.vi) → bỏ chú thích từ trong ngoặc, khỏi dài dòng */
+        if (!pyDense(g.replace(/\{[^{}]*\}/g, ""))) v = rubyfy(g); }   /* "dà (大)": pinyin đã đứng trước chữ Hán → không gắn ruby (29/10) */   /* câu đã có pinyin sẵn → không thêm ruby (PPTX bị tách rời text box – người dùng 29/10) */   // chỉ slide (sách khổ nhỏ: pinyin cam sau chữ Hán – book.js)   // PINYIN DƯỚI CHỮ HÁN (HSK1–2, người dùng 29/10)
+      const sp = TY() && el ? TY().special(el, te, v, host) : null;   // ruby / khối công thức (typo.js)
+      if (sp) { show(sp, host); sp.dataset.filled = k; filled.push(sp); continue; }
+      if (!te) { if (spec.data && k in spec.data && String(v).trim() !== '') missing.push(k); continue; }
+      if (String(v).trim() === '') { let t = el && el !== rootEl ? el : te; if (t && t.parentElement && t.parentElement.dataset.n === t.dataset.n + '_box') t = t.parentElement; if (t) hide(t); continue; }   // dữ liệu rỗng có chủ ý (vd instruction.vi) → ẩn ô, không để lộ chữ mẫu
+      let tv = String(v).replace(/([?!])(?=[A-Za-zÀ-ỹ])/g, '$1 ');   // "Có bao nhiêu?Nói về…" → cách sau dấu hỏi / chấm than (người dùng 29/10)
+      // CHỐNG CHỮ MỒ CÔI: câu ≥ 4 từ → 2 từ cuối dính nhau (khoảng trắng không ngắt), dòng cuối không còn trơ 1 từ
+      if (/(^|\.)(title|question|text|de|vi|use|rule|note|point|task|cando|line|meaning)(_\d+)?$/.test(k) && typeof v === 'string' && !/\n/.test(v)) { const m = v.trim().match(/^(.*\S)\s+(\S+\s+\S+)$/); if (m && v.trim().split(/\s+/).length >= 4 && m[2].length <= 18) tv = m[1] + ' ' + m[2].replace(/\s+/, '\u00a0'); }
+      setText(te, tv); if (TY()) TY().emph(te, tv); show(te, host); te.dataset.filled = k; filled.push(te);
+    }
+    // nhãn khung ảnh = nghĩa tiếng Việt cùng thẻ
+    host.querySelectorAll('.pls-imgslot').forEach(e => { const vi = e.parentElement && [...e.parentElement.querySelectorAll('[data-filled]')].find(x => /(^|\.)vi$/.test(x.dataset.filled) && x.closest('[data-n]') && e.parentElement.contains(x)); const same = vi && vi.dataset.filled.split('.')[0] === (e.parentElement.dataset.n || '').split('.')[0]; e.dataset.imgLabel = same ? 'Ảnh: ' + vi.textContent : 'Ảnh minh hoạ'; });
+    hideUnused(rootEl, data);
+    // nhóm lặp (part_4.*, chip_3.*…) mà mọi ô đều rỗng có chủ ý → ẩn cả khung nhóm (không để thanh màu trống – lỗi Test Intro)
+    { const g = {}; for (const [k, v] of Object.entries(data)) { const m = k.match(/^([a-z]+_\d+)\./i); if (m) g[m[1]] = (g[m[1]] !== false) && String(v).trim() === ''; }
+      for (const [k, empty] of Object.entries(g)) if (empty) { const el = find(rootEl, k); if (el && el !== rootEl) hide(el); } }
+    clearUnfilled(rootEl, data);
+    // khung chứa mà mọi khối con đều ẩn (vd dải chip của Key Point khi không có chip) → ẩn luôn, khỏi chiếm một khe trống
+    { const card = rootEl.querySelector('[data-n="card"]'); if (card) [...card.querySelectorAll('[data-n]')].reverse().forEach(e => { const kids = [...e.children].filter(c => c.dataset && c.dataset.n); if (kids.length && !e.dataset.text && kids.every(c => c.style.display === 'none') && ![...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) hide(e); }); }
+    // nút loa (ex_n.audio_box): PPTX không kèm âm thanh → không có file tiếng thì ẩn hẳn, khỏi để chấm tròn trống
+    rootEl.querySelectorAll('[data-n$="audio_box"]').forEach(b => { const k = b.dataset.n.replace(/_box$/, ''); if (!data[k]) hide(b); });
+    // bài nghe: luôn hiện ô audio (biểu tượng tai nghe + tên bài); file âm thanh tích hợp sau
+    if (spec.comp === 'Slide/Listening') { const ti = rootEl.querySelector('[data-n="track.icon"]'); if (ti) show(ti, rootEl); }
+    // KHẢI THƯ (Đắc Nhân): mặt chữ Kaiti nhỏ hơn chữ Latin cùng cỡ → chữ Hán thuần trên slide phóng 1,15 lần (28/10); câu Việt chen Hán giữ font Việt
+    if (t.w === 1920 && KAI_BRANDS.includes(brand)) filled.forEach(el => { const tx = el.textContent || '';
+      const ff = (el.style.fontFamily || '') + ' ' + ((el.closest('[style*="font-family"]') || {}).style || {}).fontFamily; if (!/native|kai/i.test(ff)) return;
+      // PINYIN / chữ Việt nằm trong ô chữ Hán (người dùng 29/10): chữ cái dùng font thường, chữ Hán tự rơi về Khải thư (font thường đứng trước trong chuỗi font)
+      if (/[A-Za-zÀ-ỹāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]/.test(tx)) { el.style.fontFamily = "var(--ff-font-body, 'Montserrat'), 'KaiTi', 'Kaiti SC', 'STKaiti', 'LXGW WenKai', sans-serif"; return; }
+      if (!CJK.test(tx)) return;
+      const fs = parseFloat(el.style.fontSize) || parseFloat(el.dataset.fs); if (!fs) return; const nf = Math.round(fs * 1.15 * 2) / 2; el.style.fontSize = nf + 'px'; el.dataset.fs = String(nf); });
+    // CHỮ IN HOA TOÀN BỘ từ Excel (tên bước "SỬA BTVN 10 PHÚT", tiêu đề mục…) → viết thường kiểu câu, giữ chữ viết tắt không có nguyên âm (BTVN, HD) – người dùng 28/10: in hoa khó đọc
+    filled.forEach(el => { if (!/^(title|step_\d+\.text|item_\d+\.text|cando_\d+)$/.test(el.dataset.filled || '') || el.children.length) return; const t = el.textContent, n = sentenceCase(t); if (n !== t) el.textContent = n; });
+    applyIcons(host);
+    { const hk = (root.PLS_TPL_HOOKS || {})[spec.comp]; if (hk) hk(rootEl, data); }   // mẫu bổ sung (templates-extra.js): xử lý riêng sau khi đổ chữ
+    // Pronunciation: hàng ví dụ không kéo cao/kéo dài hết cột – hàng ôm chữ, cột ví dụ rộng theo hàng dài nhất, từ và phiên âm gần nhau, cả cụm giữa dọc
+    if (spec.comp === 'Slide/Pronunciation') {
+      const exs = rootEl.querySelector('[data-n="examples"]');
+      if (exs) Object.assign(exs.style, { flex: '0 1 auto', minWidth: '40%', maxWidth: '50%', justifyContent: 'center', alignItems: 'stretch' });
+      rootEl.querySelectorAll('[data-n^="ex_"]').forEach(r => { if (/^ex_\d+$/.test(r.dataset.n)) Object.assign(r.style, { flex: '0 0 auto', minHeight: '', justifyContent: 'space-between' }); });
+      rootEl.querySelectorAll('[data-n$=".word"]').forEach(w => { if (/^ex_\d+\.word$/.test(w.dataset.n)) Object.assign(w.style, { flex: '0 1 auto' }); });
+    }
+    // Nối cột: số (l_n.no) và chữ (r_n.no) đặt trong ô tròn đặc màu thương hiệu, giống ô đáp án trắc nghiệm
+    if (/^Slide\/Exercise Match/.test(spec.comp)) rootEl.querySelectorAll('[data-n="no"]').forEach(t => { if (!/^[lr]_\d+$/.test((t.parentElement || {}).dataset ? t.parentElement.dataset.n : '')) return;
+      const fs = parseFloat(t.dataset.fs) || 36, d = Math.round(fs * 1.5);
+      Object.assign(t.style, { flex: '0 0 auto', width: d + 'px', height: d + 'px', lineHeight: d + 'px', textAlign: 'center', borderRadius: '50%', backgroundColor: 'var(--color-primary)', color: 'var(--color-text-inverse, #fff)', fontSize: Math.round(fs * 0.8) + 'px', padding: '0' }); });
+    // Key Point: lời giải thích là đoạn văn đọc được – chữ thường (không đậm), tối thiểu 36px; fitText co lại nếu tràn
+    if (spec.comp === 'Slide/Key Point') rootEl.querySelectorAll('[data-n="note"], [data-n="note"] [data-text]').forEach(t => { t.style.fontWeight = '400'; if ((parseFloat(t.dataset.fs) || 0) < 36) { t.style.fontSize = '36px'; t.dataset.fs = '36'; } });
+    // Lưới từ vựng: ô ảnh rộng hết thẻ (ảnh to, cùng khung giữa các thẻ), từ vựng nhỏ lại một bậc (48 → 40,5)
+    if (/^Slide\/Vocab Grid/.test(spec.comp)) {
+      rootEl.querySelectorAll('[data-n="img"]').forEach(im => { if (/^vocab_\d+$/.test((im.parentElement || {}).dataset ? im.parentElement.dataset.n : '')) Object.assign(im.style, { alignSelf: 'stretch', width: 'auto' }); });
+      rootEl.querySelectorAll('[data-n="de"]').forEach(t => { if (parseFloat(t.dataset.fs) > 40.5) { t.style.fontSize = '40.5px'; t.dataset.fs = '40.5'; } });
+    }
+    // TÊN (người nói, nhân vật…): luôn 1 dòng; dài thì ô rộng ra tới 300px, vẫn tràn thì fitText co cả nhóm cùng cỡ
+    rootEl.querySelectorAll('[data-n="speaker"], [data-n$=".speaker"], [data-n="who"], [data-n$=".who"], [data-n="name"], [data-n$=".name"]').forEach(t => { if (!t.dataset.text) return;
+      const w = parseFloat(t.style.width) || 0; Object.assign(t.style, { whiteSpace: 'nowrap', overflowWrap: 'normal', wordBreak: 'keep-all' }); if (w && w < 300) Object.assign(t.style, { width: 'auto', minWidth: w + 'px', maxWidth: '300px' }); });
+    // Đáp án (lưới): ô cao vừa chữ, rộng đều 1/3 hàng, hàng thiếu ô thì căn giữa, lưới ngay dưới tiêu đề
+    if (spec.comp === 'Slide/Answer Key' && spec.layout !== 'flow') {
+      const grid = rootEl.querySelector('[data-n="grid"]'); if (grid) Object.assign(grid.style, { justifyContent: 'flex-start', rowGap: '28px', gap: '28px', paddingTop: '8px' });
+      rootEl.querySelectorAll('[data-n^="row_"]').forEach(rw => { if (!/^row_\d+$/.test(rw.dataset.n)) return; Object.assign(rw.style, { flex: '0 0 auto', justifyContent: 'center', overflow: 'visible', alignItems: 'stretch' });   // ô cùng hàng cao bằng ô cao nhất
+        const list = spec.layout === 'list';   // đáp án dài (câu): mỗi ô 1 hàng rộng hết khung, cùng kiểu thẻ + vòng số
+        if (list) Object.assign(rw.style, { flexWrap: 'wrap', rowGap: '20px', justifyContent: 'flex-start' });
+        [...rw.children].forEach(a => { if (/^a_\d+$/.test(a.dataset.n || '')) Object.assign(a.style, { flex: list ? '0 0 100%' : '0 0 calc((100% - 48px) / 3)', alignSelf: 'auto', minHeight: list ? '92px' : '112px', padding: list ? '18px 28px' : '24px 28px' }); }); });
+      if (spec.layout === 'list' && grid) Object.assign(grid.style, { rowGap: '20px', gap: '20px' });
+    }
+    // Ô chữ màu (sound_box…): chữ ngắn 1–3 ký tự giữ cỡ hiển thị; chữ dài (cụm "Đọc đuôi -s / -es") nhỏ lại 55,5 / 48 và đệm thu vào theo cỡ chữ
+    { const sb = rootEl.querySelector('[data-n="sound_box"]'), st = sb && sb.querySelector('[data-n="sound"]'), v = st ? String(data.sound || st.textContent || '').trim() : '';
+      if (st && v.length > 3) { const fs = v.length > 14 ? 48 : 55.5; Object.assign(st.style, { fontSize: fs + 'px', lineHeight: '1.2' }); st.dataset.fs = String(fs); Object.assign(sb.style, { padding: Math.round(fs * 0.28) + 'px ' + Math.round(fs * 0.5) + 'px' }); } }
+    // Ô/thẻ có nền chứa chữ (…_box, card con): chữ giữa theo chiều dọc để đệm trên = dưới
+    rootEl.querySelectorAll('[data-n$="_box"], [data-n$=".box"]').forEach(b => { if (b.style.display === 'flex' && b.style.flexDirection === 'row' && b.style.alignItems === 'flex-start' && b.style.backgroundColor && (b.textContent || '').trim().length <= 60) b.style.alignItems = 'center'; });   // chỉ ô chữ ngắn; khung đoạn văn (text_box) giữ căn trên
+    // Thẻ nội dung dạng lưới (Grammar Usage u_n, Formula f_n, Rule Transform r_n, Summary col_n): chữ đọc từ trên xuống, trái qua phải – không căn giữa dọc
+    rootEl.querySelectorAll('[data-n]').forEach(c => { if (/^(u|f|r|col|c)_\d+$/.test(c.dataset.n) && c.style.flexDirection === 'column' && c.style.justifyContent === 'center') { c.style.justifyContent = 'flex-start'; if (c.style.alignItems === 'center') c.style.alignItems = 'flex-start'; } });
+    // BO GÓC ĐỒNG BỘ (người dùng chốt 23/10): khung trắng chính 32px, mọi thẻ/ô/nhãn bên trong 16px, vòng số tròn hẳn (50%) – hết kiểu nửa tròn nửa vuông
+    rootEl.querySelectorAll('[style*="border-radius"]').forEach(e => { const br = e.style.borderRadius; if (!br || br === '50%' || e.dataset.circle) return;
+      e.style.borderRadius = /^(card)$/.test(e.dataset.n || '') ? '32px' : '16px'; });
+    // DANH SÁCH GỌN (mọi mẫu – người dùng chốt 23/10): mục lặp (item_1, step_1, p_1, cando_1…) không giãn ra cho đầy khung,
+    // xếp từ trên xuống, cách nhau 28px; khung trắng (card/body) giữ nguyên kích thước
+    {
+      const LIST_ITEM = /^(item|step|cando|q|ex|line|u|f|task|guide|part|point|tip|rule|note|use|s)_\d+$/;
+      const lists = new Set(); rootEl.querySelectorAll('[data-n]').forEach(e => { if (LIST_ITEM.test(e.dataset.n) && e.parentElement && e.parentElement.style.flexDirection === 'column') lists.add(e.parentElement); });
+      lists.forEach(L => {
+        const kids = [...L.children].filter(k => LIST_ITEM.test(k.dataset.n || '')); if (kids.length < 2) return;
+        kids.forEach(k => { if (/^\d+ 1 0px$/.test(k.style.flex || '')) { k.style.flex = '0 0 auto'; k.style.minHeight = '0'; } });
+        if (/space-(between|around|evenly)/.test(L.style.justifyContent || '')) L.style.justifyContent = 'flex-start';
+        if (!(parseFloat(L.style.rowGap || L.style.gap) >= 16)) L.style.rowGap = kids.length >= 6 ? '14px' : '28px';   // danh sách dài (lộ trình 8 bước) cách hẹp hơn để khỏi co chữ
+      });
+    }
+    // BÀI TẬP GỌN (người dùng chốt 23/10): mục không kéo cao/kéo rộng cho đầy khung; mục ôm chữ, cách nhau một khoảng vừa đủ
+    if (/^Slide\/(Exercise |Sentence Order|Fill Word Bank)/.test(spec.comp)) {
+      const ITEM = /^(item_\d+|opt_[A-H]|l_\d+|r_\d+)$/;
+      rootEl.querySelectorAll('[data-n]').forEach(e => { if (!ITEM.test(e.dataset.n)) return; Object.assign(e.style, { flex: '0 0 auto', height: 'auto', minHeight: '0' }); const pr = e.parentElement; if (pr && /^card$/.test(pr.dataset.n || '')) { const n = [...pr.children].filter(k => ITEM.test(k.dataset.n || '') && !k.dataset.hid).length; const g = (n <= 3 ? 60 : n <= 5 ? 40 : 28) - (parseFloat(pr.style.rowGap || pr.style.gap) || 0); if (g > 0) e.style.marginBottom = g + 'px'; }   // mục nằm thẳng trong card: giãn bằng lề dưới, card giữ nguyên
+      if (pr && !/^(card|body|columns|brand\.bg)$/.test(pr.dataset.n || '') && pr.style.flex && /^\d+ 1 0px$/.test(pr.style.flex) && pr.style.flexDirection === 'column') { const n = [...pr.children].filter(k => ITEM.test(k.dataset.n || '') && !k.dataset.hid).length; pr.style.flex = '0 0 auto'; pr.style.justifyContent = 'flex-start'; pr.style.gap = pr.style.rowGap = (n <= 3 ? 60 : n <= 5 ? 40 : 28) + 'px'; pr.style.paddingTop = '12px'; } });
+    }
+    // Trắc nghiệm 1 câu: CÙNG cỡ chữ + kiểu thẻ với trắc nghiệm 2 câu (câu hỏi 40,5 đậm, đáp án 36, thẻ đệm 14/24) – người dùng chốt:
+    // slide 1 câu không phóng to chữ cho đầy khung; cụm đáp án ngay dưới câu hỏi
+    if (/^Slide\/Exercise MC( Long)?$/.test(spec.comp)) {
+      const q = rootEl.querySelector('[data-n="question"]'); if (q) { Object.assign(q.style, { fontFamily: "var(--ff-font-body, 'Montserrat'), sans-serif", fontWeight: '700', fontSize: '40.5px', lineHeight: '1.3', marginTop: '-12px' }); q.dataset.fs = '40.5'; }
+      const ops = rootEl.querySelector('[data-n="options"]'); if (ops) Object.assign(ops.style, { flex: '0 0 auto', rowGap: '24px', columnGap: '24px', gap: '24px', marginTop: '-12px' });   // khoảng cách như MC 2 câu
+      rootEl.querySelectorAll('[data-n^="opt_"]').forEach(o => { if (!/^opt_[A-H]$/.test(o.dataset.n)) return; Object.assign(o.style, { height: 'auto', minHeight: '76px', padding: '14px 24px', alignItems: 'center', width: 'calc(50% - 12px)' });
+        o.querySelectorAll('[data-text]').forEach(t => { if (!/key/.test(t.dataset.n + (t.parentElement.dataset.n || ''))) { t.style.fontSize = '36px'; t.dataset.fs = '36'; } }); });
+    }
+    // Trắc nghiệm 2 câu (MC Duo, Reading Quiz): câu hỏi bằng chữ thân đậm cỡ nội dung (không dùng chữ tiêu đề to), thẻ đáp án ôm chữ, đệm đều 4 phía
+    if (/^Slide\/(Exercise MC Duo|Reading Quiz)$/.test(spec.comp)) {
+      rootEl.querySelectorAll('[data-n^="question_"]').forEach(q => { if (!/^question_\d+$/.test(q.dataset.n)) return; const t = q.dataset.text ? q : q.querySelector('[data-text]'); if (!t) return;
+        Object.assign(t.style, { fontFamily: "var(--ff-font-body, 'Montserrat'), sans-serif", fontWeight: '700', fontSize: '40.5px', lineHeight: '1.3' }); t.dataset.fs = '40.5'; q.style.marginTop = '12px'; });
+      rootEl.querySelectorAll('[data-n^="opt_"]').forEach(o => { if (!/^opt_[A-H]$/.test(o.dataset.n)) return; Object.assign(o.style, { height: 'auto', minHeight: '76px', padding: '14px 24px', alignItems: 'center' }); o.querySelectorAll('[data-text]').forEach(t => { if (!/key/.test(t.dataset.n + (t.parentElement.dataset.n || ''))) { t.style.fontSize = '36px'; t.dataset.fs = '36'; } }); });
+      rootEl.querySelectorAll('[data-n^="options_"]').forEach(o => { if (/^options_\d+$/.test(o.dataset.n)) o.style.marginBottom = '16px'; });
+    }
+    // Ô bọc số (step_1.no_box, a_1.key_box…): luôn TRÒN đều – mẫu chuyển sang để ngang co giãn + bo 24 nên lúc thành hình viên thuốc, lúc vuông bo
+    rootEl.querySelectorAll('[data-n$="no_box"], [data-n$="key_box"], [data-n$="num_box"]').forEach(b => { const h = parseFloat(b.style.height) || parseFloat(b.style.width); if (!h || h > 120) return; Object.assign(b.style, { flex: '0 0 auto', width: h + 'px', minWidth: h + 'px', height: h + 'px', borderRadius: '50%', justifyContent: 'center', alignItems: 'center', padding: '0' });
+      const t = b.querySelector('[data-text]'); if (!t) return; Object.assign(t.style, { textAlign: 'center', flex: '0 0 auto', lineHeight: '1' });
+      b.dataset.circle = String(h);   // cỡ chữ theo số ký tự đặt sau khi điền (xem dưới)
+    });
+    // số trong vòng tròn: MỘT cỡ chung cho cả slide (người dùng chốt) – 50% vòng nếu số dài nhất ≤ 2 chữ số, 36% nếu có số 3 chữ số
+    { const cs = [...rootEl.querySelectorAll('[data-circle]')].map(b => [b, b.querySelector('[data-text]')]).filter(x => x[1]);
+      const maxN = Math.max(0, ...cs.map(([, t]) => (t.textContent || '').trim().length));
+      cs.forEach(([b, t]) => { const h = +b.dataset.circle, f = Math.round(h * (maxN >= 3 ? 0.36 : maxN === 2 ? 0.5 : 0.6)); Object.assign(t.style, { fontSize: f + 'px', letterSpacing: maxN >= 2 ? '-0.02em' : '' }); t.dataset.fs = String(f); }); }
+    { const sk = (root.PLS_SKIN || {})[brand]; if (sk) try { sk(rootEl, data, spec.comp, filled, spec); } catch (e) { console.warn('[PLS_SKIN]', e); } }   // giao diện riêng theo brand (skin-dn.js)
+    return { host, rootEl, filled, missing };
+  }
+  // ICON (F.icons): ô "*.icon" → icon Lucide chọn theo chữ cùng dòng (ICON_MAP); không khớp → giữ icon mặc định của mẫu (info)
+  // thứ tự ưu tiên khi gắn icon cho yêu cầu làm bài: động tác chính trước ("Đọc mô tả rồi CHỌN" → chọn; "NGHE và chọn" → nghe)
+  const ICON_ORDER = ['volume-2', 'headphones', 'play', 'arrow-up-down', 'link', 'pen-line', 'circle-check', 'list-checks', 'pencil', 'messages-square', 'mic', 'book-open', 'eye', 'notebook-pen', 'key-round', 'clock', 'target', 'lightbulb', 'triangle-alert'];
+  function applyIcons(host) {
+    const MAP = root.PLS_ICON_MAP || [], ICONS = root.PLS_ICONS || {};
+    host.querySelectorAll('[data-n]').forEach(el => {
+      if (!/(^|\.)icon$/.test(el.dataset.n) || el.dataset.text) return;
+      // icon CHỈ đi với yêu cầu làm bài (instruction / task / track: viết, chọn, nghe…); ghi chú, mẹo, can-do, tag… không gắn icon cạnh chữ thân
+      if (!/^(instruction|task|track)\.icon$/.test(el.dataset.n)) { hide(el); return; }
+      const row = el.parentElement; const txt = row ? [...row.querySelectorAll('[data-text]')].filter(t => !t.closest('[data-hid]')).map(t => t.textContent).join(' ') : '';
+      if (!txt.trim()) { hide(el); return; }   // chữ đi kèm bị ẩn (trống) → không để icon trơ trọi (chữ mẫu ẩn không được tính)
+      let name = null; for (const ic of ICON_ORDER) { const m = MAP.find(x => x[0] === ic); if (m && m[1].test(txt) && ICONS[ic]) { name = ic; break; } }
+      if (!name && el.dataset.n === 'track.icon' && ICONS.headphones) name = 'headphones';   // ô audio bài nghe
+      if (!name) { if (!el.dataset.hid) name = 'info'; else return; }   // không khớp: giữ trạng thái mẫu (ẩn → vẫn ẩn)
+      show(el, host);
+      const color = (el.querySelector('[data-color]') || el).dataset.color || 'currentColor';
+      const t0 = row && row.querySelector('[data-text]'); const fz = t0 ? parseFloat(getComputedStyle(t0).fontSize) || 40 : 40;
+      const sz = Math.round(Math.max(32, fz * 1.05));   // icon cỡ theo dòng chữ (như F.icons: đúng cỡ + màu)
+      const lh = t0 ? (parseFloat(getComputedStyle(t0).lineHeight) || fz * 1.4) : sz;
+      // canh icon theo DÒNG ĐẦU của chữ (chữ nhiều dòng thì icon không trôi xuống giữa đoạn)
+      Object.assign(el.style, { flex: '0 0 auto', width: sz + 'px', height: sz + 'px', alignSelf: 'flex-start', marginTop: Math.max(0, Math.round((lh - sz) / 2)) + 'px' });
+      el.dataset.icon = name; el.style.color = color;
+      el.innerHTML = (ICONS[name] || '').replace('<svg ', '<svg style="display:block" ');
+    });
+    markIcons(host);
+  }
+  // DẤU ✓ (can-do…): người dùng 25/10 – không dùng ký tự ✓ của font (mỗi máy một kiểu, nét mảnh) → icon "check" Lucide nét dày, cùng màu + cỡ chữ.
+  // Gọi lại được (sau khi chuẩn cỡ chữ cả bài) → icon đo lại theo cỡ chữ mới.
+  function markIcons(host) { const ICONS = root.PLS_ICONS || {}; if (!ICONS['check-bold'] && ICONS.check) ICONS['check-bold'] = ICONS.check.replace(/stroke-width="2"/g, 'stroke-width="3"'); if (!ICONS['check-bold']) return;
+    host.querySelectorAll('[data-n$=".mark"], [data-n="mark"]').forEach(el => { const t = el.dataset.text ? el : el.querySelector('[data-text]');
+      if (!t || !/^[✓✔]$/.test((t.textContent || '').trim())) return;
+      let ic = el.previousElementSibling; if (!ic || ic.dataset.icon !== 'check-bold') { ic = document.createElement('div'); ic.dataset.n = el.dataset.n.replace(/mark$/, 'markicon'); ic.dataset.icon = 'check-bold';
+        ic.innerHTML = ICONS['check-bold'].replace('<svg ', '<svg style="display:block" width="100%" height="100%" '); el.parentNode.insertBefore(ic, el); }
+      el.style.display = ''; const cs = getComputedStyle(t), row = [...el.parentElement.querySelectorAll('[data-text]')].find(x => x !== t && !el.contains(x) && x.textContent.trim()), rs = row ? getComputedStyle(row) : cs, fz = parseFloat(rs.fontSize) || 40, lh = parseFloat(rs.lineHeight) || fz * 1.4, sz = Math.round(fz * 0.9), col = cs.color; el.style.display = 'none'; el.dataset.ico = '1'; if (t !== el) t.dataset.ico = '1';
+      Object.assign(ic.style, { boxSizing: 'border-box', flex: '0 0 auto', width: sz + 'px', height: sz + 'px', alignSelf: 'flex-start', marginTop: Math.max(0, Math.round((lh - sz) / 2)) + 'px', color: col }); }); }
+  const TY = () => root.PLS_TYPO;
+  // TRANG ĐÁP ÁN GỌN: thay 4 hàng × 3 ô cố định của mẫu bằng một lưới chảy (flex-wrap) đủ số ô, xếp trái → phải, trên → dưới.
+  // Số cột chọn theo độ dài đáp án (đa số ngắn → 4 cột; câu dài → 2 / 1 cột); đáp án dài hơn ô thì chiếm 2+ cột, vẫn đúng thứ tự câu.
+  // Ô ôm chữ (không kéo cao cho đầy trang), các ô cùng hàng cao bằng ô cao nhất. Cỡ chữ cả trang chỉnh sau khi dựng (ansFit).
+  const ANS_CPC = { 5: 10, 4: 14, 3: 22, 2: 40, 1: 1e9 }, ANS_GAP = 20;   // số ký tự vừa 1 ô ở cỡ 36–40
+  function ansCols(grid, C, flat) {   // flat: mọi ô 1 cột (đáp án dài xuống dòng trong ô)   // C cột; ô có đáp án dài chiếm 2+ cột, vẫn đúng thứ tự câu
+    grid.dataset.cols = String(C);
+    [...grid.children].forEach(a => { const n = +a.dataset.len || 0;
+      const span = flat ? 1 : Math.min(C, [1, 2, 3, 4, 5].find(s => n <= ANS_CPC[C] * s * 1.15) || C); a.dataset.span = String(span);
+      a.style.flex = `0 0 calc((100% - ${(C - 1) * ANS_GAP}px) / ${C} * ${span} + ${(span - 1) * ANS_GAP}px)`; });
+  }
+  function ansFlow(rootEl, data) {
+    const grid = rootEl.querySelector('[data-n="grid"]'), proto = rootEl.querySelector('[data-n="a_1"]'); if (!grid || !proto) return;
+    const items = []; for (let k = 1; data[`a_${k}.key`] != null || data[`a_${k}.text`] != null; k++) items.push(String(data[`a_${k}.text`] || ''));
+    if (!items.length) return;
+    const lens = items.map(t => t.length).sort((a, b) => a - b), med = lens[Math.floor((lens.length - 1) / 2)];
+    let C = med <= ANS_CPC[4] ? 4 : med <= ANS_CPC[3] ? 3 : med <= ANS_CPC[2] ? 2 : 1;
+    if (items.length <= 3) C = Math.min(C, items.length === 1 ? 1 : 2);
+    const tpl = proto.cloneNode(true);
+    grid.innerHTML = '';
+    Object.assign(grid.style, { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'stretch', alignContent: 'flex-start', justifyContent: 'flex-start', gap: ANS_GAP + 'px', rowGap: ANS_GAP + 'px', columnGap: ANS_GAP + 'px', paddingTop: '4px' });
+    grid.dataset.pref = String(C); grid.dataset.med = String(med);
+    items.forEach((t, i) => {
+      const a = tpl.cloneNode(true); a.dataset.n = `a_${i + 1}`; a.dataset.len = String(t.length);
+      Object.assign(a.style, { alignSelf: 'stretch', minHeight: '0', height: 'auto', padding: '16px 24px', gap: '18px', alignItems: 'center' });
+      grid.appendChild(a);
+    });
+    ansCols(grid, C);
+  }
+  // chọn cỡ chữ LỚN NHẤT (thang chuẩn 40,5 → 28) mà trang vẫn vừa; ở mỗi cỡ thử số cột ưu tiên trước rồi thêm cột (ô hẹp, chữ xuống dòng).
+  // Không vừa ở 28 → để nguyên, soát lỗi báo tràn → app chọn phương án chia trang.
+  function ansFit(r) {
+    const grid = r.host.querySelector('[data-n="grid"][data-cols]'); if (!grid) return;
+    const cells = [...grid.children], txt = cells.map(c => c.querySelector('[data-n="text"]')).filter(Boolean), keys = cells.map(c => c.querySelector('[data-n="key_box"]')).filter(Boolean);
+    const fits = () => grid.scrollHeight <= grid.clientHeight + 1 && txt.every(e => e.scrollWidth <= e.clientWidth + 1);
+    const pref = +grid.dataset.pref || 3, colsTry = [pref]; for (let c = pref + 1; c <= (med => med <= ANS_CPC[5] ? 5 : 4)(+grid.dataset.med || 99); c++) if (cells.length >= c) colsTry.push(c); for (let c = pref - 1; c >= 1; c--) colsTry.push(c);
+    const maxN = Math.max(0, ...keys.map(b => (b.textContent || '').trim().length));
+    const apply = fs => { txt.forEach(e => { e.style.fontSize = fs + 'px'; e.style.lineHeight = '1.3'; e.dataset.fs = String(fs); });
+      const kb = Math.max(44, Math.round(fs * 1.35)), kf = Math.max(24, Math.round(kb * (maxN >= 3 ? 0.36 : maxN === 2 ? 0.5 : 0.6)));
+      keys.forEach(b => { Object.assign(b.style, { flex: '0 0 auto', width: kb + 'px', minWidth: kb + 'px', height: kb + 'px' }); b.dataset.circle = String(kb); const k = b.querySelector('[data-text]'); if (k) { k.style.fontSize = kf + 'px'; k.dataset.fs = String(kf); } }); };
+    for (const fs of LADDER.filter(v => v <= 40.5 && v >= 28)) { apply(fs); for (const C of colsTry) for (const flat of [true, false]) { ansCols(grid, C, flat); if (fits()) return; } }
+    ansCols(grid, pref);
+  }
+  function setText(e, v) { const s = e.querySelector('[data-t]'); (s || e).textContent = v; }
+
+  // Ô CHỮ TRONG MỤC ĐANG DÙNG MÀ KHÔNG CÓ DỮ LIỆU (vd item_1.meta) → ẩn, không để lộ chữ mẫu (lỗi "chữ mẫu còn sót" trong BACKLOG)
+  function clearUnfilled(rootEl, data) {
+    const keys = Object.keys(data);
+    rootEl.querySelectorAll('[data-text]:not([data-filled])').forEach(t => {
+      let item = null; for (let p = t.parentElement; p && p !== rootEl; p = p.parentElement) if (/^[a-z][a-z0-9]*_(\d+|[A-H])$/i.test(p.dataset.n || '')) { item = p; break; }
+      if (t.parentElement.closest('[data-filled]')) return;   // mảnh chữ của ô ruby / khối công thức
+      if (!item || item.dataset.hid || /(^|\.)(no|key|mark|icon)$/.test(t.dataset.n)) return;
+      if (keys.some(k => k.split('.')[0] === item.dataset.n)) hide(t);
+    });
+  }
+  // ẨN MỤC THỪA (fit 3.4): nhóm đánh số (vocab_1.., item_1.., row_1.., opt_A..) có mục không dữ liệu → ẩn
+  function hideUnused(rootEl, data) {
+    const keys = Object.keys(data);
+    const used = new Set(); keys.forEach(k => k.split(/[./]/).forEach(p => used.add(p)));
+    const groups = {};
+    rootEl.querySelectorAll('[data-n]').forEach(e => {
+      const m = e.dataset.n.match(/^([a-z][a-z0-9]*_)(\d+|[A-H])$/i); if (!m) return;
+      (groups[m[1]] = groups[m[1]] || []).push(e);
+    });
+    for (const [pre, els] of Object.entries(groups)) {
+      if (!keys.some(k => k.split(/[./]/).some(p => p.startsWith(pre)))) continue;   // nhóm không được dùng → giữ nguyên mẫu
+      for (const e of els) if (!used.has(e.dataset.n)) hide(e);
+    }
+    // hàng/ cột rỗng sau khi ẩn: khung chỉ còn con ẩn → ẩn luôn
+    rootEl.querySelectorAll('[data-n]').forEach(e => { const kids = [...e.children]; if (kids.length && kids.every(c => c.dataset.hid) && /^(row|grid|list|items|options|lines)/.test(e.dataset.n)) hide(e); });
+  }
+
+  // ---------- đo & co chữ ----------
+  const R = el => el.getBoundingClientRect();
+  function scaleOf(host) { return R(host).width / parseFloat(host.style.width) || 1; }
+  function clipBox(el, host) {   // khung giới hạn gần nhất: tổ tiên có nền / clip, hoặc chính slide
+    for (let p = el.parentElement; p && p !== host; p = p.parentElement) {
+      const cs = getComputedStyle(p);
+      if (cs.overflow === 'hidden' || (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && p !== el.parentElement && R(p).width < R(host).width * 0.98)) return p;
+    }
+    return host;
+  }
+  function overflowPx(el, host) {
+    const s = scaleOf(host);
+    // phần chân/đầu chữ lòi khỏi dòng (Verdana/Arial thật trên Windows có ascent+descent > line-height) không phải tràn:
+    // dọc cho phép ~22% cỡ chữ, ngang vẫn chặt (lỗi Cover 120 → 36 trên máy Windows)
+    const fs = parseFloat(getComputedStyle(el).fontSize) || 0;
+    const own = Math.max(0, el.scrollWidth - el.clientWidth - 1, el.scrollHeight - el.clientHeight - Math.max(1, 0.22 * fs));
+    // chữ phải nằm trong MỌI khung tổ tiên (khung tự giãn thì chứa sẵn; khung có kích thước – cột, thẻ, slide – sẽ lộ phần lòi ra)
+    const a = R(el); let out = 0;
+    for (let p = el.parentElement; p && p !== host.parentElement; p = p.parentElement) {
+      const b = R(p); if (!b.width || !b.height) continue;
+      out = Math.max(out, (Math.max(0, b.left - a.left, a.right - b.right, b.top - a.top, a.bottom - b.bottom)) / s);
+    }
+    return Math.max(own, out);
+  }
+  // ô chữ tự giãn (hug) không tràn khung mà ĐÈ lên ô khác → cũng phải co (lỗi slide Pronunciation)
+  function overlapsOther(el, filled) {
+    const a = R(el); if (!a.width) return false;
+    return filled.some(o => { if (o === el || o.contains(el) || el.contains(o) || o.offsetParent === null) return false; const b = R(o); const w = Math.min(a.right, b.right) - Math.max(a.left, b.left), h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top); return w > 2 && h > 2; });
+  }
+  function fontPx(el) { return parseFloat(getComputedStyle(el).fontSize); }
+
+  // ---------- PHÂN CẤP CHỮ (chuẩn v2.0 "Cỡ chữ theo cấp": tiêu đề > nội dung chính 40px > dịch nghĩa/phiên âm ≥ 28px, tỉ lệ ~1,35 như sách 11,5/8,5 pt) ----------
+  // Mẫu Figma để tiêu đề 48 / nội dung 40,5 / dịch 36 → nhìn đều nhau. Chỉ đổi cỡ, không đổi khung; fitText vẫn co lại nếu tràn.
+  const SECONDARY = /^(vi|exvi|ipa|romaji|roma|pinyin|hanviet|meaning|min|note|sub|cap(_\d+)?|time|trans)$/i;
+  const HIER = { title: 1.36, ratio: 1.33, minSec: 28, maxTitle: 64.5, fixedTitle: 52 };
+  const slotOf = el => (el.closest('[data-n]') || el);
+  const leaf = el => String(slotOf(el).dataset.n || '').split('.').pop();
+  function hierarchy(r) {
+    const host = r.host, texts = [...host.querySelectorAll('[data-text]')].filter(e => e.offsetParent !== null && e.textContent.trim());
+    const isSec = e => SECONDARY.test(leaf(e)), isTitle = e => /^(title|.+\.title)$/.test(slotOf(e).dataset.n || '');
+    const body = texts.filter(e => !isSec(e) && !isTitle(e) && !e.closest('[data-n="header"]'));
+    const set = (e, v) => { e.style.fontSize = v + 'px'; };
+    // 1) dịch nghĩa / phiên âm: nhỏ hơn dòng chính cùng nhóm một bậc rõ rệt
+    for (const e of texts.filter(isSec)) {
+      const fs = fontPx(e); const grp = slotOf(e).parentElement && slotOf(e).parentElement.closest('[data-n]');
+      const peers = grp ? body.filter(b => grp.contains(b)) : [];
+      const p = peers.length ? Math.max(...peers.map(fontPx)) : fs;
+      let t = LADDER.find(v => v <= p / HIER.ratio + 0.01 && v >= HIER.minSec) || HIER.minSec;
+      // dịch nghĩa nằm CẠNH dòng chính (cột riêng, vd Pattern List) chứ không nằm dưới → chỉ nhỏ hơn 1 bậc (≥ 36), đọc được từ xa
+      const pe = peers.find(b => fontPx(b) >= p - 0.01); if (pe) { const a = R(e), bb = R(pe); if (a.left >= bb.right - 2 || a.right <= bb.left + 2) t = Math.max(t, 36); }
+      if (host.dataset.comp === 'Slide/Key Point' && leaf(e) === 'note') t = Math.max(t, 36);   // đoạn giải thích của Key Point: đọc được từ xa
+      if (t < fs - 0.01) set(e, Math.max(t, HIER.minSec));
+    }
+    // 2) tiêu đề trong khung: CỐ ĐỊNH 52px đậm ở mọi slide nội dung (người dùng chốt 23/10 – không to nhỏ theo từng slide);
+    //    Cover / End / Section có luật tiêu đề lớn riêng (typoLayout). Tiêu đề dài thì xuống 2 dòng, chỉ co khi vẫn tràn.
+    if (!/^Slide\/(Cover|End|Section|Section Character)$/.test(host.dataset.comp)) for (const e of texts.filter(isTitle)) { set(e, HIER.fixedTitle); e.style.fontWeight = '700'; { const ffOf = b => b.style.fontFamily || getComputedStyle(b).fontFamily, CJKF = /native|kai|wenkai|noto (sans|serif) (sc|jp|kr)|gothic|mincho|malgun|hiragino/i;   // 29/10: tiêu đề Việt không lấy font Hán của dòng đầu (Vocab Map: dòng đầu là chữ Hán → tiêu đề thành Khải thư)
+      const first = b => ffOf(b).split(',')[0], src = body.find(b => !CJKF.test(first(b))) || (/[A-Za-zÀ-ỹ]/.test(e.textContent) ? null : body[0]); if (src) e.style.fontFamily = ffOf(src); else if (body[0] && CJKF.test(first(body[0]))) e.style.fontFamily = "var(--ff-font-body, 'Montserrat'), sans-serif"; } /* cùng một font ở mọi slide */ e.style.lineHeight = '1.2'; e.dataset.fs = String(HIER.fixedTitle); }
+  }
+  // chữ không được xuống sát mép dưới khung trắng nội dung (chừa ≥ 24px) – dùng cho các bước phóng chữ (29/10: câu cuối hội thoại chạm mép)
+  function tooLow(e, r) { const card = r.host.querySelector('[data-n="card"]'); if (!card) return false; return e.getBoundingClientRect().bottom > card.getBoundingClientRect().bottom - 24 * scaleOf(r.host); }
+  // PHÓNG CHỮ khi còn chỗ: mẫu vẽ cho nhiều dòng (Hội thoại 8–10 câu) hoặc cỡ nhỏ (câu ví dụ thẻ từ) → bài ít chữ thì còn dư chỗ; phóng dần từng nhóm cùng loại lên chung một cỡ,
+  // dừng ở cỡ lớn nhất không làm tràn hay đè ô khác (người dùng 28/10: pinyin, nghĩa, câu ví dụ nhỏ)
+  const GROW = {
+    'Slide/Dialogue': [['^line_\\d+\\.de$', 40.5], ['^line_\\d+\\.vi$', 36], ['^line_\\d+\\.speaker$', 36]],
+    'Slide/Dialogue Long': [['^line_\\d+\\.de$', 40.5], ['^line_\\d+\\.vi$', 36], ['^line_\\d+\\.speaker$', 36]],
+    'Slide/Vocab Card': [['^exde$', 55.5], ['^exvi$', 40.5], ['^ipa$', 40.5]],
+    'Slide/Pattern List': [['^p_\\d+\\.de$', 55.5], ['^p_\\d+\\.vi$', 40.5], ['^p_\\d+\\.ipa$', 36]]
+  };
+  function growDialog(r) {
+    const plan = GROW[r.host.dataset.comp]; if (!plan) return;
+    const els = r.filled.filter(e => e.offsetParent !== null);
+    const bad = es => es.some(e => overflowPx(e, r.host) > 0.5) || els.some(e => overlapsOther(e, els) || tooLow(e, r));
+    for (const [re, goal] of plan) {
+      const g = els.filter(e => new RegExp(re).test(e.dataset.filled)); if (!g.length) continue;
+      const cur = Math.min(...g.map(fontPx)), keep = g.map(e => e.style.fontSize);
+      for (const v of LADDER.filter(v => v > cur + 0.01 && v <= goal).reverse()) {
+        g.forEach(e => { e.style.fontSize = v + 'px'; });
+        if (!bad(g)) { keep.length = 0; break; }
+      }
+      if (keep.length) g.forEach((e, i) => { e.style.fontSize = keep[i]; });
+    }
+  }
+  // SỐ THỨ TỰ trong thẻ nhiều dòng (số + cột chữ): đưa vòng tròn số lên đầu thẻ, ngang dòng đầu (chữ Hán / tiêu đề mục) thay vì giữa thẻ – trên → dưới, trái → phải (người dùng 28/10)
+  function alignNumbers(r) {
+    const s = scaleOf(r.host);
+    r.host.querySelectorAll('[data-n]').forEach(row => {
+      if (row.style.flexDirection !== 'row' || !row.offsetParent) return;
+      const kids = [...row.children].filter(k => k.offsetParent); if (kids.length < 2) return;
+      const box = kids[0], body = kids[1]; if (!/(^|\.)no_box$/.test(box.dataset.n || '') || body.style.flexDirection !== 'column') return;
+      const lines = [...body.children].filter(k => k.offsetParent); if (lines.length < 2) return;
+      row.style.alignItems = 'flex-start';
+      const fh = lines[0].getBoundingClientRect().height / s, bh = box.getBoundingClientRect().height / s;
+      box.style.marginTop = Math.max(0, Math.round((fh - bh) / 2)) + 'px';
+    });
+  }
+  // THẺ ĐOÁN NGHĨA (Guess Cards): bỏ ô nền đặc quanh nghĩa, lấy màu nền đó làm màu chữ (người dùng 28/10) – nhìn nhẹ, không có khối vuông ở cuối thẻ
+  function flatAnswers(r) {
+    if (!/^Slide\/Guess/.test(r.host.dataset.comp)) return;
+    r.host.querySelectorAll('[data-n="ans"]').forEach(a => {
+      const c = getComputedStyle(a).backgroundColor; if (!c || /rgba\(0, 0, 0, 0\)|transparent/.test(c) || a.dataset.flat) return;
+      a.dataset.flat = '1'; a.style.backgroundColor = 'transparent'; a.style.boxShadow = 'none'; a.style.padding = '0'; a.style.borderRadius = '0';
+      a.querySelectorAll('[data-text]').forEach(t => { t.style.color = c; });
+    });
+  }
+  // THẺ MẪU CÂU (Pattern List): mọi thành phần trong thẻ (số · câu + phiên âm · nghĩa) cùng căn đầu thẻ, thẻ ôm nội dung thay vì kéo dãn hết khung (người dùng 28/10)
+  function topAlignCards(r) {
+    if (r.host.dataset.comp !== 'Slide/Pattern List') return;
+    const cards = [...r.host.querySelectorAll('[data-n]')].filter(c => /^p_\d+$/.test(c.dataset.n) && c.style.flexDirection === 'row' && c.offsetParent !== null);
+    if (cards.length > 3) return;   // 4 thẻ trở lên: thẻ vốn đã sát nội dung, để mẫu tự chia đều (tránh tràn khi câu dài)
+    cards.forEach(card => {
+      if (!/^p_\d+$/.test(card.dataset.n) || card.style.flexDirection !== 'row') return;
+      card.style.flex = '0 1 auto'; card.style.minHeight = '0'; card.style.alignItems = 'flex-start';
+      [...card.children].forEach(c => { c.style.alignSelf = 'flex-start'; });
+    });
+  }
+  // PHÓNG CHỮ THEO CHỖ TRỐNG (người dùng 28/10: chữ đang nhỏ, nên to lên vừa phải theo khoảng trống còn lại để bố cục cân hơn):
+  // mỗi nhóm cùng loại (vocab_#.de, row_#.c2…) lên chung cỡ lớn nhất không làm tràn / đè ô khác. Chữ chính ≤ 48 (Hán/Kana/Hangul thuần ≤ 64,5), chữ phụ (nghĩa, phiên âm) ≤ 40,5
+  // và luôn nhỏ hơn chữ chính cùng slide. Không đụng tiêu đề, đầu trang, nhãn, số, chip, bìa / hết bài / section.
+  const NOGROW = /^(header|logo|title|no|num|label|tag|time|min|key|mark|audio|footer|page|brand|tagline|contact|speaker|pos|unit|icon)(\.|_|$)|(^|\.)(no|key|mark|min|time|pos|unit|speaker|label|title)$/;
+  function growAll(r) {
+    if (root.PLS_NOGROW || /^Slide\/(Cover|End|Section|Section Character|Answer Key|Agenda)$/.test(r.host.dataset.comp)) return;
+    const els = r.filled.filter(e => e.offsetParent !== null && (e.textContent || '').trim() && !e.closest('[data-circle]'));
+    const groups = {};
+    els.forEach(e => { const k = e.dataset.filled.replace(/_(\d+|[A-H])(?=\.|$)/g, '_#'); if (NOGROW.test(k) || NOGROW.test(leaf(e))) return; (groups[k] = groups[k] || []).push(e); });
+    const ks = Object.keys(groups), isSec = k => SECONDARY.test(k.split('.').pop());
+    const cjk = g => g.every(e => /^[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\s，。！？、：；（）]+$/.test((e.textContent || '').trim()));
+    const sc = scaleOf(r.host), imgs = imgBoxes(r), dim = e => { const b = e.getBoundingClientRect(); return [b.width / sc, b.height / sc]; };
+    const img0 = imgs.map(dim);   // chữ không được phóng làm ô ảnh hẹp hay thấp đi (ảnh trên chữ hoặc cạnh chữ)
+    const bad = g => g.some(e => overflowPx(e, r.host) > 0.5) || els.some(e => overlapsOther(e, els) || tooLow(e, r)) || imgs.some((e, i) => { const [w, h] = dim(e); const lim = v => Math.min(v, Math.max(150, 0.8 * v)) - 1; return w < lim(img0[i][0]) || h < lim(img0[i][1]); });   // ảnh được nhỏ đi ≤ 20%, không dưới 150px
+    const grow = (g, goal) => {
+      const cur = Math.min(...g.map(fontPx)); let ok = cur;
+      for (const v of LADDER.filter(v => v > cur + 0.01 && v <= goal).reverse()) {   // từ nhỏ lên lớn, dừng ở bậc đầu tiên gây tràn
+        g.forEach(e => { e.style.fontSize = v + 'px'; });
+        if (bad(g)) break; ok = v;
+      }
+      g.forEach(e => { e.style.fontSize = ok + 'px'; });
+    };
+    for (const k of ks.filter(k => !isSec(k))) grow(groups[k], cjk(groups[k]) ? 64.5 : 48);
+    const mainMax = Math.max(0, ...ks.filter(k => !isSec(k)).map(k => Math.min(...groups[k].map(fontPx))));
+    const secCap = mainMax ? (LADDER.find(v => v <= mainMax / 1.1 + 0.01) || 40.5) : 40.5;
+    for (const k of ks.filter(isSec)) grow(groups[k], Math.min(40.5, secCap));
+  }
+  // Ô ảnh trong thẻ nhiều mục (vocab_1.img…): mọi ảnh cùng slide dùng chung một chiều cao (= ô nhỏ nhất), ảnh contain nên nhìn cân nhau (người dùng 28/10: ảnh to nhỏ không đều)
+  function imgBoxes(r) { return [...r.host.querySelectorAll('[data-n="img"]')].filter(e => e.offsetParent !== null && e.parentElement && /_(\d+|[A-H])$/.test(e.parentElement.dataset.n || '')); }
+  function equalImages(r) {
+    const imgs = imgBoxes(r); if (imgs.length < 2) return;
+    const sc = scaleOf(r.host), groups = {};
+    imgs.forEach(e => { const k = e.parentElement.dataset.n.replace(/_(\d+|[A-H])$/, '_#'); (groups[k] = groups[k] || []).push(e); });
+    for (const g of Object.values(groups)) {
+      if (g.length < 2) continue;
+      const row = g[0].parentElement.style.flexDirection === 'row';   // ảnh nằm cạnh chữ (Vocab Grid 4…) → đều bề rộng; ảnh trên chữ → đều chiều cao
+      const w = Math.floor(Math.min(...g.map(e => e.getBoundingClientRect().width / sc))), h = Math.floor(Math.min(...g.map(e => e.getBoundingClientRect().height / sc)));
+      if (w < 40 || h < 40) continue;   // ô đã bị ép (lỗi chỗ khác) → không khoá kích thước sai
+      g.forEach(e => { e.style.flex = '0 0 auto'; if (row) { e.style.width = w + 'px'; e.style.alignSelf = 'stretch'; } else { e.style.height = h + 'px'; e.style.alignSelf = 'stretch'; } });
+    }
+  }
+
+  // NHÃN ĐỨNG CẠNH CÂU (goal.label "Mục tiêu" + goal…): nhãn cùng cỡ với câu bên cạnh, căn theo đường chân chữ dòng đầu → nằm cùng một hàng (người dùng 29/10)
+  function labelRow(r) {
+    r.filled.forEach(lb => {
+      const m = /^(.+)\.label$/.exec(lb.dataset.filled || ''); if (!m || !lb.offsetParent) return;
+      const row = lb.parentElement; if (!row || row.style.flexDirection !== 'row') return;
+      const tx = [...row.children].find(x => x !== lb && x.dataset.filled === m[1] && x.offsetParent); if (!tx) return;
+      lb.style.fontSize = fontPx(tx) + 'px'; lb.style.lineHeight = getComputedStyle(tx).lineHeight; row.style.alignItems = 'baseline';
+    });
+  }
+  // TIÊU ĐỀ ĐẦU TRANG (header.topic) viết đủ, không cắt "…" (người dùng 29/10): dài thì co dần, sàn 30px; vẫn không vừa thì xuống 2 dòng (sàn 26px)
+  function headerFit(r) {
+    const el = r.host.querySelector('[data-filled="header.topic"]'); if (!el || !el.offsetParent) return;
+    const s = scaleOf(r.host), chip = el.closest('[data-n="topic"]') || el, logo = r.host.querySelector('[data-n="logo_badge"]');
+    const hb = R(r.host), limit = (logo && logo.offsetParent ? R(logo).left - 24 * s : hb.right - 48 * s);
+    const fits = () => R(chip).right <= limit + 0.5 && el.scrollWidth <= el.clientWidth + 1;
+    if (fits()) return;
+    const start = fontPx(el);
+    for (const v of LADDER.filter(v => v < start - 0.01 && v >= 30)) { el.style.fontSize = v + 'px'; if (fits()) return; }
+    // 2 dòng: chip giới hạn bề rộng tới trước logo, chữ được xuống dòng
+    Object.assign(el.style, { whiteSpace: 'normal', lineHeight: '1.15', overflowWrap: 'break-word' });
+    chip.style.maxWidth = Math.max(200, (limit - R(chip).left) / s) + 'px'; el.style.maxWidth = '100%';
+    for (const v of LADDER.filter(v => v <= 36 && v >= 26)) { el.style.fontSize = v + 'px'; if (R(el).height / s <= v * 1.15 * 2 + 2) return; }
+  }
+  // BẢNG nhiều cột: tiêu đề cột (row_0) cùng một cỡ; các cột chữ (c2, c3…) của mọi hàng dữ liệu cùng một cỡ; cột 1 (khoá) giữ riêng. Chạy cuối fitText và cuối typoSpread (luật chữ đặc biệt có thể đổi cỡ sau fit)
+  // câu ví dụ KHÔNG gắn pinyin (đã có chú thích pinyin) cạnh câu có pinyin: chữ Hán cùng cỡ chữ Hán của câu có pinyin (30/10: câu 1 nhỏ lệch hẳn)
+  function formulaUnify(r) {
+    if (r.host.dataset.comp !== 'Slide/Grammar Formula') return;
+    const bad = () => (r.filled || []).some(x => x.offsetParent && overflowPx(x, r.host) > 0.5);
+    // nhãn Khẳng định / Phủ định / Nghi vấn: 1 dòng, cùng bề rộng (bằng nhãn dài nhất) – người dùng 30/10
+    const labs = [...r.host.querySelectorAll('[data-n]')].filter(e => /^f_\d+\.label$/.test(e.dataset.n) && e.offsetParent);
+    if (labs.length > 1) { const keep = labs.map(e => [e.style.width, e.style.minWidth, e.style.maxWidth, e.style.flex, e.style.whiteSpace]);
+      labs.forEach(e => Object.assign(e.style, { whiteSpace: 'nowrap', width: 'auto', minWidth: '0', maxWidth: 'none', flex: '0 0 auto' }));
+      const w = Math.ceil(Math.max(...labs.map(e => e.getBoundingClientRect().width / scaleOf(r.host))));
+      labs.forEach(e => Object.assign(e.style, { width: w + 'px', minWidth: w + 'px', maxWidth: w + 'px', flex: `0 0 ${w}px` }));
+      if (bad()) labs.forEach((e, k) => Object.assign(e.style, { width: keep[k][0], minWidth: keep[k][1], maxWidth: keep[k][2], flex: keep[k][3], whiteSpace: keep[k][4] })); }
+    // câu ví dụ không gắn pinyin: CẢ NHÓM cùng một cỡ = cỡ chữ Hán của câu có pinyin (hoặc to nhất mà không tràn) – không mỗi câu một cỡ
+    const plain = [...r.host.querySelectorAll('[data-ex-plain="1"]')].filter(e => e.offsetParent); if (!plain.length) return;
+    const b = r.host.querySelector('[data-n$=".ex"] [data-n="base"]'), f0 = plain.map(e => e.style.fontSize), cur = Math.min(...plain.map(fontPx));
+    const want = b ? Math.round(fontPx(b) * 2) / 2 : Math.max(...plain.map(fontPx));
+    for (const v of [want, ...LADDER.filter(v => v < want && v >= cur)]) { plain.forEach(e => { e.style.fontSize = v + 'px'; }); if (!bad()) return; }
+    plain.forEach(e => { e.style.fontSize = cur + 'px'; });
+  }
+  function tableUnify(r) {
+    if (!/^Slide\/Grammar Table (3|N)$/.test(r.host.dataset.comp)) return;
+    const cell = el => /^row_(\d+)\.c(\d+)$/.exec(el.dataset.filled || '');
+    const unify = els => { if (els.length > 1) { const m = Math.min(...els.map(fontPx)); els.forEach(e => { e.style.fontSize = m + 'px'; }); } };
+    const vis = r.filled.filter(e => e.offsetParent !== null);
+    const head = vis.filter(e => { const c = cell(e); return c && c[1] === '0'; }), body = vis.filter(e => { const c = cell(e); return c && c[1] !== '0' && c[2] !== '1'; });
+    unify(head); unify(body);
+    // cột 1 (Thanh 1, b, p…): to hơn thân bảng vừa phải – tối đa 1,3 lần, không vọt 48px (người dùng 29/10: "font chênh nhau quá")
+    { const key = vis.filter(e => { const c = cell(e); return c && c[1] !== '0' && c[2] === '1'; }); if (key.length && body.length) { const cap = Math.round(fontPx(body[0]) * 1.3 * 2) / 2; unify(key); key.forEach(e => { if (fontPx(e) > cap) e.style.fontSize = cap + 'px'; }); } }
+    // đầu bảng (chữ ngắn, đậm) không bị kéo nhỏ theo thân bảng: to hơn thân một bậc, tối đa 40,5, nếu không tràn (người dùng 29/10)
+    if (head.length && body.length) { const b = fontPx(body[0]), keep = head.map(e => e.style.fontSize);
+      for (const v of LADDER.filter(v => v > b + 0.01 && v <= 40.5).reverse().slice(0, 1).concat(LADDER.filter(v => v > fontPx(head[0]) + 0.01 && v <= b + 0.01).slice(0, 1))) {
+        head.forEach(e => { e.style.fontSize = v + 'px'; }); if (!head.some(e => overflowPx(e, r.host) > 0.5)) return; head.forEach((e, i) => { e.style.fontSize = keep[i]; }); } }
+  }
+  function fitText(r) {
+    const { host, filled } = r; const log = [];
+    for (const el of filled) {
+      // Thẻ từ: chữ Hán / Kana / Hangul ngắn (≤ 4 ký tự, không lẫn chữ Việt/Latin) → to hết cỡ 120 (người dùng 28/10); fit bên dưới vẫn hạ nếu tràn
+      if (host.dataset.comp === 'Slide/Vocab Card' && el.dataset.filled === 'word') { const tx = (el.textContent || '').trim(); if (tx.length <= 4 && /^[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]+$/.test(tx)) { el.style.fontSize = '120px'; el.style.lineHeight = '1.1'; } }
+      // Vocab Grid 4/6/8: chữ Hán/Kana/Hangul là thứ cần nhìn nhất → to hơn (4 ô 79,5 · 6 ô 64,5 · 8 ô 55,5); nghĩa Việt 4 ô lên 40,5 (người dùng 28/10). Fit + nhóm cùng loại bên dưới vẫn hạ nếu tràn
+      const vg = /^Slide\/Vocab Grid (4|6|8)$/.exec(host.dataset.comp);
+      if (vg && /^vocab_\d+\.(de|vi)$/.test(el.dataset.filled) && !el.dataset.skinFs) {
+        const tx = (el.textContent || '').trim();
+        if (el.dataset.filled.endsWith('.de')) { if (/^[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\s]+$/.test(tx)) el.style.fontSize = { 4: 79.5, 6: 64.5, 8: 55.5 }[vg[1]] + 'px'; }
+        else if (vg[1] === '4' && fontPx(el) < 40.5) el.style.fontSize = '40.5px';
+      }
+      let fs = fontPx(el); const start = fs;
+      let guard = 0;
+      while ((overflowPx(el, host) > 0.5 || overlapsOther(el, filled)) && guard++ < 14) {
+        const next = LADDER.find(v => v < fs - 0.01); if (!next || next < STD.minFont) break;
+        fs = next; el.style.fontSize = fs + 'px';
+      }
+      if (fs !== start) log.push({ slot: el.dataset.filled, from: start, to: fs });
+    }
+    // nhóm cùng loại (vocab_1.de, vocab_2.de…) dùng chung cỡ nhỏ nhất → đều nhau (thay fitCards)
+    const groups = {};
+    filled.forEach(el => { if (el.closest('[data-circle]')) return;   // số trong vòng tròn: cỡ theo số ký tự, không kéo cả nhóm nhỏ theo số 2 chữ số
+      const g = el.dataset.filled.replace(/_(\d+|[A-H])(?=\.|$)/g, '_#'); if (g !== el.dataset.filled) (groups[g] = groups[g] || []).push(el); });
+    for (const els of Object.values(groups)) { const m = Math.min(...els.map(fontPx)); els.forEach(e => { if (fontPx(e) > m) e.style.fontSize = m + 'px'; }); }
+    tableUnify(r);
+    return log;
+  }
+
+  // luật bố cục chữ đặc biệt (typo.js): ô to + khối chữ chính trước khi co chữ; giãn đều chống hở đáy sau khi co
+  function typoLayout(r) {
+    headerFit(r);
+    topAlignCards(r);   // thẻ ôm nội dung TRƯỚC khi co chữ → fitText đo đúng chỗ thật (28/10: thẻ 4 tràn khỏi khung)
+    ansFit(r);   // trang đáp án gọn: chọn cỡ chữ chung cho cả trang trước các luật khác
+    // tên người nói cùng slide: ô rộng bằng nhau (= tên dài nhất, ≤ 300px) để các câu thẳng hàng
+    const sp = [...r.host.querySelectorAll('[data-n="speaker"], [data-n$=".speaker"]')].filter(e => e.dataset.text && e.offsetParent);
+    if (sp.length > 1) { const s = scaleOf(r.host); const w = Math.min(440, Math.max(...sp.map(e => R(e).width / s))); sp.forEach(e => { e.style.width = Math.ceil(w) + 'px'; e.style.minWidth = ''; e.style.whiteSpace = 'normal'; e.style.textAlign = 'center'; /* tên dài được xuống dòng → không bị ép chữ nhỏ (29/10) */ }); }
+    // TƯƠNG PHẢN (RB-CH-07, thay sửa màu trong Figma): chữ không đạt 4,5 : 1 (chữ lớn 3 : 1) với nền → làm tối dần màu chữ (giữ sắc độ thương hiệu) tới khi đạt
+    {
+      const rgbOf = c => { const m = String(c).match(/rgba?\(([^)]+)\)/); if (!m) return null; const v = m[1].split(',').map(parseFloat); return { r: v[0], g: v[1], b: v[2], a: v.length > 3 ? v[3] : 1 }; };
+      const lumOf = c => { const f = x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
+      const ratio = (a, b) => { const x = lumOf(a), y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+      const bgFor = el => { for (let p = el; p && p !== r.host.parentElement; p = p.parentElement) { const cs = getComputedStyle(p); if (cs.backgroundImage && cs.backgroundImage !== 'none' && !/gradient/.test(cs.backgroundImage)) return null; const c = rgbOf(cs.backgroundColor); if (c && c.a > 0.5) return c; } return { r: 255, g: 255, b: 255 }; };
+      r.host.querySelectorAll('[data-text]').forEach(t => { if (!t.offsetParent || !t.textContent.trim()) return; const cs = getComputedStyle(t), fg = rgbOf(cs.color), bg = bgFor(t); if (!fg || !bg) return;
+        const fs = parseFloat(cs.fontSize), need = (fs >= 48 || (parseFloat(cs.fontWeight) >= 700 && fs >= 37) ? 3 : 4.5) + 0.15; if (ratio(fg, bg) >= need) return;
+        const darkBg = lumOf(bg) < 0.4; let c = { ...fg };
+        for (let i = 0; i < 20 && ratio(c, bg) < need; i++) c = darkBg ? { r: c.r + (255 - c.r) * 0.15, g: c.g + (255 - c.g) * 0.15, b: c.b + (255 - c.b) * 0.15 } : { r: c.r * 0.88, g: c.g * 0.88, b: c.b * 0.88 };
+        t.style.color = `rgb(${Math.round(c.r)}, ${Math.round(c.g)}, ${Math.round(c.b)})`; });
+    }
+    // DANH SÁCH THOÁNG: cột danh sách (step_n, item_n, cando_n…) còn chỗ thì nới khe + đệm trên/dưới mỗi mục một chút (≤ +16px khe, ≤ +8px đệm); tràn thì trả lại
+    {
+      const LI = /^(item|step|cando|q|ex|line|u|f|task|guide|part|point|tip|rule|note|use|s)_\d+$/, s0 = scaleOf(r.host), done = new Set();
+      r.host.querySelectorAll('[data-n]').forEach(e => { const L = e.parentElement; if (!LI.test(e.dataset.n) || !L || done.has(L) || L.style.flexDirection !== 'column') return; done.add(L);
+        const kids = [...L.children].filter(k => LI.test(k.dataset.n || '') && k.offsetParent); if (kids.length < 3) return;
+        const pb = parseFloat(getComputedStyle(L).paddingBottom) || 0, inner = () => R(L).bottom - pb * s0;   // QC 25/10: chừa đệm dưới của khung (không dàn chạm đáy)
+        const free = (inner() - R(kids[kids.length - 1]).bottom) / s0; if (free < 40) return;
+        const g0 = parseFloat(L.style.rowGap || L.style.gap) || 0, addG = Math.min(16, Math.floor(free * 0.45 / (kids.length - 1))), addP = Math.min(8, Math.floor(free * 0.2 / kids.length / 2));
+        const keep = kids.map(k => [k.style.paddingTop, k.style.paddingBottom, k.style.paddingLeft, k.style.paddingRight]), keepG = L.style.rowGap;
+        L.style.rowGap = (g0 + addG) + 'px';
+        kids.forEach(k => { const cs = getComputedStyle(k); k.style.paddingTop = (parseFloat(cs.paddingTop) + addP) + 'px'; k.style.paddingBottom = (parseFloat(cs.paddingBottom) + addP) + 'px'; if (cs.boxShadow !== 'none' || cs.backgroundColor !== 'rgba(0, 0, 0, 0)') { if (parseFloat(cs.paddingLeft) < 24) k.style.paddingLeft = '24px'; if (parseFloat(cs.paddingRight) < 24) k.style.paddingRight = '24px'; } });
+        if (kids.some(k => R(k).bottom > inner() + 1) || r.filled.some(el => overflowPx(el, r.host) > 0.5)) { L.style.rowGap = keepG; kids.forEach((k, i) => { [k.style.paddingTop, k.style.paddingBottom, k.style.paddingLeft, k.style.paddingRight] = keep[i]; }); }
+      });
+    }
+    // CĂN TRÊN-TRÁI LINH HOẠT (người dùng chốt 23/10): cột nội dung đang căn giữa dọc mà nội dung chiếm > 45% chiều cao cột → đẩy lên trên
+    // (đọc trái → phải, trên → dưới); nội dung ít (< 45%) thì vẫn để giữa cho cân. Cover / End / Section giữ nguyên.
+    if (!/^Slide\/(Cover|End|Section|Section Character)$/.test(r.host.dataset.comp)) {
+      const card = r.host.querySelector('[data-n="card"]'); const s0 = scaleOf(r.host);
+      if (card) [card, ...card.querySelectorAll('[data-n]')].forEach(col => {
+        if (col.style.flexDirection !== 'column' || col.style.justifyContent !== 'center' || !col.offsetParent) return;
+        const kids = [...col.children].filter(k => k.offsetParent); if (!kids.length) return;
+        const H = R(col).height; if (H < 200 * s0) return;
+        const used = R(kids[kids.length - 1]).bottom - R(kids[0]).top;
+        col.style.justifyContent = 'flex-start';   // người dùng 24/10: luôn dàn từ trên xuống, dư chỗ ở dưới thì để trống
+      });
+    }
+    // BẢNG (Grammar Table / Table 3 / Table N / Exercise Table): bảng rộng hết khung, hàng cao đều và thoáng – chiếm ~80% chỗ trống, mỗi hàng 96–150px
+    if (/^Slide\/(Grammar Table|Exercise Table)/.test(r.host.dataset.comp)) {
+      const s = scaleOf(r.host), tb = r.host.querySelector('[data-n="table"]'), card = r.host.querySelector('[data-n="card"]');
+      const rows = tb ? [...tb.children].filter(x => /^row_\d+$/.test(x.dataset.n || '') && x.offsetParent) : [];
+      if (rows.length && card) {
+        rows.forEach(x => { Object.assign(x.style, { width: 'auto', alignSelf: 'stretch', height: 'auto', alignItems: 'stretch' }); [...x.children].forEach(c => Object.assign(c.style, { height: 'auto', alignSelf: 'stretch', padding: '20px 32px' })); });
+        const pb = parseFloat(getComputedStyle(card).paddingBottom) || 0;
+        const avail = (R(card).bottom - R(tb).top) / s - pb;
+        const per = Math.max(96, Math.min(150, Math.floor(avail * 0.8 / rows.length)));
+        rows.forEach(x => { x.style.minHeight = per + 'px'; });
+        // cột 1 (một chữ / một âm) hẹp lại, nhường chỗ cho các cột chữ dài → ít phải co chữ (người dùng 28/10: bảng Âm · Âm tương tự · Ví dụ chữ nhỏ, lệch cỡ)
+        if (/^Slide\/Grammar Table (3|N)$/.test(r.host.dataset.comp)) rows.forEach(x => [...x.children].forEach((c, i) => { c.style.flex = i === 0 ? '0 0 16%' : '1 1 0px'; c.style.minWidth = '0'; }));
+      }
+    }
+    // TIÊU ĐỀ LỚN (Cover / End / Section): luôn đậm, cách dòng 1,15, cỡ lớn nhất mà vẫn ≤ 2 dòng (120 → 79,5 → 64,5 → 55,5 → 48);
+    // dòng phụ (tên khoá, nghĩa tiếng Việt) chữ thường 40,5, cách dòng 1,3 – phân cấp rõ, không tranh với tiêu đề
+    const BIG = { 'Slide/Cover': ['title.de', 'title.vi'], 'Slide/End': ['thanks.de', 'thanks.vi'], 'Slide/Section': ['section.title', 'section.sub'], 'Slide/Section Character': ['section.title', 'section.sub'] }[r.host.dataset.comp];
+    if (BIG) {
+      const s = scaleOf(r.host), main = r.host.querySelector(`[data-filled="${BIG[0]}"]`), sub = r.host.querySelector(`[data-filled="${BIG[1]}"]`);
+      const isEnd = r.host.dataset.comp === 'Slide/End';
+      // dòng phụ: End ("Cảm ơn các bạn!") 55,5 – đọc rõ từ cuối lớp; Cover/Section 40,5
+      if (sub) { Object.assign(sub.style, { fontWeight: isEnd ? '600' : '400', lineHeight: '1.3' }); sub.style.fontSize = (isEnd ? 64.5 : Math.min(40.5, fontPx(sub))) + 'px'; }   // End (người dùng 28/10): chữ chính đậm 700 > dòng cảm ơn 600 cỡ 64,5 > khẩu hiệu 400 cỡ 40,5 – phân cấp theo cả cỡ lẫn độ dày
+      // khẩu hiệu thương hiệu (TẠI … – TRI THỨC TRUYỀN TỪ TÂM): không nhỏ hơn 36 (End) / 30 (Cover)
+      r.host.querySelectorAll('[data-var-text="info/tagline"], [data-n="tagline"], [data-n$=".tagline"]').forEach(t => { if (t.dataset.text && t.offsetParent) { const m = isEnd ? 40.5 : 30; if (fontPx(t) < m) t.style.fontSize = m + 'px'; if (isEnd) t.style.fontWeight = '400'; } });
+      if (main) {
+        Object.assign(main.style, { fontWeight: '700', lineHeight: '1.15' });
+        // chữ Hán / Kana / Hangul to và dày hơn chữ Latin cùng cỡ → trần 79,5
+        if (/[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/.test(main.textContent) && fontPx(main) > 79.5) main.style.fontSize = '79.5px';
+        const start = fontPx(main);
+        for (const v of LADDER.filter(v => v <= start + 0.01 && v >= 48)) { main.style.fontSize = v + 'px'; if (R(main).height / s <= v * 1.15 * 2 + 4 && main.scrollWidth <= main.clientWidth + 1) break; }
+      }
+    }
+    const T = TY(); return T ? [...T.bigTiles(r.host), ...T.hero(r.host)] : [];
+  }
+  function typoSpread(r) { const T = TY(); const out = T ? T.spread(r.host, el => overflowPx(el, r.host)) : []; const b = breathe(r); if (b) out.push(b); growAll(r); equalImages(r); tableUnify(r); formulaUnify(r); growDialog(r); alignNumbers(r); flatAnswers(r); labelRow(r); return out; }
+  // THỞ (người dùng chốt 23/10): còn trống dưới khung thì giãn khoảng cách giữa các phân mục MỘT CHÚT cho thoáng (≈ 35% chỗ trống, mỗi khe ≤ +32px)
+  // – không kéo thẻ to ra, không cố lấp đầy; giãn xong mà tràn thì trả lại
+  function breathe(r) {
+    if (/^Slide\/(Cover|End|Section|Section Character)$/.test(r.host.dataset.comp)) return null;
+    const card = r.host.querySelector('[data-n="card"]'); if (!card || !card.offsetParent) return null;
+    const s = scaleOf(r.host), kids = [...card.children].filter(k => k.offsetParent); if (kids.length < 2) return null;
+    const pb = parseFloat(getComputedStyle(card).paddingBottom) || 0;
+    const free = (R(card).bottom - pb * s - R(kids[kids.length - 1]).bottom) / s; if (free < 80) return null;
+    const add = Math.min(32, Math.floor(free * 0.35 / (kids.length - 1))); if (add < 6) return null;
+    const g0 = parseFloat(card.style.rowGap || card.style.gap) || parseFloat(getComputedStyle(card).rowGap) || 0, keep = card.style.rowGap;
+    card.style.rowGap = (g0 + add) + 'px';
+    if (r.filled.some(el => overflowPx(el, r.host) > 0.5)) { card.style.rowGap = keep; return null; }
+    return `giãn phân mục +${add}px`;
+  }
+
+  // ---------- CỠ CHUẨN CẢ BÀI (người dùng chốt 24/10) ----------
+  // Mỗi loại chữ (câu hỏi, đáp án, nội dung, dịch nghĩa…) đo cỡ LỚN NHẤT còn vừa khung ở từng slide → lấy TRUNG VỊ cả bài làm cỡ chuẩn.
+  // Slide thưa phóng lên đúng cỡ chuẩn (không vượt), slide dày giữ cỡ lớn nhất vừa được; slide to hơn chuẩn thì hạ về chuẩn → cả bài đồng bộ.
+  // Tiêu đề (52 cố định), hướng dẫn, số thứ tự, chữ trưng bày (> 56px), Cover / Section / End giữ luật riêng.
+  const DECK_SKIP = /^(title|instruction|header|no|key|label|tag|section|topic|unit|total_q|total_min|mark|who|deadline|count|time|hint|pair|sound|point|track|situation|logo|text_box|pos|l_past|l_now|l_fut|band_l|mark_l|v|scale|val|kicker|word|mean)$/;
+  const DECK_CAP = { main: 40.5, sec: 36 };   // nội dung ≤ 40,5 (chuẩn v2.0 "nội dung chính 40px") – luôn nhỏ hơn hướng dẫn 48 và tiêu đề 52
+  function deckRoles(r) {
+    if (/^Slide\/(Cover|End|Section|Section Character)$/.test(r.host.dataset.comp)) return {};
+    const out = {};
+    for (const el of r.filled || []) { if (!el.offsetParent || !el.textContent.trim() || el.closest('[data-circle]') || el.closest('[data-n="header"]') || el.dataset.skinFs) continue;   // skinFs: cỡ do giao diện brand đặt (skin-dn.js)
+      const k = String(el.dataset.filled || ''), lf = k.split('.').pop().replace(/_(\d+|[A-H])$/, '');
+      if (DECK_SKIP.test(lf) || /^title$/.test(k.split('.')[0]) || fontPx(el) > 56.5) continue;
+      (out[lf] = out[lf] || []).push(el); }
+    return out;
+  }
+  function padOver(r) { const card = r.host.querySelector('[data-n="card"]'); if (!card) return false; const s = scaleOf(r.host), pb = (parseFloat(getComputedStyle(card).paddingBottom) || 0) * s, lim = R(card).bottom - pb + 1;
+    return [...card.children].some(k => k.offsetParent && getComputedStyle(k).position !== 'absolute' && R(k).bottom > lim); }
+  function deckBad(r, els) { return padOver(r) || r.filled.some(el => el.offsetParent && overflowPx(el, r.host) > 0.5) || els.some(el => overlapsOther(el, r.filled)); }
+  function deckNormalize(rs) {
+    const meas = rs.map(r => { const roles = deckRoles(r), m = {};
+      for (const [lf, els] of Object.entries(roles)) {
+        const fs0 = els.map(fontPx), cur = Math.min(...fs0), cap = SECONDARY.test(lf) ? DECK_CAP.sec : DECK_CAP.main; let best = cur;
+        for (const v of LADDER.filter(v => v > cur + 0.01 && v <= cap).reverse()) { els.forEach(e => { e.style.fontSize = v + 'px'; }); if (deckBad(r, els)) break; best = v; }
+        els.forEach((e, i) => { e.style.fontSize = fs0[i] + 'px'; });
+        m[lf] = { els, best }; }
+      return m; });
+    const tgt = {};
+    meas.forEach(m => Object.entries(m).forEach(([lf, x]) => (tgt[lf] = tgt[lf] || []).push(x.best)));
+    for (const lf in tgt) { const a = tgt[lf].sort((x, y) => x - y); tgt[lf] = a[Math.floor((a.length - 1) / 2)]; }   // trung vị (nghiêng về cỡ nhỏ khi số chẵn)
+    const log = [];
+    rs.forEach((r, i) => { const m = meas[i]; if (!Object.keys(m).length) return;
+      const keep = []; Object.values(m).forEach(x => x.els.forEach(e => keep.push([e, e.style.fontSize])));
+      const want = {}; for (const [lf, x] of Object.entries(m)) want[lf] = Math.min(tgt[lf], x.best);
+      // dịch nghĩa / phiên âm luôn nhỏ hơn dòng chính cùng slide ít nhất một bậc
+      const mainMax = Math.max(0, ...Object.entries(want).filter(([lf]) => !SECONDARY.test(lf)).map(([, v]) => v));
+      if (mainMax) for (const lf in want) if (SECONDARY.test(lf)) { const lim = LADDER.find(v => v <= mainMax / 1.2 + 0.01) || 20; want[lf] = Math.max(Math.min(want[lf], Math.max(lim, Math.min(...m[lf].els.map(fontPx)))), STD.minFont); }   // chỉ chặn không cho LỚN thêm, không thu nhỏ dòng dịch đang có
+      const set = () => { for (const [lf, x] of Object.entries(m)) x.els.forEach(e => { e.style.fontSize = want[lf] + 'px'; }); };
+      set(); const all = Object.values(m).flatMap(x => x.els);
+      for (let g = 0; g < 12 && deckBad(r, all); g++) {   // dựng chung các loại chữ mà tràn → hạ loại đang tăng nhiều nhất một bậc
+        let pick = null, d = -1; for (const [lf, x] of Object.entries(m)) { const inc = want[lf] - Math.min(...x.els.map(e => parseFloat(keep.find(k => k[0] === e)[1]) || want[lf])); if (inc > d) { d = inc; pick = lf; } }
+        const nx = LADDER.find(v => v < want[pick] - 0.01); if (!nx) break; want[pick] = nx; set(); }
+      if (deckBad(r, all)) keep.forEach(([e, v]) => { e.style.fontSize = v; });   // vẫn tràn → trả lại như cũ
+      else log.push(i + 1);
+      // câu hỏi dài ≥ 3 dòng mà in đậm cả khối → khó đọc: để chữ thường (đáp án vẫn nằm trong ô riêng nên vẫn tách bạch)
+      (m.question || []).els && m.question.els.forEach(e => { const lh = parseFloat(getComputedStyle(e).lineHeight) || fontPx(e) * 1.3;
+        const rows = e.dataset.ruby ? new Set([...e.children].filter(c => c.offsetParent).map(c => Math.round(c.offsetTop / 8))).size : e.getBoundingClientRect().height / scaleOf(r.host) / lh;   // câu có pinyin: đếm số hàng thật (dòng pinyin không tính là 1 dòng – 30/10: câu 10 mất đậm, câu 11 đậm)
+        if (rows > 2.5) e.style.fontWeight = '400'; });
+      // câu hỏi có pinyin (khung ruby, chữ con không mang data-text): cùng độ đậm với câu hỏi thường của slide → ≤ 2 hàng thì đậm (30/10)
+      r.host.querySelectorAll('[data-n="question"][data-ruby], [data-n^="question_"][data-ruby]').forEach(e => { const tops = [...e.children].filter(c => c.offsetParent).map(c => c.offsetTop).sort((a, b) => a - b), lh = fontPx(e) * 1.3;
+        let rows = tops.length ? 1 : 0; for (let k = 1; k < tops.length; k++) if (tops[k] - tops[k - 1] > lh * 0.6) rows++;
+        const w = rows > 2 ? '400' : '700'; e.style.fontWeight = w; e.querySelectorAll('[data-n="seg"], [data-n="base"]').forEach(x => { x.style.fontWeight = w; });
+        // đậm làm câu rớt 1 mẩu xuống hàng 2 → hạ cỡ từng bậc (tối thiểu 34) cho về 1 hàng
+        const rowsNow = () => { const t = [...e.children].filter(c => c.offsetParent).map(c => c.offsetTop).sort((a, b) => a - b); let n = t.length ? 1 : 0; for (let k = 1; k < t.length; k++) if (t[k] - t[k - 1] > fontPx(e) * 0.8) n++; return n; };
+        if (w === '700' && rowsNow() === 2) { const kids = [...e.querySelectorAll('*')].filter(x => /px$/.test(x.style.fontSize)), f0 = kids.map(x => parseFloat(x.style.fontSize));   // chữ con mang cỡ px riêng → co cả cụm theo tỉ lệ
+          let ok = false; for (const k of [0.95, 0.9, 0.85, 0.8]) { kids.forEach((x, i) => { x.style.fontSize = Math.round(f0[i] * k * 2) / 2 + 'px'; }); if (rowsNow() === 1) { ok = true; break; } }
+          if (!ok) kids.forEach((x, i) => { x.style.fontSize = f0[i] + 'px'; }); } });
+      // NHÃN ĐẦU MỤC (Từ vựng / Ngữ pháp / Phát âm… trên dòng nội dung – người dùng 25/10): là tiêu đề của mục → không được nhỏ hơn chữ nội dung bên dưới
+      r.host.querySelectorAll('[data-n="label"]').forEach(lb => { const tx = lb.nextElementSibling; if (!tx || tx.dataset.n !== 'text' || !lb.offsetParent) return;
+        const a = fontPx(lb), b = fontPx(tx); if (b <= a + 0.5) return; lb.style.fontSize = b + 'px'; if (deckBad(r, [lb])) lb.style.fontSize = a + 'px'; });
+      tableUnify(r); formulaUnify(r); growDialog(r); alignNumbers(r); flatAnswers(r); labelRow(r);
+      // BƯỚC HOẠT ĐỘNG (người dùng 29/10: dòng mô tả to bằng / hơn tên bước "nhìn lỗi"): mô tả luôn nhỏ hơn tên bước ít nhất một bậc
+      if (r.host.dataset.comp === 'Slide/Activity Steps') r.host.querySelectorAll('[data-n^="st_"]').forEach(st => { if (!/^st_\d+$/.test(st.dataset.n)) return;
+        const nmE = st.querySelector('[data-n="name"]'), tx = st.querySelector('[data-n="text"]'); if (!nmE || !tx || !tx.offsetParent) return;
+        const a = fontPx(nmE), b = fontPx(tx); if (b < a - 0.01) return; const nb = LADDER.find(v => v <= a / 1.2 + 0.01) || 36; tx.style.fontSize = Math.max(nb, 36) + 'px'; });
+      r.issues = audit(r); r.score = score(r.issues, r.fitLog); });
+    return { target: tgt, slides: log.length };
+  }
+
+  // ---------- soát lỗi (chuẩn v2.0) ----------
+  function audit(r) {
+    const { host, filled } = r; const s = scaleOf(host); const out = [];
+    const H = R(host);
+    for (const el of filled) {
+      if (el.dataset.ico) continue;   // dấu ✓ đã thay bằng icon (markIcons) – ô chữ gốc ẩn
+      const ov = overflowPx(el, host);
+      if (ov > 0.5) out.push({ lv: 'do', code: 'spill', slot: el.dataset.filled, msg: `Chữ tràn ${Math.round(ov)}px ở ô ${el.dataset.filled}`, src: 'Mẫu' });
+      const fs = fontPx(el);
+      if (fs < STD.minFont - 0.01) out.push({ lv: 'do', code: 'minFont', slot: el.dataset.filled, msg: `Cỡ chữ ${fs}px dưới ngưỡng ${STD.minFont}`, src: 'Nội dung' });
+      else if (fs < STD.warnFont - 0.01) out.push({ lv: 'vang', code: 'smallFont', slot: el.dataset.filled, msg: `Cỡ chữ ${fs}px nhỏ (nên ≥ ${STD.warnFont})`, src: 'Nội dung' });
+      const a = R(el); const m = STD.safe * s;
+      if (a.left < H.left + m - 1 || a.right > H.right - m + 1 || a.bottom > H.bottom - m + 1) out.push({ lv: 'vang', code: 'safeArea', slot: el.dataset.filled, msg: `Ô ${el.dataset.filled} chạm lề an toàn ${STD.safe}px`, src: 'Mẫu' });
+    }
+    // chồng lấn giữa các ô đã điền
+    for (let i = 0; i < filled.length; i++) for (let j = i + 1; j < filled.length; j++) {
+      const a = filled[i], b = filled[j]; if (a.contains(b) || b.contains(a)) continue;
+      const x = R(a), y = R(b);
+      const w = Math.min(x.right, y.right) - Math.max(x.left, y.left), h = Math.min(x.bottom, y.bottom) - Math.max(x.top, y.top);
+      if (w > 4 * s && h > 4 * s) out.push({ lv: 'do', code: 'overlap', slot: a.dataset.filled, msg: `Ô ${a.dataset.filled} chồng lên ${b.dataset.filled}`, src: 'Mẫu' });
+    }
+    for (const el of filled) { const ff = getComputedStyle(el).fontFamily.split(',')[0]; if (CJK_FONT.test(ff) && VIET.test(el.textContent)) out.push({ lv: 'do', code: 'vietFont', slot: el.dataset.filled, msg: `Chữ Việt ở ô ${el.dataset.filled} đang dùng font ${ff.replace(/["']/g, '')} (RB-CH-04)`, src: 'Mẫu' }); }
+    const words = filled.map(e => e.textContent).join(' ').split(/\s+/).filter(Boolean).length;
+    if (STD.maxWords && words > STD.maxWords && !STD.wordsSkip.test(host.dataset.comp)) out.push({ lv: 'vang', code: 'words', msg: `${words} từ (chuẩn ≤ ${STD.maxWords} từ / slide)`, src: 'Nội dung' });
+    const imgs = host.querySelectorAll('.pls-imgslot'); const shown = [...imgs].filter(e => e.offsetParent !== null);
+    if (shown.length) out.push({ lv: 'vang', code: 'noImage', msg: `${shown.length} ô thiếu hình: ${shown.map(e => (e.dataset.imgLabel || '').replace(/^Thiếu hình:?\s*/, '') || '?').join(', ')}`, src: 'Ảnh' });
+    if (r.missing.length) out.push({ lv: 'do', code: 'noSlot', msg: `Mẫu không có ô: ${r.missing.join(', ')}`, src: 'Nội dung' });
+    return out;
+  }
+  function score(issues, fitLog) {   // trọng số tạm, giữ tinh thần W của fit_js: tràn > chồng > chữ nhỏ
+    let sc = 100;
+    for (const i of issues) sc -= { spill: 40, overlap: 30, minFont: 25, smallFont: 6, safeArea: 4, words: 3, noImage: 0, noSlot: 20 }[i.code] || 2;
+    sc -= fitLog.reduce((a, f) => a + Math.max(0, (f.from - f.to) / 8), 0);
+    return Math.max(0, Math.round(sc));
+  }
+
+  // ---------- tự chọn mẫu + chia slide (thay build/score/apply của fit_js) ----------
+  const AUTO = {
+    vocab: { comps: ['Slide/Vocab Grid 8', 'Slide/Vocab Grid 6', 'Slide/Vocab Grid 4'], cap: c => +c.match(/\d+$/)[0], item: (it, i) => ({ [`vocab_${i}.de`]: it.de, [`vocab_${i}.vi`]: it.vi, [`_vocab_${i}.py`]: it.ipa || it.py || '' }) }
+  };
+  function plans(spec) {
+    const A = AUTO[spec.auto]; const N = spec.items.length; const out = [];
+    const caps = A.comps.map(c => [c, A.cap(c)]);
+    // phương án: 1 loại mẫu chia đều; hoặc ghép 2 loại (lớn trước, phần dư vào loại vừa đủ)
+    for (const [c, cap] of caps) { const k = Math.ceil(N / cap); if (k <= 4) out.push(Array(k).fill(c)); }
+    for (const [c1, cap1] of caps) for (const [c2, cap2] of caps) { if (cap2 >= cap1) continue; const full = Math.floor(N / cap1), rest = N - full * cap1; if (full >= 1 && rest > 0 && rest <= cap2 && full + 1 <= 4) out.push([...Array(full).fill(c1), c2]); }
+    const uniq = {}; out.forEach(p => uniq[p.join('|')] = p); return Object.values(uniq);
+  }
+  function splitItems(items, comps, capOf) {
+    const total = items.length; const caps = comps.map(capOf); const sum = caps.reduce((a, b) => a + b, 0);
+    let left = total; const counts = caps.map((c, i) => { const rem = caps.slice(i + 1).reduce((a, b) => a + b, 0); const n = Math.min(c, Math.max(Math.ceil(left * c / (c + rem)), left - rem)); left -= n; return n; });
+    let p = 0; return counts.map(n => { const part = items.slice(p, p + n); p += n; return part; });
+  }
+  function expand(spec, common) {   // spec auto → các phương án [{label, slides:[{comp,data}], fill, cover, fillW}]
+    const X = (root.PLS_AUTO || {})[spec.auto];
+    if (X && X.expand) return X.expand(spec).map(p => Object.assign(p, { slides: p.slides.map(s => ({ comp: s.comp, layout: s.layout, common, data: s.data, ans: s.ans, notes: s.notes || spec.notes })) }));
+    const A = AUTO[spec.auto];
+    return plans(spec).map(p => {
+      const parts = splitItems(spec.items, p, A.cap);
+      return { fill: spec.items.length / p.reduce((a, c) => a + A.cap(c), 0), cover: 1, fillW: 30, label: p.map(c => c.replace('Slide/Vocab Grid ', 'lưới ')).join(' + ') + ` (${p.length} slide)`, slides: parts.map((part, si) => ({ comp: p[si], common, data: Object.assign({ 'header.section': spec.section || '' }, ...part.map((it, i) => A.item(it, i + 1))),
+        notes: [spec.notes || '', part.some(it => it.nt) ? 'TỪ TRÊN SLIDE\n' + part.filter(it => it.nt).map(it => '• ' + it.nt).join('\n') : '', part.some(it => it.nw) ? 'LƯU Ý\n' + part.filter(it => it.nw).map(it => '• ' + it.nw).join('\n') : ''].filter(Boolean).join('\n\n') })) };   // ghi chú giảng: từng từ của đúng phần này
+    });
+  }
+
+  // ---------- xuất PPTX: DOM → model của PPTX.build cũ ----------
+  const toRGB = c => { const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null; const v = m[1].split(',').map(s => parseFloat(s)); return { c: [v[0] / 255, v[1] / 255, v[2] / 255], a: v.length > 3 ? v[3] : 1 }; };
+  const STYLE = w => ({ 100: 'Thin', 200: 'ExtraLight', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold', 800: 'ExtraBold', 900: 'Black' })[Math.round(w / 100) * 100] || 'Regular';
+  async function imgBytes(url) {
+    const im = new Image(); im.crossOrigin = 'anonymous'; im.src = url; await im.decode();
+    const cv = document.createElement('canvas'); cv.width = im.naturalWidth; cv.height = im.naturalHeight; cv.getContext('2d').drawImage(im, 0, 0);
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png')); return new Uint8Array(await blob.arrayBuffer());
+  }
+  async function svgPng(svg, color, w, h) {
+    const s = svg.replace(/currentColor/g, color).replace('<svg ', `<svg xmlns="http://www.w3.org/2000/svg" `.includes('xmlns') && svg.includes('xmlns') ? '<svg ' : '<svg xmlns="http://www.w3.org/2000/svg" ').replace(/width="100%" height="100%"/, `width="${w}" height="${h}"`);
+    const im = new Image(); im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s); await im.decode();
+    const cv = document.createElement('canvas'); cv.width = Math.max(1, w); cv.height = Math.max(1, h); cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png')); return new Uint8Array(await blob.arrayBuffer());
+  }
+  async function toModel(hosts, opts) {
+    const model = { w: 1920, h: 1080, slides: [], media: {} };
+    let uid = 0;
+    for (const host of hosts) {
+      const s = scaleOf(host), H = R(host); const items = [];
+      const box = el => { const a = R(el); return { x: (a.left - H.left) / s, y: (a.top - H.top) / s, w: a.width / s, h: a.height / s }; };
+      const anims = [];
+      const walk = async el => {   // phần tử có hiệu ứng → gom thành 1 nhóm để PowerPoint chạy Appear cho cả khối
+        if (!el.dataset.fx || el.offsetParent === null) return inner(el);
+        const start = items.length; await inner(el);
+        const kids = items.splice(start); if (!kids.length) return;
+        const id = 'fx' + (uid++); const b0 = box(el);
+        items.push({ k: 'group', id, name: el.dataset.n + ' (hiệu ứng)', ...b0, kids });
+        anims.push({ id, fx: el.dataset.fx, when: el.dataset.fxWhen, order: +el.dataset.fxOrder, dir: el.dataset.fxDir || '', dur: +el.dataset.fxDur || 0, dx: +el.dataset.fxDx || 0, dy: +el.dataset.fxDy || 0 });
+      };
+      const inner = async el => {
+        const cs = getComputedStyle(el);
+        if (cs.display === 'none' || cs.visibility === 'hidden') return;
+        const op = parseFloat(cs.opacity);
+        const b = box(el); if (b.w < 0.5 && b.h < 0.5 && !el.children.length) return;
+        if (el.dataset.line) { const [fh, fv, lw] = el.dataset.line.split(',').map(Number); const c = toRGB(cs.color) || { c: [0, 0, 0], a: 1 };   // dây nối của bộ hiệu ứng nhanh → đường thẳng thật trong PPTX
+          items.push({ k: 'line', id: 'n' + (uid++), name: el.dataset.n || 'line', ...b, op, flipH: !!fh, flipV: !!fv, lw: lw || 6, c }); return; }
+        const bg = toRGB(cs.backgroundColor); const shadow = cs.boxShadow !== 'none' ? cs.boxShadow : '';
+        const ins = shadow.match(/(rgba?\([^)]+\))\s+0px\s+0px\s+0px\s+([\d.]+)px\s+inset/) || shadow.match(/inset\s+0px\s+0px\s+0px\s+([\d.]+)px\s+(rgba?\([^)]+\))/);
+        let stroke = null;
+        if (ins) { const c = toRGB(ins[1].startsWith('rgb') ? ins[1] : ins[2]); const w = parseFloat(ins[1].startsWith('rgb') ? ins[2] : ins[1]); if (c && c.a > 0) stroke = { w, c: c.c, a: c.a }; }
+        else if (parseFloat(cs.borderTopWidth) > 0 && cs.borderTopStyle !== 'none') { const c = toRGB(cs.borderTopColor); if (c && c.a > 0) stroke = { w: parseFloat(cs.borderTopWidth), c: c.c, a: c.a, dash: cs.borderTopStyle === 'dashed' }; }
+        const rad = parseFloat(cs.borderTopLeftRadius) || 0;
+        if ((bg && bg.a > 0.01) || stroke) items.push({ k: 'shape', id: 'n' + (uid++), name: el.dataset.n || 'shape', ...b, op, shape: { fill: bg && bg.a > 0.01 ? bg : null, stroke, rad: Math.min(rad, b.w / 2, b.h / 2) } });
+        const bi = cs.backgroundImage.match(/url\("?([^")]+)"?\)/);
+        if (bi && opts.images !== false) { const key = bi[1]; if (!model.media[key]) { try { model.media[key] = /^https?:/.test(key) && root.PLS_IMAGES ? await root.PLS_IMAGES.bytes(key) : await imgBytes(key); } catch (e) { console.warn('[PLS] ảnh không đọc được', key, e); } } if (model.media[key]) { const pd = parseFloat(cs.paddingTop) || 0; let ib = el.dataset.imgId ? { x: b.x + pd, y: b.y + pd, w: b.w - 2 * pd, h: b.h - 2 * pd } : b;
+          const by = model.media[key]; if (el.dataset.imgId && by && by[1] === 0x50) { const dv = new DataView(by.buffer, by.byteOffset); const iw = dv.getUint32(16), ih = dv.getUint32(20); const k = Math.min(ib.w / iw, ib.h / ih); const w = iw * k, h = ih * k; ib = { x: ib.x + (ib.w - w) / 2, y: ib.y + (ib.h - h) / 2, w, h }; } /* giữ tỉ lệ ảnh, không bóp méo */ items.push({ k: 'img', id: 'n' + (uid++), name: el.dataset.n || 'img', ...ib, op, png: key, fit: el.dataset.imgId ? 'contain' : 'cover' }); } }
+        if (el.dataset.icon && root.PLS_ICONS && root.PLS_ICONS[el.dataset.icon]) {   // icon SVG → ảnh PNG (x4) để PowerPoint/Google Slides hiển thị giống nhau
+          const key = 'icon:' + el.dataset.icon + ':' + cs.color;
+          if (!model.media[key]) { try { model.media[key] = await svgPng(root.PLS_ICONS[el.dataset.icon], cs.color, Math.round(b.w * 4), Math.round(b.h * 4)); } catch (e) { console.warn('[PLS] icon', e); } }
+          if (model.media[key]) items.push({ k: 'img', id: 'n' + (uid++), name: el.dataset.n, ...b, op, png: key });
+          return;
+        }
+        if (el.classList.contains('pls-imgslot') && el.offsetParent !== null) items.push({ k: 'text', id: 'n' + (uid++), name: 'img-placeholder', ...b, ah: 'CENTER', av: 'CENTER', auto: 'NONE', segs: [{ t: el.dataset.imgLabel || 'Ảnh', f: 'Arial', st: 'Regular', sz: 24, c: { c: [0.45, 0.47, 0.5], a: 1 } }] });
+        if (el.dataset.text) {
+          const t = el.innerText; if (!t.trim()) return;
+          const span = el.querySelector('[data-t]'); const tb = box(span || el);
+          const c = toRGB(cs.color) || { c: [0, 0, 0], a: 1 };
+          const ff = cs.fontFamily.split(',')[0].replace(/["']/g, '').trim();
+          const lh = cs.lineHeight === 'normal' ? null : { unit: 'PIXELS', value: parseFloat(cs.lineHeight) };
+          const ea = host.dataset.exportFont || undefined;
+          const tc = cs.textTransform === 'uppercase' ? 'UPPER' : cs.textTransform === 'lowercase' ? 'LOWER' : undefined;
+          const seg0 = { t, f: ff, ea, st: STYLE(parseFloat(cs.fontWeight)), sz: parseFloat(cs.fontSize), c, lh, tc };
+          let segs = [seg0];
+          if (el.querySelector('[data-seg]')) {   // F.emph: nhiều kiểu chữ trong 1 ô → nhiều run
+            segs = []; const tgt = span || el;
+            for (const nd of tgt.childNodes) { const tt = nd.textContent; if (!tt) continue;
+              if (nd.nodeType === 1) { const c2 = getComputedStyle(nd); segs.push(Object.assign({}, seg0, { t: tt, st: STYLE(parseFloat(c2.fontWeight)), c: toRGB(c2.color) || c })); }
+              else segs.push(Object.assign({}, seg0, { t: tt })); }
+          }
+          // CHỮ TRONG VÒNG TRÒN (a b c d / số thứ tự – QC 25/10: tải về chữ xộc xệch): hộp chữ = đúng vòng tròn, căn giữa cả ngang lẫn dọc, dòng 100% → PowerPoint tự canh tâm như web
+          { const round = e => { if (!e) return false; const q = R(e), r0 = parseFloat(getComputedStyle(e).borderTopLeftRadius) || 0, rr = getComputedStyle(e).borderTopLeftRadius; return q.height > 0 && Math.abs(q.width - q.height) < 2 && (/%$/.test(rr) ? parseFloat(rr) >= 50 : r0 * s >= q.height / 2 - 1); };
+            const cc = el.closest('[data-circle]') || (round(el) ? el : round(el.parentElement) ? el.parentElement : null);
+            if (cc && t.trim().length <= 3) { const cb = box(cc); segs.forEach(sg => { sg.lh = null; }); items.push({ k: 'text', id: el.dataset.filled || ('n' + uid++), name: el.dataset.n, x: cb.x, y: cb.y, w: cb.w, h: cb.h, op, ah: 'CENTER', av: 'CENTER', auto: 'NONE', segs }); return; } }
+          items.push({ k: 'text', id: el.dataset.filled || ('n' + uid++), name: el.dataset.n, x: b.x, y: span ? tb.y : b.y, w: b.w, h: span ? tb.h : b.h, op, ah: { left: 'LEFT', center: 'CENTER', right: 'RIGHT', justify: 'JUSTIFIED', start: 'LEFT' }[cs.textAlign] || 'LEFT', av: 'TOP', auto: cs.whiteSpace === 'pre' ? 'WIDTH_AND_HEIGHT' : 'HEIGHT', segs });
+          return;
+        }
+        for (const k of el.children) await walk(k);
+      };
+      await walk(host.firstElementChild);
+      const bgc = toRGB(getComputedStyle(host.firstElementChild).backgroundColor);
+      const T = opts.transition || {};   // chuyển cảnh (transitionXml cũ): tắt mặc định vì chuẩn v2.0 RB-PPT-08 yêu cầu 0 chuyển cảnh
+      const trOn = T.style && T.style !== 'NONE' && (T.scope !== 'section' || /^Slide\/(Cover|Section|Section Character|End)$/.test(host.dataset.comp));
+      model.slides.push({ name: host.dataset.comp, bg: bgc ? bgc.c : null, items, anims: anims.sort((a, b) => a.order - b.order), tr: trOn ? { style: T.style, duration: T.duration || 0.5 } : null });
+    }
+    return model;
+  }
+
+  // ---------- font khi xuất PPTX (PPTX_CFG của plugin): tiêu đề Verdana, nội dung Arial, chữ bản ngữ theo thiết bị ----------
+  // Dựng lại slide bằng đúng font sẽ dùng trên máy giáo viên rồi CO CHỮ LẠI, để PPTX không tràn khi đổi font.
+  const PPTX_CFG = {
+    heading: 'Verdana', body: 'Arial',
+    devices: {
+      win: { tag: 'Windows', fonts: { 'Saechang': 'Malgun Gothic', 'Sakumi': 'Yu Gothic', 'Đắc Nhân': 'KaiTi' } },   // tiếng Trung = chữ Khải (người dùng 28/10)
+      mac: { tag: 'Mac, iPad', fonts: { 'Saechang': 'Apple SD Gothic Neo', 'Sakumi': 'Hiragino Sans', 'Đắc Nhân': 'Kaiti SC' } },
+      and: { tag: 'Android, Google Slides', fonts: { 'Saechang': 'Noto Sans KR', 'Sakumi': 'Noto Sans JP', 'Đắc Nhân': 'LXGW WenKai' } }
+    },
+    latinInNative: ['Đắc Nhân']
+  };
+  const KAI_BRANDS = ['Đắc Nhân'];
+  const VIET = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
+  const CJK_FONT = /Gothic A1|Noto Sans (JP|KR|SC)|Noto Serif (JP|KR|SC)|KaiTi|Kaiti|WenKai|Malgun|Yu Gothic|YaHei|Hiragino|PingFang|Apple SD/i;
+  const CJK = /[\u3000-\u30ff\u3400-\u9fff\uac00-\ud7af\u1100-\u11ff\uf900-\ufaff\uff00-\uffef]/;
+  function devicesOf(brand) { const out = Object.entries(PPTX_CFG.devices).filter(([, d]) => d.fonts[brand]).map(([key, d]) => ({ key, tag: d.tag, font: d.fonts[brand] })); return out.length ? out : [{ key: 'all', tag: 'Mọi thiết bị', font: null }]; }
+  function applyExportFonts(host, brand, device) {
+    const native = device && device.font;
+    host.dataset.exportFont = native || '';
+    host.querySelectorAll('[data-text], [data-ruby], [data-blocks]').forEach(el => {
+      const ff = el.style.fontFamily || ''; if (!ff) return;   // mảnh chữ ruby/khối: thừa hưởng font của khung
+      const role = /native/.test(ff) && native ? 'native' : (/heading|display/.test(ff) ? 'heading' : 'body');
+      const txt = el.textContent || '';
+      let fam = role === 'native' ? native : role === 'heading' ? PPTX_CFG.heading : PPTX_CFG.body;
+      if (fam === native && VIET.test(txt) && !CJK.test(txt)) fam = role === 'heading' ? PPTX_CFG.heading : PPTX_CFG.body;   // RB-CH-04 / fixFontViet: chữ Việt không nằm trong font Hán–Hàn–Nhật
+      if (native && CJK.test(txt) && !VIET.test(txt) && !/[A-Za-zÀ-ỹāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]/.test(txt) && PPTX_CFG.latinInNative.includes(brand)) fam = native;   // 29/10: chỉ câu TOÀN chữ Hán mới lấy Khải thư làm font chính; có pinyin / chữ cái → font thường trước, chữ Hán rơi về Khải thư   // câu Việt có chen chữ Hán → font Việt, chữ Hán tự rơi về Khải thư (28/10)
+      el.style.fontFamily = `'${fam}'` + (native ? `, '${native}'` : '') + (/kai/i.test(native || '') ? ", 'KaiTi', 'Kaiti SC', 'STKaiti', 'LXGW WenKai'" : '') + ', sans-serif';   // máy không có Khải thư → xem bằng LXGW WenKai (web)
+      // khối sách được xử lý TRƯỚC khi gắn vào trang → getComputedStyle rỗng → mọi chữ đậm thành thường (lỗi phân cấp sách);
+      // chưa gắn thì đọc độ đậm từ style của mẫu (var(--fw-…, 700) → 700)
+      const fwIn = String(el.style.fontWeight || ''), fwNum = parseFloat((fwIn.match(/(\d{3})\s*\)?\s*$/) || [])[1]) || parseFloat(fwIn);
+      const fw = el.isConnected ? (parseFloat(getComputedStyle(el).fontWeight) || fwNum || 400) : (fwNum || 400);
+      el.style.fontWeight = fw >= 600 ? '700' : '400';
+    });
+  }
+
+  // ---------- HIỆU ỨNG (PLS_ANIM.roleOf + F.FX + F.fxPlan) – chuẩn v2.0 RB-PPT-08: chỉ Appear, chỉ nội dung cần ẩn ----------
+  const ROLE_RULES = [[/^(brand\.bg|bg\/.*|bg\.img|header|section|topic|spacer|logo.*|card|body)$/, 'frame'], [/^(a|a\.\w+|ans\w*|answer\w*|solution\w*)$/i, 'answer'],
+    [/^(instruction(\.vi)?|task(\.vi)?|situation|track_box|track)$/, 'instruction'], [/^(question|q|q\.\w+|q_\d+)$/, 'question'], [/^opt_[A-Z]$/, 'option'],
+    [/^(item_\d+|l_\d+|r_\d+|row_\d+|line_\d+|ex_\d+|vocab_\d+|letter_\d+|card_\d+|col_\d+|img_\d+_box|stroke_\d+)$/, 'item'], [/^(title|h|head|.+\.title)$/, 'title'],
+    [/^(img|img_\d+|images|char\.img|img_box|cap|cap_\d+)$/, 'media'], [/^(rule|rule_box|model_box|text_box|example_box|sound_box|char_box|info|qa|list|grid|table|options|items|columns|left|right|examples|lines)$/, 'block']];
+  const FX = { title: null, instruction: null, media: null, block: null, item: { fx: 'fade', when: 'click', each: true }, option: { fx: 'fly', when: 'click', each: true }, question: { fx: 'fade', when: 'click' }, answer: { fx: 'zoom', when: 'click', each: true } };   // QC 24/10: chuyển động nhẹ thay vì chỉ Appear
+  const FX_ORD = ['question', 'option', 'item', 'answer'];
+  const roleOfName = nm => { nm = String(nm || '').replace(/\s+[@#].*$/, ''); for (const [re, r] of ROLE_RULES) if (re.test(nm)) return r; return null; };
+  function planFx(r, opt) {
+    opt = opt || {}; const host = r.host;
+    host.querySelectorAll('[data-fx]').forEach(e => { delete e.dataset.fx; delete e.dataset.fxWhen; delete e.dataset.fxOrder; delete e.dataset.fxDx; delete e.dataset.fxDy; });
+    if (opt.on === false) return (r.fx = []);
+    const maxSteps = opt.pace === 'nhanh' ? 3 : opt.pace === 'chậm' ? 8 : 6;
+    const units = [];
+    const hasContent = el => [...el.querySelectorAll('[data-filled], [data-img-id]')].concat(el.dataset.filled ? [el] : []).some(x => x.offsetParent !== null);
+    const walk = el => {
+      if (el.offsetParent === null && el !== host.firstElementChild) return;
+      const role = roleOfName(el.dataset.n);
+      if (role && FX[role] && el !== host.firstElementChild && el.dataset.n !== 'row_0') { if (hasContent(el)) units.push({ el, role }); return; }   // row_0 = hàng tiêu đề bảng: hiện sẵn
+      for (const k of el.children) walk(k);
+    };
+    walk(host.firstElementChild);
+    const out = []; let order = 0;
+    for (const role of FX_ORD) {
+      if (role === 'answer' && opt.hideAnswer === false) continue;
+      const us = units.filter(u => u.role === role); if (!us.length) continue;
+      const each = FX[role].each && us.length <= maxSteps;
+      us.forEach((u, i) => { const when = i === 0 || each ? 'click' : 'with'; order++; u.el.dataset.fx = (FX[u.role] && FX[u.role].fx) || 'fade'; u.el.dataset.fxWhen = when; u.el.dataset.fxOrder = order; out.push({ n: u.el.dataset.n, role, fx: u.el.dataset.fx, when, order }); });
+    }
+    return (r.fx = out);
+  }
+  const fxSteps = fx => fx.filter(a => a.when === 'click').length;
+
+  root.PLS_ENGINE = { sentenceCase, deckNormalize, markIcons, render, fitText, audit, score, expand, toModel, find, LADDER, STD, devicesOf, applyExportFonts, PPTX_CFG, planFx, fxSteps, roleOfName, hierarchy, typoLayout, typoSpread };
+})(window);
