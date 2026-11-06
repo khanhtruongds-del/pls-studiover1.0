@@ -1,0 +1,2800 @@
+{
+ "3|KN-001|旅游的时候 (Lǚyóu de shíhou)": {
+  "file": "B03_KN-001_Luyou-de-shihou.mp3",
+  "secs": 25.35,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "Nữ",
+    "voice": "nu",
+    "start": 0.4,
+    "end": 2.21,
+    "text": "我已经买火车票了。",
+    "hz": 222,
+    "g": "f"
+   },
+   {
+    "no": "2.0",
+    "role": "Nam",
+    "voice": "nam",
+    "start": 3.01,
+    "end": 5.24,
+    "text": "我们是坐飞机来的。",
+    "hz": 145,
+    "g": "m"
+   },
+   {
+    "no": "3.0",
+    "role": "Nữ",
+    "voice": "nu",
+    "start": 6.04,
+    "end": 8.82,
+    "text": "晚上我们去吃北京烤鸭吧！",
+    "hz": 195,
+    "g": "f"
+   },
+   {
+    "no": "4.0",
+    "role": "Nam",
+    "voice": "nam",
+    "start": 9.62,
+    "end": 11.38,
+    "text": "我给妈妈打电话。",
+    "hz": 155,
+    "g": "m"
+   },
+   {
+    "no": "5.0",
+    "role": "Nữ",
+    "voice": "nu",
+    "start": 12.18,
+    "end": 14.81,
+    "text": "王老师在给我们介绍北京。",
+    "hz": 215,
+    "g": "f"
+   },
+   {
+    "no": "6.0",
+    "role": "Nam",
+    "voice": "nam",
+    "start": 15.61,
+    "end": 18.37,
+    "text": "明天我去大兴机场接朋友。",
+    "hz": 173,
+    "g": "m"
+   },
+   {
+    "no": "7.0",
+    "role": "Nữ",
+    "voice": "nu",
+    "start": 19.17,
+    "end": 21.39,
+    "text": "不好意思，我来晚了。",
+    "hz": 228,
+    "g": "f"
+   },
+   {
+    "no": "8.0",
+    "role": "Nam",
+    "voice": "nam",
+    "start": 22.19,
+    "end": 24.85,
+    "text": "这是我第一次来西安旅游。",
+    "hz": 144,
+    "g": "m"
+   }
+  ]
+ },
+ "9|KN-002|请问，怎么去？ (Qǐngwèn, zěnme qù?)": {
+  "file": "B09_KN-002_Qingwen-zenme-qu.mp3",
+  "secs": 49.79,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "Nam – 男 (nán)",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 2.64,
+    "text": "请问，洗手间在哪儿？",
+    "hz": 148,
+    "g": "m"
+   },
+   {
+    "no": "2.0",
+    "role": "Nữ – 女 (nǚ)",
+    "voice": "nu",
+    "start": 3.44,
+    "end": 5.66,
+    "text": "在二楼，你上楼去吧。",
+    "hz": 224,
+    "g": "f"
+   },
+   {
+    "no": "3.0",
+    "role": "Nữ – 女 (nǚ)",
+    "voice": "nu",
+    "start": 6.16,
+    "end": 7.27,
+    "text": "你在哪儿？",
+    "hz": 211,
+    "g": "f"
+   },
+   {
+    "no": "4.0",
+    "role": "Nam – 男 (nán)",
+    "voice": "nam",
+    "start": 8.07,
+    "end": 10.56,
+    "text": "我在楼下，你下楼来吧。",
+    "hz": 133,
+    "g": "m"
+   },
+   {
+    "no": "5.0",
+    "role": "Nam – 男 (nán)",
+    "voice": "nam",
+    "start": 11.06,
+    "end": 13.0,
+    "text": "我们怎么去机场？",
+    "hz": 145,
+    "g": "m"
+   },
+   {
+    "no": "6.0",
+    "role": "Nữ – 女 (nǚ)",
+    "voice": "nu",
+    "start": 13.8,
+    "end": 16.29,
+    "text": "太远了，我们打车去吧。",
+    "hz": 232,
+    "g": "f"
+   },
+   {
+    "no": "7.0",
+    "role": "Nữ – 女 (nǚ)",
+    "voice": "nu",
+    "start": 16.79,
+    "end": 18.45,
+    "text": "小王回家了吗？",
+    "hz": 210,
+    "g": "f"
+   },
+   {
+    "no": "8.0",
+    "role": "Nam – 男 (nán)",
+    "voice": "nam",
+    "start": 19.25,
+    "end": 22.31,
+    "text": "回了，他坐公交车回家去了。",
+    "hz": 168,
+    "g": "m"
+   },
+   {
+    "no": "9.0",
+    "role": "Nam – 男 (nán)",
+    "voice": "nam",
+    "start": 22.81,
+    "end": 25.04,
+    "text": "请问，地铁站在哪儿？",
+    "hz": 134,
+    "g": "m"
+   },
+   {
+    "no": "10.0",
+    "role": "Nữ – 女 (nǚ)",
+    "voice": "nu",
+    "start": 25.84,
+    "end": 27.49,
+    "text": "就在商场左边。",
+    "hz": 237,
+    "g": "f"
+   },
+   {
+    "no": "11.0",
+    "role": "Nữ – 女 (nǚ)",
+    "voice": "nu",
+    "start": 27.99,
+    "end": 30.49,
+    "text": "师傅，我想去北京大学。",
+    "hz": 221,
+    "g": "f"
+   },
+   {
+    "no": "12.0",
+    "role": "Nam – 男 (nán)",
+    "voice": "nam",
+    "start": 31.29,
+    "end": 35.41,
+    "text": "好的，从这儿往前开二十分钟就到了。",
+    "hz": 149,
+    "g": "m"
+   },
+   {
+    "no": "13.0",
+    "role": "Nữ – 女 (nǚ)",
+    "voice": "nu",
+    "start": 36.21,
+    "end": 39.97,
+    "text": "你在外边吗？过来吧，我在饭馆门口。",
+    "hz": 225,
+    "g": "f"
+   },
+   {
+    "no": "14.0",
+    "role": "Nam – 男 (nán)",
+    "voice": "nam",
+    "start": 40.77,
+    "end": 42.43,
+    "text": "我现在就过去。",
+    "hz": 149,
+    "g": "m"
+   },
+   {
+    "no": "15.0",
+    "role": "Nam – 男 (nán)",
+    "voice": "nam",
+    "start": 42.93,
+    "end": 44.32,
+    "text": "你的书包呢？",
+    "hz": 121,
+    "g": "m"
+   },
+   {
+    "no": "16.0",
+    "role": "Nữ – 女 (nǚ)",
+    "voice": "nu",
+    "start": 45.12,
+    "end": 49.29,
+    "text": "我忘了，在教室里，我回教室去找一下。",
+    "hz": 230,
+    "g": "f"
+   }
+  ]
+ },
+ "17|KN-003|快要考试了 (Kuàiyào kǎoshì le)": {
+  "file": "B17_KN-003_Kuaiyao-kaoshi-le.mp3",
+  "secs": 32.19,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "Nam",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 4.59,
+    "text": "老师，我们是今天考试还是明天考试？",
+    "hz": 136,
+    "g": "m"
+   },
+   {
+    "no": "2.0",
+    "role": "Nữ",
+    "voice": "nu",
+    "start": 5.39,
+    "end": 7.87,
+    "text": "明天上午考，九点开始。",
+    "hz": 224,
+    "g": "f"
+   },
+   {
+    "no": "3.0",
+    "role": "Nam",
+    "voice": "nam",
+    "start": 8.67,
+    "end": 11.46,
+    "text": "考试的时候能看手机吗？",
+    "hz": 140,
+    "g": "m"
+   },
+   {
+    "no": "4.0",
+    "role": "Nữ",
+    "voice": "nu",
+    "start": 12.26,
+    "end": 16.72,
+    "text": "不能，也不能上网。你们要准备笔和本子。",
+    "hz": 218,
+    "g": "f"
+   },
+   {
+    "no": "5.0",
+    "role": "Nam",
+    "voice": "nam",
+    "start": 17.52,
+    "end": 19.46,
+    "text": "考试有多少个题？",
+    "hz": 131,
+    "g": "m"
+   },
+   {
+    "no": "6.0",
+    "role": "Nữ",
+    "voice": "nu",
+    "start": 20.26,
+    "end": 23.33,
+    "text": "有三十个题，要做五十分钟。",
+    "hz": 211,
+    "g": "f"
+   },
+   {
+    "no": "7.0",
+    "role": "Nam",
+    "voice": "nam",
+    "start": 24.13,
+    "end": 25.88,
+    "text": "三十个题？太多了！",
+    "hz": 126,
+    "g": "m"
+   },
+   {
+    "no": "8.0",
+    "role": "Nữ",
+    "voice": "nu",
+    "start": 26.68,
+    "end": 31.69,
+    "text": "不多，这些你们都学过。别笑了，快回家准备吧！",
+    "hz": 206,
+    "g": "f"
+   }
+  ]
+ },
+ "1|Bài 0.1|Hội thoại 1 – Nhận phòng ở khách sạn Tây An": {
+  "file": "B01_Bài 0.1_Hoi-thoai-1-Nhan-phong-o-khach-san-Tay-A.mp3",
+  "secs": 25.51,
+  "lines": [
+   {
+    "no": "13",
+    "role": "A (Tiểu Nguyệt)",
+    "voice": "nu",
+    "start": 0.4,
+    "end": 3.47,
+    "text": "你好！请问，这是西安饭店吗？",
+    "hz": 226,
+    "g": "f"
+   },
+   {
+    "no": "14",
+    "role": "B (nhân viên)",
+    "voice": "nam",
+    "start": 4.27,
+    "end": 6.57,
+    "text": "对。请问，您叫什么名字？",
+    "hz": 135,
+    "g": "m"
+   },
+   {
+    "no": "15",
+    "role": "A (Tiểu Nguyệt)",
+    "voice": "nu",
+    "start": 7.37,
+    "end": 8.46,
+    "text": "我叫小月。",
+    "hz": 201,
+    "g": "f"
+   },
+   {
+    "no": "16",
+    "role": "B (nhân viên)",
+    "voice": "nam",
+    "start": 9.26,
+    "end": 10.64,
+    "text": "您是哪国人？",
+    "hz": 135,
+    "g": "m"
+   },
+   {
+    "no": "17",
+    "role": "A (Tiểu Nguyệt)",
+    "voice": "nu",
+    "start": 11.44,
+    "end": 12.81,
+    "text": "我是越南人。",
+    "hz": 228,
+    "g": "f"
+   },
+   {
+    "no": "18",
+    "role": "B (nhân viên)",
+    "voice": "nam",
+    "start": 13.61,
+    "end": 16.12,
+    "text": "您的房间号是三零八。",
+    "hz": 177,
+    "g": "m"
+   },
+   {
+    "no": "19",
+    "role": "A (Tiểu Nguyệt)",
+    "voice": "nu",
+    "start": 16.92,
+    "end": 19.57,
+    "text": "谢谢！请问，超市在哪儿？",
+    "hz": 210,
+    "g": "f"
+   },
+   {
+    "no": "20",
+    "role": "B (nhân viên)",
+    "voice": "nam",
+    "start": 20.37,
+    "end": 21.76,
+    "text": "超市在那边。",
+    "hz": 177,
+    "g": "m"
+   },
+   {
+    "no": "21",
+    "role": "A (Tiểu Nguyệt)",
+    "voice": "nu",
+    "start": 22.56,
+    "end": 23.39,
+    "text": "谢谢你！",
+    "hz": 229,
+    "g": "f"
+   },
+   {
+    "no": "22",
+    "role": "B (nhân viên)",
+    "voice": "nam",
+    "start": 24.19,
+    "end": 25.01,
+    "text": "不客气。",
+    "hz": 218,
+    "g": "m"
+   }
+  ]
+ },
+ "1|Bài 0.1|Hội thoại 2 – Hỏi đáp về gia đình": {
+  "file": "B01_Bài 0.1_Hoi-thoai-2-Hoi-ap-ve-gia-inh.mp3",
+  "secs": 20.76,
+  "lines": [
+   {
+    "no": "23",
+    "role": "A",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 2.06,
+    "text": "你家有几口人？",
+    "hz": 131,
+    "g": "m"
+   },
+   {
+    "no": "24",
+    "role": "B",
+    "voice": "nu",
+    "start": 2.86,
+    "end": 7.33,
+    "text": "我家有四口人：爸爸、妈妈、姐姐和我。你呢？",
+    "hz": 217,
+    "g": "f"
+   },
+   {
+    "no": "25",
+    "role": "A",
+    "voice": "nam",
+    "start": 8.13,
+    "end": 12.03,
+    "text": "我家有三口人。你姐姐做什么工作？",
+    "hz": 145,
+    "g": "m"
+   },
+   {
+    "no": "26",
+    "role": "B",
+    "voice": "nu",
+    "start": 12.83,
+    "end": 15.33,
+    "text": "她是医生，在医院工作。",
+    "hz": 234,
+    "g": "f"
+   },
+   {
+    "no": "27",
+    "role": "A",
+    "voice": "nam",
+    "start": 16.13,
+    "end": 17.52,
+    "text": "她今年多大？",
+    "hz": 163,
+    "g": "m"
+   },
+   {
+    "no": "28",
+    "role": "B",
+    "voice": "nu",
+    "start": 18.32,
+    "end": 20.26,
+    "text": "她今年二十八岁。",
+    "hz": 220,
+    "g": "f"
+   }
+  ]
+ },
+ "2|Bài 0.2|Hội thoại 1 – Mua trái cây ở cửa hàng": {
+  "file": "B02_Bài 0.2_Hoi-thoai-1-Mua-trai-cay-o-cua-hang.mp3",
+  "secs": 30.13,
+  "lines": [
+   {
+    "no": "41",
+    "role": "Người bán hàng",
+    "voice": "uncle",
+    "start": 0.4,
+    "end": 2.14,
+    "text": "您好！您要买什么？",
+    "hz": 121,
+    "g": "m"
+   },
+   {
+    "no": "42",
+    "role": "Lan",
+    "voice": "nu",
+    "start": 2.94,
+    "end": 4.79,
+    "text": "苹果多少钱一斤？",
+    "hz": 220,
+    "g": "f"
+   },
+   {
+    "no": "43",
+    "role": "Người bán hàng",
+    "voice": "uncle",
+    "start": 5.59,
+    "end": 7.02,
+    "text": "八块钱一斤。",
+    "hz": 118,
+    "g": "m"
+   },
+   {
+    "no": "44",
+    "role": "Lan",
+    "voice": "nu",
+    "start": 7.82,
+    "end": 10.89,
+    "text": "太贵了！便宜一点儿，可以吗？",
+    "hz": 219,
+    "g": "f"
+   },
+   {
+    "no": "45",
+    "role": "Người bán hàng",
+    "voice": "uncle",
+    "start": 11.69,
+    "end": 13.68,
+    "text": "七块五，怎么样？",
+    "hz": 77,
+    "g": "m"
+   },
+   {
+    "no": "46",
+    "role": "Lan",
+    "voice": "nu",
+    "start": 14.48,
+    "end": 17.82,
+    "text": "可以。我要两斤，还要十个鸡蛋。",
+    "hz": 215,
+    "g": "f"
+   },
+   {
+    "no": "47",
+    "role": "Người bán hàng",
+    "voice": "uncle",
+    "start": 18.62,
+    "end": 23.56,
+    "text": "两斤苹果十五块，鸡蛋十块，二十五块钱。",
+    "hz": 128,
+    "g": "m"
+   },
+   {
+    "no": "48",
+    "role": "Lan",
+    "voice": "nu",
+    "start": 24.36,
+    "end": 25.73,
+    "text": "这是三十块。",
+    "hz": 241,
+    "g": "f"
+   },
+   {
+    "no": "49",
+    "role": "Người bán hàng",
+    "voice": "uncle",
+    "start": 26.53,
+    "end": 28.29,
+    "text": "找您五块。谢谢！",
+    "hz": 106,
+    "g": "m"
+   },
+   {
+    "no": "50",
+    "role": "Lan",
+    "voice": "nu",
+    "start": 29.09,
+    "end": 29.63,
+    "text": "再见！",
+    "hz": 220,
+    "g": "f"
+   }
+  ]
+ },
+ "2|Bài 0.2|Hội thoại 2 – Gọi điện rủ bạn đi mua quần áo": {
+  "file": "B02_Bài 0.2_Hoi-thoai-2-Goi-ien-ru-ban-i-mua-quan-ao.mp3",
+  "secs": 24.21,
+  "lines": [
+   {
+    "no": "51",
+    "role": "Minh",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 2.33,
+    "text": "喂，你在做什么呢？",
+    "hz": 210,
+    "g": "m"
+   },
+   {
+    "no": "52",
+    "role": "Lan",
+    "voice": "nu",
+    "start": 3.13,
+    "end": 5.07,
+    "text": "我在家看电视呢。",
+    "hz": 224,
+    "g": "f"
+   },
+   {
+    "no": "53",
+    "role": "Minh",
+    "voice": "nam",
+    "start": 5.87,
+    "end": 9.47,
+    "text": "明天我们去商店买衣服，怎么样？",
+    "hz": 136,
+    "g": "m"
+   },
+   {
+    "no": "54",
+    "role": "Lan",
+    "voice": "nu",
+    "start": 10.27,
+    "end": 11.93,
+    "text": "明天会下雨吗？",
+    "hz": 236,
+    "g": "f"
+   },
+   {
+    "no": "55",
+    "role": "Minh",
+    "voice": "nam",
+    "start": 12.73,
+    "end": 15.52,
+    "text": "不会。明天天气不冷，也不热。",
+    "hz": 139,
+    "g": "m"
+   },
+   {
+    "no": "56",
+    "role": "Lan",
+    "voice": "nu",
+    "start": 16.32,
+    "end": 18.23,
+    "text": "我们明天上午去吧。",
+    "hz": 214,
+    "g": "f"
+   },
+   {
+    "no": "57",
+    "role": "Minh",
+    "voice": "nam",
+    "start": 19.03,
+    "end": 21.26,
+    "text": "可以。我开车去你家。",
+    "hz": 135,
+    "g": "m"
+   },
+   {
+    "no": "58",
+    "role": "Lan",
+    "voice": "nu",
+    "start": 22.06,
+    "end": 23.71,
+    "text": "谢谢你！明天见！",
+    "hz": 199,
+    "g": "f"
+   }
+  ]
+ },
+ "3|Bài 1|Đón bạn ở sân bay Đại Hưng: chào hỏi, hỏi chuyến đi (是……的), giới thiệu bạn": {
+  "file": "B03_Bài 1_on-ban-o-san-bay-ai-Hung-chao-hoi-hoi-ch.mp3",
+  "secs": 49.77,
+  "lines": [
+   {
+    "no": "60",
+    "role": "A",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 2.48,
+    "text": "你是什么时候来的？",
+    "hz": 139,
+    "g": "m"
+   },
+   {
+    "no": "61",
+    "role": "B",
+    "voice": "nu",
+    "start": 3.28,
+    "end": 4.85,
+    "text": "我是昨天来的。",
+    "hz": 219,
+    "g": "f"
+   },
+   {
+    "no": "67",
+    "role": "小王",
+    "voice": "nam",
+    "start": 5.65,
+    "end": 7.6,
+    "text": "你好！你是安娜吧？",
+    "hz": 133,
+    "g": "m"
+   },
+   {
+    "no": "68",
+    "role": "安娜",
+    "voice": "nu",
+    "start": 8.4,
+    "end": 11.19,
+    "text": "对，我是安娜。你是小王吧？",
+    "hz": 215,
+    "g": "f"
+   },
+   {
+    "no": "69",
+    "role": "小王",
+    "voice": "nam",
+    "start": 11.99,
+    "end": 15.05,
+    "text": "是我。你是第一次来中国吧？",
+    "hz": 139,
+    "g": "m"
+   },
+   {
+    "no": "70",
+    "role": "安娜",
+    "voice": "nu",
+    "start": 15.85,
+    "end": 21.13,
+    "text": "不是，这是第二次。去年我和妈妈来北京旅游了。",
+    "hz": 212,
+    "g": "f"
+   },
+   {
+    "no": "71",
+    "role": "小王",
+    "voice": "nam",
+    "start": 21.93,
+    "end": 24.49,
+    "text": "这次你是一个人来的吗？",
+    "hz": 136,
+    "g": "m"
+   },
+   {
+    "no": "72",
+    "role": "安娜",
+    "voice": "nu",
+    "start": 25.29,
+    "end": 31.76,
+    "text": "不是，我是和同学来的。我给你介绍一下，这是我的同学小李。",
+    "hz": 217,
+    "g": "f"
+   },
+   {
+    "no": "73",
+    "role": "小李",
+    "voice": "nam2",
+    "start": 32.56,
+    "end": 35.9,
+    "text": "你好！不好意思，让你来接我们。",
+    "hz": 200,
+    "g": "m"
+   },
+   {
+    "no": "74",
+    "role": "小王",
+    "voice": "nam",
+    "start": 36.7,
+    "end": 40.61,
+    "text": "没关系。晚上我请你们吃北京烤鸭！",
+    "hz": 155,
+    "g": "m"
+   },
+   {
+    "no": "75",
+    "role": "小李",
+    "voice": "nam2",
+    "start": 41.41,
+    "end": 42.7,
+    "text": "太谢谢你了！",
+    "hz": 200,
+    "g": "m"
+   },
+   {
+    "no": "76",
+    "role": "安娜",
+    "voice": "nu",
+    "start": 43.5,
+    "end": 47.7,
+    "text": "小王，明天你能给我们介绍一下北京吗？",
+    "hz": 220,
+    "g": "f"
+   },
+   {
+    "no": "77",
+    "role": "小王",
+    "voice": "nam",
+    "start": 48.5,
+    "end": 49.27,
+    "text": "没问题！",
+    "hz": 133,
+    "g": "m"
+   }
+  ]
+ },
+ "4|Bài 2|Bàn cách đi đến Đại học Bắc Kinh: so sánh xe buýt, tàu điện ngầm, taxi (还是……吧, 别, 让)": {
+  "file": "B04_Bài 2_Ban-cach-i-en-ai-hoc-Bac-Kinh-so-sanh-xe.mp3",
+  "secs": 39.9,
+  "lines": [
+   {
+    "no": "86",
+    "role": "小王",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 4.01,
+    "text": "安娜，明天我们怎么去北京大学？",
+    "hz": 139,
+    "g": "m"
+   },
+   {
+    "no": "87",
+    "role": "安娜",
+    "voice": "nu",
+    "start": 4.81,
+    "end": 8.71,
+    "text": "我们坐公交车去吧，公交车很便宜。",
+    "hz": 217,
+    "g": "f"
+   },
+   {
+    "no": "88",
+    "role": "小王",
+    "voice": "nam",
+    "start": 9.51,
+    "end": 13.13,
+    "text": "但车站很远，公交车上人也很多。",
+    "hz": 182,
+    "g": "m"
+   },
+   {
+    "no": "89",
+    "role": "安娜",
+    "voice": "nu",
+    "start": 13.93,
+    "end": 15.98,
+    "text": "那我们坐地铁去吧。",
+    "hz": 205,
+    "g": "f"
+   },
+   {
+    "no": "90",
+    "role": "小王",
+    "voice": "nam",
+    "start": 16.78,
+    "end": 18.99,
+    "text": "坐地铁要五十分钟。",
+    "hz": 169,
+    "g": "m"
+   },
+   {
+    "no": "91",
+    "role": "安娜",
+    "voice": "nu",
+    "start": 19.79,
+    "end": 23.12,
+    "text": "太远了！那我们还是打车去吧。",
+    "hz": 221,
+    "g": "f"
+   },
+   {
+    "no": "92",
+    "role": "小王",
+    "voice": "nam",
+    "start": 23.92,
+    "end": 28.66,
+    "text": "对，打车二十分钟就到了。我在网上打车吧。",
+    "hz": 143,
+    "g": "m"
+   },
+   {
+    "no": "93",
+    "role": "安娜",
+    "voice": "nu",
+    "start": 29.46,
+    "end": 33.07,
+    "text": "谢谢你！我让小李也过来，可以吗？",
+    "hz": 216,
+    "g": "f"
+   },
+   {
+    "no": "94",
+    "role": "小王",
+    "voice": "nam",
+    "start": 33.87,
+    "end": 36.94,
+    "text": "可以啊！明天你们别来晚了！",
+    "hz": 131,
+    "g": "m"
+   },
+   {
+    "no": "95",
+    "role": "安娜",
+    "voice": "nu",
+    "start": 37.74,
+    "end": 39.4,
+    "text": "不会的！明天见！",
+    "hz": 216,
+    "g": "f"
+   }
+  ]
+ },
+ "5|Bài 3|Số lượng, mô tả sự vật – giới thiệu trường học": {
+  "file": "B05_Bài 3_So-luong-mo-ta-su-vat-gioi-thieu-truong-.mp3",
+  "secs": 26.29,
+  "lines": [
+   {
+    "no": "102",
+    "role": "A",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 3.19,
+    "text": "你们学校有多少个学生？",
+    "hz": 142,
+    "g": "m"
+   },
+   {
+    "no": "103",
+    "role": "B",
+    "voice": "nu",
+    "start": 3.99,
+    "end": 5.38,
+    "text": "有两千多个。",
+    "hz": 216,
+    "g": "f"
+   },
+   {
+    "no": "104",
+    "role": "A",
+    "voice": "nam",
+    "start": 6.18,
+    "end": 7.84,
+    "text": "外国学生多吗？",
+    "hz": 183,
+    "g": "m"
+   },
+   {
+    "no": "105",
+    "role": "B",
+    "voice": "nu",
+    "start": 8.64,
+    "end": 10.58,
+    "text": "不太多，有几十个。",
+    "hz": 236,
+    "g": "f"
+   },
+   {
+    "no": "106",
+    "role": "A",
+    "voice": "nam",
+    "start": 11.38,
+    "end": 14.87,
+    "text": "给你们上课的老师是中国人吗？",
+    "hz": 165,
+    "g": "m"
+   },
+   {
+    "no": "107",
+    "role": "B",
+    "voice": "nu",
+    "start": 15.67,
+    "end": 17.9,
+    "text": "是，她是从北京来的。",
+    "hz": 221,
+    "g": "f"
+   },
+   {
+    "no": "108",
+    "role": "A",
+    "voice": "nam",
+    "start": 18.7,
+    "end": 20.8,
+    "text": "你喜欢在那儿学习吗？",
+    "hz": 165,
+    "g": "m"
+   },
+   {
+    "no": "109",
+    "role": "B",
+    "voice": "nu",
+    "start": 21.6,
+    "end": 25.79,
+    "text": "很喜欢。我在那儿认识了十几个朋友。",
+    "hz": 221,
+    "g": "f"
+   }
+  ]
+ },
+ "6|Bài 4|Mua sắm, màu sắc, đồ dùng – mua quần áo, hỏi đường trong trung tâm thương mại": {
+  "file": "B06_Bài 4_Mua-sam-mau-sac-o-dung-mua-quan-ao-hoi-u.mp3",
+  "secs": 35.04,
+  "lines": [
+   {
+    "no": "117",
+    "role": "顾客",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 2.59,
+    "text": "你好！这条裤子多少钱？",
+    "hz": 138,
+    "g": "m"
+   },
+   {
+    "no": "118",
+    "role": "售货员",
+    "voice": "nu",
+    "start": 3.39,
+    "end": 4.78,
+    "text": "两百八十块。",
+    "hz": 215,
+    "g": "f"
+   },
+   {
+    "no": "119",
+    "role": "顾客",
+    "voice": "nam",
+    "start": 5.58,
+    "end": 8.36,
+    "text": "有点儿贵。还有什么颜色？",
+    "hz": 167,
+    "g": "m"
+   },
+   {
+    "no": "120",
+    "role": "售货员",
+    "voice": "nu",
+    "start": 9.16,
+    "end": 13.61,
+    "text": "有黑色的、白色的，还有绿色的。您试试吧。",
+    "hz": 226,
+    "g": "f"
+   },
+   {
+    "no": "121",
+    "role": "顾客",
+    "voice": "nam",
+    "start": 14.41,
+    "end": 19.72,
+    "text": "我试试黑色的。……这条有点儿大，有小一点儿的吗？",
+    "hz": 159,
+    "g": "m"
+   },
+   {
+    "no": "122",
+    "role": "售货员",
+    "voice": "nu",
+    "start": 20.52,
+    "end": 22.73,
+    "text": "有。您再试一下这条。",
+    "hz": 215,
+    "g": "f"
+   },
+   {
+    "no": "123",
+    "role": "顾客",
+    "voice": "nam",
+    "start": 23.53,
+    "end": 26.04,
+    "text": "这条不大不小，我要了。",
+    "hz": 163,
+    "g": "m"
+   },
+   {
+    "no": "124",
+    "role": "售货员",
+    "voice": "nu",
+    "start": 26.84,
+    "end": 28.78,
+    "text": "两百八十块，谢谢！",
+    "hz": 216,
+    "g": "f"
+   },
+   {
+    "no": "125",
+    "role": "顾客",
+    "voice": "nam",
+    "start": 29.58,
+    "end": 31.8,
+    "text": "请问，洗手间在哪儿？",
+    "hz": 151,
+    "g": "m"
+   },
+   {
+    "no": "126",
+    "role": "售货员",
+    "voice": "nu",
+    "start": 32.6,
+    "end": 34.54,
+    "text": "在三楼，门口那边。",
+    "hz": 214,
+    "g": "f"
+   }
+  ]
+ },
+ "6|KN-011|Đóng vai người bán – khách mua đồ: màu sắc, cỡ, giá": {
+  "file": "B06_KN-011_ong-vai-nguoi-ban-khach-mua-o-mau-sac-co.mp3",
+  "secs": 20.16,
+  "lines": [
+   {
+    "no": "127",
+    "role": "顾客",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 2.34,
+    "text": "我想买一个书包。",
+    "hz": 167,
+    "g": "m"
+   },
+   {
+    "no": "128",
+    "role": "售货员",
+    "voice": "nu",
+    "start": 3.14,
+    "end": 5.37,
+    "text": "您喜欢什么颜色的？",
+    "hz": 209,
+    "g": "f"
+   },
+   {
+    "no": "129",
+    "role": "顾客",
+    "voice": "nam",
+    "start": 6.17,
+    "end": 9.79,
+    "text": "红色的。这个红色的书包多少钱？",
+    "hz": 169,
+    "g": "m"
+   },
+   {
+    "no": "130",
+    "role": "售货员",
+    "voice": "nu",
+    "start": 10.59,
+    "end": 11.97,
+    "text": "一百五十块。",
+    "hz": 214,
+    "g": "f"
+   },
+   {
+    "no": "131",
+    "role": "顾客",
+    "voice": "nam",
+    "start": 12.77,
+    "end": 15.27,
+    "text": "太贵了！一百块可以吗？",
+    "hz": 122,
+    "g": "m"
+   },
+   {
+    "no": "132",
+    "role": "售货员",
+    "voice": "nu",
+    "start": 16.07,
+    "end": 17.65,
+    "text": "一百二十块吧。",
+    "hz": 221,
+    "g": "f"
+   },
+   {
+    "no": "133",
+    "role": "顾客",
+    "voice": "nam",
+    "start": 18.45,
+    "end": 19.66,
+    "text": "可以，我要了。",
+    "hz": 122,
+    "g": "m"
+   }
+  ]
+ },
+ "8|Bài 5|Chuẩn bị quà sinh nhật cho bà nội": {
+  "file": "B08_Bài 5_Chuan-bi-qua-sinh-nhat-cho-ba-noi.mp3",
+  "secs": 45.88,
+  "lines": [
+   {
+    "no": "143",
+    "role": "Tiểu Vương – 小王 (Xiǎo Wáng)",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 3.46,
+    "text": "小月，明天是我奶奶的生日。",
+    "hz": 142,
+    "g": "m"
+   },
+   {
+    "no": "144",
+    "role": "Tiểu Nguyệt – 小月 (Xiǎo Yuè)",
+    "voice": "nu",
+    "start": 4.26,
+    "end": 7.03,
+    "text": "是吗？你准备了什么礼物？",
+    "hz": 222,
+    "g": "f"
+   },
+   {
+    "no": "145",
+    "role": "Tiểu Vương – 小王 (Xiǎo Wáng)",
+    "voice": "nam",
+    "start": 7.83,
+    "end": 12.01,
+    "text": "我还没准备。你说，我给奶奶买什么呢？",
+    "hz": 146,
+    "g": "m"
+   },
+   {
+    "no": "146",
+    "role": "Tiểu Nguyệt – 小月 (Xiǎo Yuè)",
+    "voice": "nu",
+    "start": 12.81,
+    "end": 15.01,
+    "text": "你奶奶喜欢喝茶吗？",
+    "hz": 212,
+    "g": "f"
+   },
+   {
+    "no": "147",
+    "role": "Tiểu Vương – 小王 (Xiǎo Wáng)",
+    "voice": "nam",
+    "start": 15.81,
+    "end": 19.44,
+    "text": "非常喜欢。她跟爷爷都喜欢喝茶。",
+    "hz": 128,
+    "g": "m"
+   },
+   {
+    "no": "148",
+    "role": "Tiểu Nguyệt – 小月 (Xiǎo Yuè)",
+    "voice": "nu",
+    "start": 20.24,
+    "end": 26.66,
+    "text": "那你就给她买茶吧。我去过前边那个商店，那儿的茶不贵。",
+    "hz": 219,
+    "g": "f"
+   },
+   {
+    "no": "149",
+    "role": "Tiểu Vương – 小王 (Xiǎo Wáng)",
+    "voice": "nam",
+    "start": 27.46,
+    "end": 30.25,
+    "text": "真的吗？我们现在就去吧！",
+    "hz": 168,
+    "g": "m"
+   },
+   {
+    "no": "150",
+    "role": "Tiểu Nguyệt – 小月 (Xiǎo Yuè)",
+    "voice": "nu",
+    "start": 31.05,
+    "end": 34.11,
+    "text": "可以。你还要买生日蛋糕吗？",
+    "hz": 228,
+    "g": "f"
+   },
+   {
+    "no": "151",
+    "role": "Tiểu Vương – 小王 (Xiǎo Wáng)",
+    "voice": "nam",
+    "start": 34.91,
+    "end": 40.21,
+    "text": "要。因为奶奶喜欢吃蛋糕，所以我想买一个大的。",
+    "hz": 140,
+    "g": "m"
+   },
+   {
+    "no": "152",
+    "role": "Tiểu Nguyệt – 小月 (Xiǎo Yuè)",
+    "voice": "nu",
+    "start": 41.01,
+    "end": 43.47,
+    "text": "别忘了给奶奶唱生日歌！",
+    "hz": 221,
+    "g": "f"
+   },
+   {
+    "no": "153",
+    "role": "Tiểu Vương – 小王 (Xiǎo Wáng)",
+    "voice": "nam",
+    "start": 44.27,
+    "end": 45.38,
+    "text": "不会忘的！",
+    "hz": 137,
+    "g": "m"
+   }
+  ]
+ },
+ "9|Bài 6|Hỏi đường đến Di Hoà Viên ở khách sạn": {
+  "file": "B09_Bài 6_Hoi-uong-en-Di-Hoa-Vien-o-khach-san.mp3",
+  "secs": 36.27,
+  "lines": [
+   {
+    "no": "162",
+    "role": "David – 大卫 (Dàwèi)",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 3.19,
+    "text": "你好，请问颐和园怎么去？",
+    "hz": 141,
+    "g": "m"
+   },
+   {
+    "no": "163",
+    "role": "Nhân viên lễ tân – 服务员 (fúwùyuán)",
+    "voice": "nu",
+    "start": 3.99,
+    "end": 7.61,
+    "text": "您可以坐地铁去，也可以打车去。",
+    "hz": 242,
+    "g": "f"
+   },
+   {
+    "no": "164",
+    "role": "David – 大卫 (Dàwèi)",
+    "voice": "nam",
+    "start": 8.41,
+    "end": 10.64,
+    "text": "坐地铁要多少分钟？",
+    "hz": 129,
+    "g": "m"
+   },
+   {
+    "no": "165",
+    "role": "Nhân viên lễ tân – 服务员 (fúwùyuán)",
+    "voice": "nu",
+    "start": 11.44,
+    "end": 12.81,
+    "text": "四十多分钟。",
+    "hz": 188,
+    "g": "f"
+   },
+   {
+    "no": "166",
+    "role": "David – 大卫 (Dàwèi)",
+    "voice": "nam",
+    "start": 13.61,
+    "end": 15.82,
+    "text": "地铁站在哪儿？远吗？",
+    "hz": 133,
+    "g": "m"
+   },
+   {
+    "no": "167",
+    "role": "Nhân viên lễ tân – 服务员 (fúwùyuán)",
+    "voice": "nu",
+    "start": 16.62,
+    "end": 18.84,
+    "text": "不远，就在酒店前边。",
+    "hz": 196,
+    "g": "f"
+   },
+   {
+    "no": "168",
+    "role": "David – 大卫 (Dàwèi)",
+    "voice": "nam",
+    "start": 19.64,
+    "end": 23.26,
+    "text": "谢谢！我的朋友也想去，她在楼上。",
+    "hz": 143,
+    "g": "m"
+   },
+   {
+    "no": "169",
+    "role": "Nhân viên lễ tân – 服务员 (fúwùyuán)",
+    "voice": "nu",
+    "start": 24.06,
+    "end": 27.48,
+    "text": "那您给她打电话，让她下楼来吧。",
+    "hz": 211,
+    "g": "f"
+   },
+   {
+    "no": "170",
+    "role": "David – 大卫 (Dàwèi)",
+    "voice": "nam",
+    "start": 28.28,
+    "end": 32.19,
+    "text": "喂，小月，你下楼来吧，我在门口等你。",
+    "hz": 139,
+    "g": "m"
+   },
+   {
+    "no": "171",
+    "role": "Tiểu Nguyệt – 小月 (Xiǎo Yuè)",
+    "voice": "nu2",
+    "start": 32.99,
+    "end": 35.77,
+    "text": "等一下，我现在就下楼去！",
+    "hz": 244,
+    "g": "f"
+   }
+  ]
+ },
+ "10|Bài 7|Đón bạn ở sân bay – miêu tả người để nhận ra nhau": {
+  "file": "B10_Bài 7_on-ban-o-san-bay-mieu-ta-nguoi-e-nhan-ra.mp3",
+  "secs": 43.67,
+  "lines": [
+   {
+    "no": "179",
+    "role": "小王",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 2.84,
+    "text": "喂，小月，你到机场了吗？",
+    "hz": 159,
+    "g": "m"
+   },
+   {
+    "no": "180",
+    "role": "小月",
+    "voice": "nu",
+    "start": 3.64,
+    "end": 7.82,
+    "text": "到了，我都等了一个小时了！你在哪儿？",
+    "hz": 219,
+    "g": "f"
+   },
+   {
+    "no": "181",
+    "role": "小王",
+    "voice": "nam",
+    "start": 8.62,
+    "end": 12.79,
+    "text": "不好意思，我今天有事，我妹妹去接你。",
+    "hz": 147,
+    "g": "m"
+   },
+   {
+    "no": "182",
+    "role": "小月",
+    "voice": "nu",
+    "start": 13.59,
+    "end": 15.46,
+    "text": "我不认识你妹妹啊！",
+    "hz": 215,
+    "g": "f"
+   },
+   {
+    "no": "183",
+    "role": "小王",
+    "voice": "nam",
+    "start": 16.26,
+    "end": 21.29,
+    "text": "她是大眼睛，今天穿红色的衣服、白色的裤子。",
+    "hz": 130,
+    "g": "m"
+   },
+   {
+    "no": "184",
+    "role": "小月",
+    "voice": "nu",
+    "start": 22.09,
+    "end": 23.18,
+    "text": "她多大了？",
+    "hz": 256,
+    "g": "f"
+   },
+   {
+    "no": "185",
+    "role": "小王",
+    "voice": "nam",
+    "start": 23.98,
+    "end": 29.28,
+    "text": "她都十八岁了，有一个黑色的包，包上有一些花。",
+    "hz": 184,
+    "g": "m"
+   },
+   {
+    "no": "186",
+    "role": "小月",
+    "voice": "nu",
+    "start": 30.08,
+    "end": 36.42,
+    "text": "我看见了！站在门口的那个女孩儿，眼睛大大的，是不是她？",
+    "hz": 214,
+    "g": "f"
+   },
+   {
+    "no": "187",
+    "role": "小王",
+    "voice": "nam",
+    "start": 37.22,
+    "end": 40.42,
+    "text": "对，就是她！她姓王，叫王小花。",
+    "hz": 140,
+    "g": "m"
+   },
+   {
+    "no": "188",
+    "role": "小月",
+    "voice": "nu",
+    "start": 41.22,
+    "end": 43.17,
+    "text": "谢谢你！我去找她。",
+    "hz": 208,
+    "g": "f"
+   }
+  ]
+ },
+ "11|Bài 8|Giới thiệu bạn mới – hỏi về vóc dáng, sở thích, nơi ở": {
+  "file": "B11_Bài 8_Gioi-thieu-ban-moi-hoi-ve-voc-dang-so-th.mp3",
+  "secs": 47.9,
+  "lines": [
+   {
+    "no": "196",
+    "role": "小王",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 5.99,
+    "text": "小月，这周六你有时间吗？我想给你介绍一个朋友。",
+    "hz": 157,
+    "g": "m"
+   },
+   {
+    "no": "197",
+    "role": "小月",
+    "voice": "nu",
+    "start": 6.79,
+    "end": 9.3,
+    "text": "是男孩儿还是女孩儿？",
+    "hz": 211,
+    "g": "f"
+   },
+   {
+    "no": "198",
+    "role": "小王",
+    "voice": "nam",
+    "start": 10.1,
+    "end": 14.93,
+    "text": "是男孩儿，他是我的大学同学，个子很高，是大眼睛。",
+    "hz": 134,
+    "g": "m"
+   },
+   {
+    "no": "199",
+    "role": "小月",
+    "voice": "nu",
+    "start": 15.73,
+    "end": 17.36,
+    "text": "他喜欢做什么？",
+    "hz": 208,
+    "g": "f"
+   },
+   {
+    "no": "200",
+    "role": "小王",
+    "voice": "nam",
+    "start": 18.16,
+    "end": 24.03,
+    "text": "他喜欢看电影、唱歌、做饭什么的。他做的菜非常好吃！",
+    "hz": 142,
+    "g": "m"
+   },
+   {
+    "no": "201",
+    "role": "小月",
+    "voice": "nu",
+    "start": 24.83,
+    "end": 27.58,
+    "text": "真的吗？他家离这儿远吗？",
+    "hz": 245,
+    "g": "f"
+   },
+   {
+    "no": "202",
+    "role": "小王",
+    "voice": "nam",
+    "start": 28.38,
+    "end": 31.33,
+    "text": "不远，很近，走路十分钟就到了。",
+    "hz": 152,
+    "g": "m"
+   },
+   {
+    "no": "203",
+    "role": "小月",
+    "voice": "nu",
+    "start": 32.13,
+    "end": 35.74,
+    "text": "他早上喝咖啡吗？我很喜欢咖啡。",
+    "hz": 219,
+    "g": "f"
+   },
+   {
+    "no": "204",
+    "role": "小王",
+    "voice": "nam",
+    "start": 36.54,
+    "end": 43.25,
+    "text": "喝！他早上都早早地起床，高高兴兴地喝一杯咖啡，再去上班。",
+    "hz": 159,
+    "g": "m"
+   },
+   {
+    "no": "205",
+    "role": "小月",
+    "voice": "nu",
+    "start": 44.05,
+    "end": 47.4,
+    "text": "这样的男孩儿，我喜欢！周六见！",
+    "hz": 204,
+    "g": "f"
+   }
+  ]
+ },
+ "13|Bài 9|Chồng rủ vợ tối nay đi xem phim": {
+  "file": "B13_Bài 9_Chong-ru-vo-toi-nay-i-xem-phim.mp3",
+  "secs": 44.18,
+  "lines": [
+   {
+    "no": "212",
+    "role": "A (chồng)",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 3.46,
+    "text": "今天晚上我们去看电影吧！",
+    "hz": 131,
+    "g": "m"
+   },
+   {
+    "no": "213",
+    "role": "B (vợ)",
+    "voice": "nu",
+    "start": 4.26,
+    "end": 6.34,
+    "text": "可以啊！看什么电影？",
+    "hz": 209,
+    "g": "f"
+   },
+   {
+    "no": "214",
+    "role": "A (chồng)",
+    "voice": "nam",
+    "start": 7.14,
+    "end": 11.6,
+    "text": "我在网上看了，有一个爱情片很有意思。",
+    "hz": 147,
+    "g": "m"
+   },
+   {
+    "no": "215",
+    "role": "B (vợ)",
+    "voice": "nu",
+    "start": 12.4,
+    "end": 13.51,
+    "text": "票贵不贵？",
+    "hz": 206,
+    "g": "f"
+   },
+   {
+    "no": "216",
+    "role": "A (chồng)",
+    "voice": "nam",
+    "start": 14.31,
+    "end": 17.37,
+    "text": "不贵，我已经在网上买票了。",
+    "hz": 152,
+    "g": "m"
+   },
+   {
+    "no": "217",
+    "role": "B (vợ)",
+    "voice": "nu",
+    "start": 18.17,
+    "end": 19.56,
+    "text": "电影几点的？",
+    "hz": 204,
+    "g": "f"
+   },
+   {
+    "no": "218",
+    "role": "A (chồng)",
+    "voice": "nam",
+    "start": 20.36,
+    "end": 23.7,
+    "text": "八点。你一下班就来电影院吧。",
+    "hz": 159,
+    "g": "m"
+   },
+   {
+    "no": "219",
+    "role": "B (vợ)",
+    "voice": "nu",
+    "start": 24.5,
+    "end": 25.61,
+    "text": "电影长吗？",
+    "hz": 221,
+    "g": "f"
+   },
+   {
+    "no": "220",
+    "role": "A (chồng)",
+    "voice": "nam",
+    "start": 26.41,
+    "end": 30.86,
+    "text": "虽然有点儿长，但是大家都说很有意思。",
+    "hz": 196,
+    "g": "m"
+   },
+   {
+    "no": "221",
+    "role": "B (vợ)",
+    "voice": "nu",
+    "start": 31.66,
+    "end": 34.54,
+    "text": "上次我们看的电影也很好看。",
+    "hz": 225,
+    "g": "f"
+   },
+   {
+    "no": "222",
+    "role": "A (chồng)",
+    "voice": "nam",
+    "start": 35.34,
+    "end": 40.64,
+    "text": "是啊，那个电影里的女孩儿唱歌唱得非常好听。",
+    "hz": 172,
+    "g": "m"
+   },
+   {
+    "no": "223",
+    "role": "B (vợ)",
+    "voice": "nu",
+    "start": 41.44,
+    "end": 43.68,
+    "text": "我记得！今天晚上见！",
+    "hz": 220,
+    "g": "f"
+   }
+  ]
+ },
+ "14|Bài 10|Rủ đồng nghiệp cùng đi ăn trưa, so sánh món ăn": {
+  "file": "B14_Bài 10_Ru-ong-nghiep-cung-i-an-trua-so-sanh-mon.mp3",
+  "secs": 42.22,
+  "lines": [
+   {
+    "no": "230",
+    "role": "A",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 2.5,
+    "text": "你今天为什么这么累？",
+    "hz": 136,
+    "g": "m"
+   },
+   {
+    "no": "231",
+    "role": "B",
+    "voice": "nu",
+    "start": 3.3,
+    "end": 7.47,
+    "text": "我早上六点就起床了，工作了一上午。",
+    "hz": 208,
+    "g": "f"
+   },
+   {
+    "no": "232",
+    "role": "A",
+    "voice": "nam",
+    "start": 8.27,
+    "end": 12.35,
+    "text": "现在十二点了，我们一起去吃午饭吧。",
+    "hz": 135,
+    "g": "m"
+   },
+   {
+    "no": "233",
+    "role": "B",
+    "voice": "nu",
+    "start": 13.15,
+    "end": 15.09,
+    "text": "可以啊！去哪儿吃？",
+    "hz": 225,
+    "g": "f"
+   },
+   {
+    "no": "234",
+    "role": "A",
+    "voice": "nam",
+    "start": 15.89,
+    "end": 19.52,
+    "text": "公司门口有一个新饭馆，鱼很不错。",
+    "hz": 151,
+    "g": "m"
+   },
+   {
+    "no": "235",
+    "role": "B",
+    "voice": "nu",
+    "start": 20.32,
+    "end": 23.66,
+    "text": "我不太喜欢吃鱼，我喜欢吃肉。",
+    "hz": 214,
+    "g": "f"
+   },
+   {
+    "no": "236",
+    "role": "A",
+    "voice": "nam",
+    "start": 24.46,
+    "end": 29.48,
+    "text": "那个饭馆的肉也很好吃，比公司的饭更好吃。",
+    "hz": 128,
+    "g": "m"
+   },
+   {
+    "no": "237",
+    "role": "B",
+    "voice": "nu",
+    "start": 30.28,
+    "end": 31.1,
+    "text": "贵不贵？",
+    "hz": 221,
+    "g": "f"
+   },
+   {
+    "no": "238",
+    "role": "A",
+    "voice": "nam",
+    "start": 31.9,
+    "end": 33.78,
+    "text": "没有你想的那么贵。",
+    "hz": 131,
+    "g": "m"
+   },
+   {
+    "no": "239",
+    "role": "B",
+    "voice": "nu",
+    "start": 34.58,
+    "end": 38.41,
+    "text": "太好了！我去洗一下手，你等我一下。",
+    "hz": 232,
+    "g": "f"
+   },
+   {
+    "no": "240",
+    "role": "A",
+    "voice": "nam",
+    "start": 39.21,
+    "end": 41.72,
+    "text": "没问题，我在门口等你。",
+    "hz": 154,
+    "g": "m"
+   }
+  ]
+ },
+ "15|Bài 11|Chọn chỗ ở: xa công ty nhưng rẻ, gần công ty nhưng đắt": {
+  "file": "B15_Bài 11_Chon-cho-o-xa-cong-ty-nhung-re-gan-cong-.mp3",
+  "secs": 35.58,
+  "lines": [
+   {
+    "no": "247",
+    "role": "小王",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 2.65,
+    "text": "大卫，你家离公司远吗？",
+    "hz": 160,
+    "g": "m"
+   },
+   {
+    "no": "248",
+    "role": "大卫",
+    "voice": "nam2",
+    "start": 3.45,
+    "end": 6.54,
+    "text": "有点儿远，坐地铁要四十分钟。",
+    "hz": 166,
+    "g": "m"
+   },
+   {
+    "no": "249",
+    "role": "小王",
+    "voice": "nam",
+    "start": 7.34,
+    "end": 11.24,
+    "text": "这么远！你为什么不住在公司那边？",
+    "hz": 141,
+    "g": "m"
+   },
+   {
+    "no": "250",
+    "role": "大卫",
+    "voice": "nam2",
+    "start": 12.04,
+    "end": 16.31,
+    "text": "公司那边的房间虽然很漂亮，但是太贵了。",
+    "hz": 182,
+    "g": "m"
+   },
+   {
+    "no": "251",
+    "role": "小王",
+    "voice": "nam",
+    "start": 17.11,
+    "end": 21.29,
+    "text": "我家离公司很近，走路十分钟就到了。",
+    "hz": 176,
+    "g": "m"
+   },
+   {
+    "no": "252",
+    "role": "大卫",
+    "voice": "nam2",
+    "start": 22.09,
+    "end": 25.31,
+    "text": "真好！你家那边的房间贵不贵？",
+    "hz": 187,
+    "g": "m"
+   },
+   {
+    "no": "253",
+    "role": "小王",
+    "voice": "nam",
+    "start": 26.11,
+    "end": 28.89,
+    "text": "不太贵，比公司那边便宜。",
+    "hz": 178,
+    "g": "m"
+   },
+   {
+    "no": "254",
+    "role": "大卫",
+    "voice": "nam2",
+    "start": 29.69,
+    "end": 32.06,
+    "text": "那我明天下班后去看看。",
+    "hz": 207,
+    "g": "m"
+   },
+   {
+    "no": "255",
+    "role": "小王",
+    "voice": "nam",
+    "start": 32.86,
+    "end": 35.08,
+    "text": "好，我跟你一起去吧！",
+    "hz": 147,
+    "g": "m"
+   }
+  ]
+ },
+ "16|Bài 12|Trò chuyện về sở thích thể thao": {
+  "file": "B16_Bài 12_Tro-chuyen-ve-so-thich-the-thao.mp3",
+  "secs": 44.06,
+  "lines": [
+   {
+    "no": "263",
+    "role": "安娜",
+    "voice": "nu",
+    "start": 0.4,
+    "end": 2.89,
+    "text": "小王，你的爱好是什么？",
+    "hz": 218,
+    "g": "f"
+   },
+   {
+    "no": "264",
+    "role": "小王",
+    "voice": "nam",
+    "start": 3.69,
+    "end": 8.16,
+    "text": "我很喜欢运动，打篮球、踢足球我都喜欢。",
+    "hz": 132,
+    "g": "m"
+   },
+   {
+    "no": "265",
+    "role": "安娜",
+    "voice": "nu",
+    "start": 8.96,
+    "end": 12.28,
+    "text": "你个子这么高，篮球打得怎么样？",
+    "hz": 216,
+    "g": "f"
+   },
+   {
+    "no": "266",
+    "role": "小王",
+    "voice": "nam",
+    "start": 13.08,
+    "end": 16.43,
+    "text": "还可以。你呢？你喜欢什么运动？",
+    "hz": 140,
+    "g": "m"
+   },
+   {
+    "no": "267",
+    "role": "安娜",
+    "voice": "nu",
+    "start": 17.23,
+    "end": 21.41,
+    "text": "我喜欢游泳，每天下班后游一个小时。",
+    "hz": 209,
+    "g": "f"
+   },
+   {
+    "no": "268",
+    "role": "小王",
+    "voice": "nam",
+    "start": 22.21,
+    "end": 25.0,
+    "text": "每天一个小时？你不累吗？",
+    "hz": 149,
+    "g": "m"
+   },
+   {
+    "no": "269",
+    "role": "安娜",
+    "voice": "nu",
+    "start": 25.8,
+    "end": 29.7,
+    "text": "虽然有点儿累，但是游泳后很舒服。",
+    "hz": 209,
+    "g": "f"
+   },
+   {
+    "no": "270",
+    "role": "小王",
+    "voice": "nam",
+    "start": 30.5,
+    "end": 33.42,
+    "text": "你什么时候开始学游泳的？",
+    "hz": 137,
+    "g": "m"
+   },
+   {
+    "no": "271",
+    "role": "安娜",
+    "voice": "nu",
+    "start": 34.22,
+    "end": 39.14,
+    "text": "去年开始的。开始我游得不好，现在游得不错了。",
+    "hz": 226,
+    "g": "f"
+   },
+   {
+    "no": "272",
+    "role": "小王",
+    "voice": "nam",
+    "start": 39.94,
+    "end": 43.56,
+    "text": "真好！下次我跟你一起去游泳吧！",
+    "hz": 136,
+    "g": "m"
+   }
+  ]
+ },
+ "16|KN-013|Khảo sát nhóm: môn thể thao yêu thích – báo cáo trước lớp (KN-013)": {
+  "file": "B16_KN-013_Khao-sat-nhom-mon-the-thao-yeu-thich-bao.mp3",
+  "secs": 25.69,
+  "lines": [
+   {
+    "no": "273",
+    "role": "A (người hỏi)",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 2.29,
+    "text": "你喜欢什么运动？",
+    "hz": 152,
+    "g": "m"
+   },
+   {
+    "no": "274",
+    "role": "B (người trả lời)",
+    "voice": "nu",
+    "start": 3.09,
+    "end": 4.48,
+    "text": "我喜欢跑步。",
+    "hz": 217,
+    "g": "f"
+   },
+   {
+    "no": "275",
+    "role": "A (người hỏi)",
+    "voice": "nam",
+    "start": 5.28,
+    "end": 7.5,
+    "text": "你每天跑多长时间？",
+    "hz": 130,
+    "g": "m"
+   },
+   {
+    "no": "276",
+    "role": "B (người trả lời)",
+    "voice": "nu",
+    "start": 8.3,
+    "end": 10.52,
+    "text": "我每天跑四十分钟。",
+    "hz": 199,
+    "g": "f"
+   },
+   {
+    "no": "277",
+    "role": "A (báo cáo trước lớp)",
+    "voice": "nam",
+    "start": 11.32,
+    "end": 18.86,
+    "text": "我问了三个同学。大卫喜欢踢足球，安娜喜欢游泳，小王喜欢打篮球。",
+    "hz": 129,
+    "g": "m"
+   },
+   {
+    "no": "278",
+    "role": "A (báo cáo trước lớp)",
+    "voice": "nam",
+    "start": 19.36,
+    "end": 25.19,
+    "text": "他们每天都运动一个小时，我觉得他们的爱好都很好。",
+    "hz": 143,
+    "g": "m"
+   }
+  ]
+ },
+ "17|Bài 13|Hỏi lịch thi, nhờ bạn giúp ôn bài trước kỳ thi": {
+  "file": "B17_Bài 13_Hoi-lich-thi-nho-ban-giup-on-bai-truoc-k.mp3",
+  "secs": 52.33,
+  "lines": [
+   {
+    "no": "287",
+    "role": "A",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 4.0,
+    "text": "快要考试了，你准备得怎么样了？",
+    "hz": 146,
+    "g": "m"
+   },
+   {
+    "no": "288",
+    "role": "B",
+    "voice": "nu",
+    "start": 4.8,
+    "end": 10.38,
+    "text": "不怎么样。昨天的二十个题做完了，但是错了八个。",
+    "hz": 216,
+    "g": "f"
+   },
+   {
+    "no": "289",
+    "role": "A",
+    "voice": "nam",
+    "start": 11.18,
+    "end": 17.6,
+    "text": "没关系，我可以帮你。你星期六有时间还是星期天有时间？",
+    "hz": 129,
+    "g": "m"
+   },
+   {
+    "no": "290",
+    "role": "B",
+    "voice": "nu",
+    "start": 18.4,
+    "end": 22.58,
+    "text": "星期六上午我要上课，星期天有时间。",
+    "hz": 223,
+    "g": "f"
+   },
+   {
+    "no": "291",
+    "role": "A",
+    "voice": "nam",
+    "start": 23.38,
+    "end": 27.91,
+    "text": "那我们星期天上午去学校后面的咖啡店学习吧。",
+    "hz": 138,
+    "g": "m"
+   },
+   {
+    "no": "292",
+    "role": "B",
+    "voice": "nu",
+    "start": 28.71,
+    "end": 32.9,
+    "text": "谢谢你！考试的时候我不想再写错了。",
+    "hz": 200,
+    "g": "f"
+   },
+   {
+    "no": "293",
+    "role": "A",
+    "voice": "nam",
+    "start": 33.7,
+    "end": 37.6,
+    "text": "不客气。你告诉我，哪些题你不会做？",
+    "hz": 133,
+    "g": "m"
+   },
+   {
+    "no": "294",
+    "role": "B",
+    "voice": "nu",
+    "start": 38.4,
+    "end": 42.58,
+    "text": "这几个题。你看，这里是“快要”还是“就要”？",
+    "hz": 217,
+    "g": "f"
+   },
+   {
+    "no": "295",
+    "role": "A",
+    "voice": "nam",
+    "start": 43.38,
+    "end": 48.13,
+    "text": "前边有“明天”，所以是“就要”：明天就要考试了。",
+    "hz": 166,
+    "g": "m"
+   },
+   {
+    "no": "296",
+    "role": "B",
+    "voice": "nu",
+    "start": 48.93,
+    "end": 51.83,
+    "text": "我知道了！你真是我的老师。",
+    "hz": 212,
+    "g": "f"
+   }
+  ]
+ },
+ "19|Bài 14|Đi khám bệnh: nói chỗ đau, hỏi cách uống thuốc, hỏi thăm sức khoẻ": {
+  "file": "B19_Bài 14_i-kham-benh-noi-cho-au-hoi-cach-uong-thu.mp3",
+  "secs": 42.04,
+  "lines": [
+   {
+    "no": "305",
+    "role": "Bác sĩ",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 3.75,
+    "text": "请进！门开着呢。你哪儿不舒服？",
+    "hz": 154,
+    "g": "m"
+   },
+   {
+    "no": "306",
+    "role": "Bệnh nhân",
+    "voice": "nu",
+    "start": 4.55,
+    "end": 7.33,
+    "text": "医生，我头疼，身体也很累。",
+    "hz": 212,
+    "g": "f"
+   },
+   {
+    "no": "307",
+    "role": "Bác sĩ",
+    "voice": "nam",
+    "start": 8.13,
+    "end": 9.52,
+    "text": "头疼几天了？",
+    "hz": 150,
+    "g": "m"
+   },
+   {
+    "no": "308",
+    "role": "Bệnh nhân",
+    "voice": "nu",
+    "start": 10.31,
+    "end": 15.9,
+    "text": "两天了。昨天晚上我三点睡觉，早上七点就起床了。",
+    "hz": 209,
+    "g": "f"
+   },
+   {
+    "no": "309",
+    "role": "Bác sĩ",
+    "voice": "nam",
+    "start": 16.7,
+    "end": 19.1,
+    "text": "你经常这么晚睡觉吗？",
+    "hz": 141,
+    "g": "m"
+   },
+   {
+    "no": "310",
+    "role": "Bệnh nhân",
+    "voice": "nu",
+    "start": 19.9,
+    "end": 24.01,
+    "text": "快要考试了，我每天晚上都学习到很晚。",
+    "hz": 219,
+    "g": "f"
+   },
+   {
+    "no": "311",
+    "role": "Bác sĩ",
+    "voice": "nam",
+    "start": 24.81,
+    "end": 28.16,
+    "text": "别动，我看一下……没什么大问题。",
+    "hz": 140,
+    "g": "m"
+   },
+   {
+    "no": "312",
+    "role": "Bác sĩ",
+    "voice": "nam",
+    "start": 28.66,
+    "end": 31.72,
+    "text": "这个药一天吃三次，饭后吃。",
+    "hz": 179,
+    "g": "m"
+   },
+   {
+    "no": "313",
+    "role": "Bệnh nhân",
+    "voice": "nu",
+    "start": 32.52,
+    "end": 34.12,
+    "text": "我可以喝咖啡吗？",
+    "hz": 202,
+    "g": "f"
+   },
+   {
+    "no": "314",
+    "role": "Bác sĩ",
+    "voice": "nam",
+    "start": 34.92,
+    "end": 39.65,
+    "text": "这几天别喝咖啡，多喝热水，早一点儿睡觉。",
+    "hz": 182,
+    "g": "m"
+   },
+   {
+    "no": "315",
+    "role": "Bệnh nhân",
+    "voice": "nu",
+    "start": 40.45,
+    "end": 41.54,
+    "text": "谢谢医生！",
+    "hz": 200,
+    "g": "f"
+   }
+  ]
+ },
+ "20|Bài 15|Trời âm u – rủ bạn đi chơi hay ở nhà uống trà": {
+  "file": "B20_Bài 15_Troi-am-u-ru-ban-i-choi-hay-o-nha-uong-t.mp3",
+  "secs": 35.97,
+  "lines": [
+   {
+    "no": "322",
+    "role": "A",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 4.45,
+    "text": "今天天气怎么样？我们去外面跑步吧。",
+    "hz": 125,
+    "g": "m"
+   },
+   {
+    "no": "323",
+    "role": "B",
+    "voice": "nu",
+    "start": 5.25,
+    "end": 8.03,
+    "text": "外面阴天，比昨天冷多了。",
+    "hz": 229,
+    "g": "f"
+   },
+   {
+    "no": "324",
+    "role": "A",
+    "voice": "nam",
+    "start": 8.83,
+    "end": 12.17,
+    "text": "没关系，跑步的时候就不冷了。",
+    "hz": 157,
+    "g": "m"
+   },
+   {
+    "no": "325",
+    "role": "B",
+    "voice": "nu",
+    "start": 12.97,
+    "end": 16.87,
+    "text": "但是你跑得比我快得多，我不想跑。",
+    "hz": 215,
+    "g": "f"
+   },
+   {
+    "no": "326",
+    "role": "A",
+    "voice": "nam",
+    "start": 17.67,
+    "end": 21.84,
+    "text": "那我们去打篮球吧？你篮球打得比我好。",
+    "hz": 153,
+    "g": "m"
+   },
+   {
+    "no": "327",
+    "role": "B",
+    "voice": "nu",
+    "start": 22.64,
+    "end": 26.21,
+    "text": "好啊！你看，天更阴了，可能要下雨了。",
+    "hz": 214,
+    "g": "f"
+   },
+   {
+    "no": "328",
+    "role": "A",
+    "voice": "nam",
+    "start": 27.01,
+    "end": 31.46,
+    "text": "那我们在家喝茶吧。你要红茶还是绿茶？",
+    "hz": 149,
+    "g": "m"
+   },
+   {
+    "no": "329",
+    "role": "B",
+    "voice": "nu",
+    "start": 32.26,
+    "end": 35.47,
+    "text": "绿茶。下雨天在家喝茶，好舒服啊！",
+    "hz": 216,
+    "g": "f"
+   }
+  ]
+ },
+ "21|Bài 16|Mua quà sinh nhật cho mẹ – so sánh giá": {
+  "file": "B21_Bài 16_Mua-qua-sinh-nhat-cho-me-so-sanh-gia.mp3",
+  "secs": 36.72,
+  "lines": [
+   {
+    "no": "336",
+    "role": "Khách",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 4.01,
+    "text": "你好，我想送给我妈妈一件衣服。",
+    "hz": 147,
+    "g": "m"
+   },
+   {
+    "no": "337",
+    "role": "Người bán",
+    "voice": "nu",
+    "start": 4.81,
+    "end": 7.59,
+    "text": "这两件怎么样？都很漂亮。",
+    "hz": 217,
+    "g": "f"
+   },
+   {
+    "no": "338",
+    "role": "Khách",
+    "voice": "nam",
+    "start": 8.39,
+    "end": 11.17,
+    "text": "红色的比白色的贵多少？",
+    "hz": 137,
+    "g": "m"
+   },
+   {
+    "no": "339",
+    "role": "Người bán",
+    "voice": "nu",
+    "start": 11.97,
+    "end": 16.43,
+    "text": "红色的三百五十块，比白色的贵五十块。",
+    "hz": 211,
+    "g": "f"
+   },
+   {
+    "no": "340",
+    "role": "Khách",
+    "voice": "nam",
+    "start": 17.23,
+    "end": 21.3,
+    "text": "白色的有点儿小，有没有大一点儿的？",
+    "hz": 139,
+    "g": "m"
+   },
+   {
+    "no": "341",
+    "role": "Người bán",
+    "voice": "nu",
+    "start": 22.1,
+    "end": 26.29,
+    "text": "有，这件比那件大一些。我拿给你看看。",
+    "hz": 211,
+    "g": "f"
+   },
+   {
+    "no": "342",
+    "role": "Khách",
+    "voice": "nam",
+    "start": 27.09,
+    "end": 30.72,
+    "text": "好，我要这件。可以便宜一点儿吗？",
+    "hz": 142,
+    "g": "m"
+   },
+   {
+    "no": "343",
+    "role": "Người bán",
+    "voice": "nu",
+    "start": 31.52,
+    "end": 34.03,
+    "text": "可以，三百块卖给你吧。",
+    "hz": 209,
+    "g": "f"
+   },
+   {
+    "no": "344",
+    "role": "Khách",
+    "voice": "nam",
+    "start": 34.83,
+    "end": 36.22,
+    "text": "太好了，谢谢！",
+    "hz": 140,
+    "g": "m"
+   }
+  ]
+ },
+ "21|Bài 16|Giới thiệu anh chị em – so sánh hơn kém": {
+  "file": "B21_Bài 16_Gioi-thieu-anh-chi-em-so-sanh-hon-kem.mp3",
+  "secs": 21.68,
+  "lines": [
+   {
+    "no": "345",
+    "role": "A",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 2.17,
+    "text": "你有哥哥姐姐吗？",
+    "hz": 134,
+    "g": "m"
+   },
+   {
+    "no": "346",
+    "role": "B",
+    "voice": "nu",
+    "start": 2.97,
+    "end": 6.22,
+    "text": "我有一个哥哥，他比我大四岁。",
+    "hz": 232,
+    "g": "f"
+   },
+   {
+    "no": "347",
+    "role": "A",
+    "voice": "nam",
+    "start": 7.02,
+    "end": 8.38,
+    "text": "他比你高吗？",
+    "hz": 173,
+    "g": "m"
+   },
+   {
+    "no": "348",
+    "role": "B",
+    "voice": "nu",
+    "start": 9.18,
+    "end": 13.17,
+    "text": "他比我高一点儿，但是我跑得比他快！",
+    "hz": 226,
+    "g": "f"
+   },
+   {
+    "no": "349",
+    "role": "A",
+    "voice": "nam",
+    "start": 13.97,
+    "end": 16.2,
+    "text": "你们谁汉语说得好？",
+    "hz": 135,
+    "g": "m"
+   },
+   {
+    "no": "350",
+    "role": "B",
+    "voice": "nu",
+    "start": 17.0,
+    "end": 21.18,
+    "text": "我比他说得好一些，他经常问我问题。",
+    "hz": 221,
+    "g": "f"
+   }
+  ]
+ },
+ "22|BH22-NÓI|Hẹn bạn: lên xuống, ra vào toà nhà": {
+  "file": "B22_BH22-NÓI_Hen-ban-len-xuong-ra-vao-toa-nha.mp3",
+  "secs": 33.34,
+  "lines": [
+   {
+    "no": "356",
+    "role": "A",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 2.07,
+    "text": "喂，你在哪儿呢？",
+    "hz": 144,
+    "g": "m"
+   },
+   {
+    "no": "357",
+    "role": "B",
+    "voice": "nu",
+    "start": 2.87,
+    "end": 5.09,
+    "text": "我在家呢。你到了吗？",
+    "hz": 213,
+    "g": "f"
+   },
+   {
+    "no": "358",
+    "role": "A",
+    "voice": "nam",
+    "start": 5.89,
+    "end": 9.51,
+    "text": "我到了，在你家楼下。你快下来吧！",
+    "hz": 140,
+    "g": "m"
+   },
+   {
+    "no": "359",
+    "role": "B",
+    "voice": "nu",
+    "start": 10.31,
+    "end": 13.77,
+    "text": "外面多冷啊！你上来坐一会儿吧。",
+    "hz": 217,
+    "g": "f"
+   },
+   {
+    "no": "360",
+    "role": "A",
+    "voice": "nam",
+    "start": 14.57,
+    "end": 18.47,
+    "text": "不了，电影七点就开始了，我们走吧。",
+    "hz": 137,
+    "g": "m"
+   },
+   {
+    "no": "361",
+    "role": "B",
+    "voice": "nu",
+    "start": 19.27,
+    "end": 23.44,
+    "text": "好，你等一会儿，我拿一下手机就下去。",
+    "hz": 212,
+    "g": "f"
+   },
+   {
+    "no": "362",
+    "role": "A",
+    "voice": "nam",
+    "start": 24.24,
+    "end": 28.42,
+    "text": "你家门口站着很多人，他们在做什么？",
+    "hz": 136,
+    "g": "m"
+   },
+   {
+    "no": "363",
+    "role": "B",
+    "voice": "nu",
+    "start": 29.22,
+    "end": 32.84,
+    "text": "他们在等出租车。好了，我出来了！",
+    "hz": 217,
+    "g": "f"
+   }
+  ]
+ },
+ "23|B18-NÓI|Hỏi và chỉ đường trong khu phố": {
+  "file": "B23_B18-NÓI_Hoi-va-chi-uong-trong-khu-pho.mp3",
+  "secs": 30.99,
+  "lines": [
+   {
+    "no": "369",
+    "role": "A",
+    "voice": "nu",
+    "start": 0.4,
+    "end": 3.17,
+    "text": "你好，请问地铁站在哪儿？",
+    "hz": 214,
+    "g": "f"
+   },
+   {
+    "no": "370",
+    "role": "B",
+    "voice": "nam",
+    "start": 3.97,
+    "end": 6.45,
+    "text": "往前走，到了超市往左走。",
+    "hz": 133,
+    "g": "m"
+   },
+   {
+    "no": "371",
+    "role": "A",
+    "voice": "nu",
+    "start": 7.25,
+    "end": 10.23,
+    "text": "超市在哪儿？是前面那个吗？",
+    "hz": 220,
+    "g": "f"
+   },
+   {
+    "no": "372",
+    "role": "B",
+    "voice": "nam",
+    "start": 11.03,
+    "end": 15.21,
+    "text": "对，就是那个。地铁站就在超市的左边。",
+    "hz": 137,
+    "g": "m"
+   },
+   {
+    "no": "373",
+    "role": "A",
+    "voice": "nu",
+    "start": 16.01,
+    "end": 18.78,
+    "text": "远吗？走过去要多长时间？",
+    "hz": 208,
+    "g": "f"
+   },
+   {
+    "no": "374",
+    "role": "B",
+    "voice": "nam",
+    "start": 19.58,
+    "end": 24.33,
+    "text": "不远，走过去有五六分钟吧。我去过很多次。",
+    "hz": 141,
+    "g": "m"
+   },
+   {
+    "no": "375",
+    "role": "A",
+    "voice": "nu",
+    "start": 25.13,
+    "end": 26.51,
+    "text": "太谢谢您了！",
+    "hz": 187,
+    "g": "f"
+   },
+   {
+    "no": "376",
+    "role": "B",
+    "voice": "nam",
+    "start": 27.31,
+    "end": 30.49,
+    "text": "不客气。到了超市你再问一下。",
+    "hz": 165,
+    "g": "m"
+   }
+  ]
+ }
+}

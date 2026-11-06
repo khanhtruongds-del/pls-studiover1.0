@@ -1,0 +1,1061 @@
+{
+ "3|KN-004|Chính tả pinyin": {
+  "file": "B03_KN-004_Chinh-ta-pinyin.mp3",
+  "secs": 34.88,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "Giáo viên (đọc 2 lần)",
+    "voice": "serena",
+    "start": 0.4,
+    "end": 3.12,
+    "text": "gāng",
+    "hz": null
+   },
+   {
+    "no": "2.0",
+    "role": "Giáo viên (đọc 2 lần)",
+    "voice": "serena",
+    "start": 4.32,
+    "end": 7.26,
+    "text": "kěn",
+    "hz": null
+   },
+   {
+    "no": "3.0",
+    "role": "Giáo viên (đọc 2 lần)",
+    "voice": "serena",
+    "start": 8.46,
+    "end": 10.96,
+    "text": "hóng",
+    "hz": null
+   },
+   {
+    "no": "4.0",
+    "role": "Giáo viên (đọc 2 lần)",
+    "voice": "serena",
+    "start": 12.16,
+    "end": 15.18,
+    "text": "hàn",
+    "hz": null
+   },
+   {
+    "no": "5.0",
+    "role": "Giáo viên (đọc 2 lần)",
+    "voice": "serena",
+    "start": 16.38,
+    "end": 18.96,
+    "text": "gēn",
+    "hz": null
+   },
+   {
+    "no": "6.0",
+    "role": "Giáo viên (đọc 2 lần)",
+    "voice": "serena",
+    "start": 20.16,
+    "end": 22.8,
+    "text": "kàn",
+    "hz": null
+   },
+   {
+    "no": "7.0",
+    "role": "Giáo viên (đọc 2 lần)",
+    "voice": "serena",
+    "start": 24.0,
+    "end": 26.54,
+    "text": "hěn",
+    "hz": null
+   },
+   {
+    "no": "8.0",
+    "role": "Giáo viên (đọc 2 lần)",
+    "voice": "serena",
+    "start": 27.74,
+    "end": 30.02,
+    "text": "gōng",
+    "hz": null
+   },
+   {
+    "no": "9.0",
+    "role": "Giáo viên (đọc 2 lần)",
+    "voice": "nu",
+    "start": 30.52,
+    "end": 34.38,
+    "text": "我不是老师。",
+    "hz": 236
+   }
+  ]
+ },
+ "5|KN-007|听一听：声音和声调 {tīng yī tīng: shēngyīn hé shēngdiào}": {
+  "file": "B05_KN-007_ting-yi-ting-shengyin-he-shengdiao.mp3",
+  "secs": 16.24,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "Giọng nữ",
+    "voice": "nu",
+    "start": 0.4,
+    "end": 1.23,
+    "text": "大家好！",
+    "hz": 232
+   },
+   {
+    "no": "2.0",
+    "role": "Giọng nam",
+    "voice": "nam",
+    "start": 2.03,
+    "end": 2.59,
+    "text": "谢谢！",
+    "hz": 143
+   },
+   {
+    "no": "3.0",
+    "role": "Giọng nữ",
+    "voice": "nu",
+    "start": 3.39,
+    "end": 4.21,
+    "text": "对不起！",
+    "hz": 220
+   },
+   {
+    "no": "4.0",
+    "role": "Giọng nam",
+    "voice": "nam",
+    "start": 5.01,
+    "end": 5.73,
+    "text": "没关系。",
+    "hz": 142
+   },
+   {
+    "no": "5.0",
+    "role": "Giọng nữ",
+    "voice": "serena",
+    "start": 6.93,
+    "end": 9.39,
+    "text": "jiǔ – xīn – liù",
+    "hz": null
+   },
+   {
+    "no": "6.0",
+    "role": "Giọng nam",
+    "voice": "aiden",
+    "start": 10.59,
+    "end": 12.69,
+    "text": "yā – yě – yīn",
+    "hz": null
+   },
+   {
+    "no": "7.0",
+    "role": "Giọng nữ",
+    "voice": "nu",
+    "start": 13.49,
+    "end": 14.12,
+    "text": "请问",
+    "hz": 216
+   },
+   {
+    "no": "8.0",
+    "role": "Giọng nam",
+    "voice": "nam",
+    "start": 14.92,
+    "end": 15.74,
+    "text": "不客气。",
+    "hz": 169
+   }
+  ]
+ },
+ "6|KN-009|听写拼音 {tīngxiě pīnyīn}": {
+  "file": "B06_KN-009_tingxie-pinyin.mp3",
+  "secs": 9.68,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "Giọng nữ",
+    "voice": "serena",
+    "start": 0.4,
+    "end": 0.92,
+    "text": "叫",
+    "hz": null
+   },
+   {
+    "no": "2.0",
+    "role": "Giọng nữ",
+    "voice": "serena",
+    "start": 2.12,
+    "end": 2.55,
+    "text": "jiàn",
+    "hz": null
+   },
+   {
+    "no": "3.0",
+    "role": "Giọng nam",
+    "voice": "aiden",
+    "start": 3.75,
+    "end": 4.69,
+    "text": "xiǎng",
+    "hz": null
+   },
+   {
+    "no": "4.0",
+    "role": "Giọng nam",
+    "voice": "nam",
+    "start": 5.19,
+    "end": 5.74,
+    "text": "名字",
+    "hz": 140
+   },
+   {
+    "no": "5.0",
+    "role": "Giọng nữ",
+    "voice": "serena",
+    "start": 6.94,
+    "end": 7.82,
+    "text": "xióng",
+    "hz": null
+   },
+   {
+    "no": "6.0",
+    "role": "Giọng nam",
+    "voice": "nam",
+    "start": 8.62,
+    "end": 9.18,
+    "text": "再见",
+    "hz": 136
+   }
+  ]
+ },
+ "9|KN-013|听写拼音 {tīngxiě pīnyīn}": {
+  "file": "B09_KN-013_tingxie-pinyin.mp3",
+  "secs": 12.79,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "Giọng nữ",
+    "voice": "serena",
+    "start": 0.4,
+    "end": 1.01,
+    "text": "wǎn",
+    "hz": null
+   },
+   {
+    "no": "2.0",
+    "role": "Giọng nữ",
+    "voice": "serena",
+    "start": 2.21,
+    "end": 2.96,
+    "text": "chūn",
+    "hz": null
+   },
+   {
+    "no": "3.0",
+    "role": "Giọng nữ",
+    "voice": "serena",
+    "start": 4.16,
+    "end": 4.65,
+    "text": "guāng",
+    "hz": null
+   },
+   {
+    "no": "4.0",
+    "role": "Giọng nữ",
+    "voice": "serena",
+    "start": 5.85,
+    "end": 6.69,
+    "text": "wēng",
+    "hz": null
+   },
+   {
+    "no": "5.0",
+    "role": "Giọng nữ",
+    "voice": "serena",
+    "start": 7.89,
+    "end": 8.41,
+    "text": "ér",
+    "hz": null
+   },
+   {
+    "no": "6.0",
+    "role": "Giọng nữ",
+    "voice": "nu",
+    "start": 8.91,
+    "end": 9.53,
+    "text": "请问",
+    "hz": 212
+   },
+   {
+    "no": "7.0",
+    "role": "Giọng nữ",
+    "voice": "nu",
+    "start": 10.03,
+    "end": 10.95,
+    "text": "没关系",
+    "hz": 203
+   },
+   {
+    "no": "8.0",
+    "role": "Giọng nữ",
+    "voice": "nu",
+    "start": 11.45,
+    "end": 12.29,
+    "text": "王老师",
+    "hz": 221
+   }
+  ]
+ },
+ "13|KN-020|这是谁？ {Zhè shì shéi?}": {
+  "file": "B13_KN-020_Zhe-shi-shei.mp3",
+  "secs": 20.93,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "A (nữ)",
+    "voice": "nu",
+    "start": 0.4,
+    "end": 1.22,
+    "text": "这是谁？",
+    "hz": 219
+   },
+   {
+    "no": "2.0",
+    "role": "B (nam)",
+    "voice": "nam",
+    "start": 2.02,
+    "end": 3.33,
+    "text": "这是我爸爸。",
+    "hz": 142
+   },
+   {
+    "no": "3.0",
+    "role": "A (nữ)",
+    "voice": "nu",
+    "start": 4.13,
+    "end": 5.51,
+    "text": "他是老师吗？",
+    "hz": 219
+   },
+   {
+    "no": "4.0",
+    "role": "B (nam)",
+    "voice": "nam",
+    "start": 6.31,
+    "end": 8.2,
+    "text": "是，他是中文老师。",
+    "hz": 142
+   },
+   {
+    "no": "5.0",
+    "role": "A (nữ)",
+    "voice": "nu",
+    "start": 9.0,
+    "end": 10.53,
+    "text": "这是你妈妈吗？",
+    "hz": 223
+   },
+   {
+    "no": "6.0",
+    "role": "B (nam)",
+    "voice": "nam",
+    "start": 11.33,
+    "end": 13.27,
+    "text": "不是，她是我姐姐。",
+    "hz": 140
+   },
+   {
+    "no": "7.0",
+    "role": "A (nữ)",
+    "voice": "nu",
+    "start": 14.07,
+    "end": 15.73,
+    "text": "你家有几口人？",
+    "hz": 230
+   },
+   {
+    "no": "8.0",
+    "role": "B (nam)",
+    "voice": "nam",
+    "start": 16.53,
+    "end": 20.43,
+    "text": "我家有五口人。我有姐姐，也有弟弟。",
+    "hz": 145
+   }
+  ]
+ },
+ "14|KN-022|你去哪儿？ {Nǐ qù nǎr?}": {
+  "file": "B14_KN-022_Ni-qu-nar.mp3",
+  "secs": 25.42,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "A (nữ) – đoạn 1",
+    "voice": "nu",
+    "start": 0.4,
+    "end": 1.51,
+    "text": "你去哪儿？",
+    "hz": 206
+   },
+   {
+    "no": "2.0",
+    "role": "B (nam) – đoạn 1",
+    "voice": "nam",
+    "start": 2.31,
+    "end": 3.41,
+    "text": "我去医院。",
+    "hz": 132
+   },
+   {
+    "no": "3.0",
+    "role": "A (nữ) – đoạn 2",
+    "voice": "nu",
+    "start": 5.01,
+    "end": 6.96,
+    "text": "这儿有电影院吗？",
+    "hz": 221
+   },
+   {
+    "no": "4.0",
+    "role": "B (nam) – đoạn 2",
+    "voice": "nam",
+    "start": 7.76,
+    "end": 8.99,
+    "text": "没有，那儿有。",
+    "hz": 145
+   },
+   {
+    "no": "5.0",
+    "role": "A (nữ) – đoạn 3",
+    "voice": "nu",
+    "start": 10.59,
+    "end": 12.62,
+    "text": "你和妈妈去看电影吗？",
+    "hz": 224
+   },
+   {
+    "no": "6.0",
+    "role": "B (nam) – đoạn 3",
+    "voice": "nam",
+    "start": 13.42,
+    "end": 14.88,
+    "text": "不，我和哥哥去。",
+    "hz": 143
+   },
+   {
+    "no": "7.0",
+    "role": "A (nữ) – đoạn 4",
+    "voice": "nu",
+    "start": 16.48,
+    "end": 17.85,
+    "text": "他去学校吗？",
+    "hz": 211
+   },
+   {
+    "no": "8.0",
+    "role": "B (nam) – đoạn 4",
+    "voice": "aiden",
+    "start": 19.05,
+    "end": 19.9,
+    "text": "去。",
+    "hz": null
+   },
+   {
+    "no": "9.0",
+    "role": "A (nữ) – đoạn 5",
+    "voice": "nu",
+    "start": 21.5,
+    "end": 22.88,
+    "text": "那儿有店吗？",
+    "hz": 247
+   },
+   {
+    "no": "10.0",
+    "role": "B (nam) – đoạn 5",
+    "voice": "aiden",
+    "start": 24.08,
+    "end": 24.92,
+    "text": "有。",
+    "hz": null
+   }
+  ]
+ },
+ "17|KN-027|听句子，选答案 {tīng jùzi, xuǎn dá'àn}": {
+  "file": "B17_KN-027_ting-juzi-xuan-da-an.mp3",
+  "secs": 26.39,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "Câu 17.2 – người nói (nữ)",
+    "voice": "nu",
+    "start": 0.4,
+    "end": 2.89,
+    "text": "我的生日（shēngrì: sinh nhật）是六月九号。",
+    "hz": 214
+   },
+   {
+    "no": "2.0",
+    "role": "Câu 17.3 – người nói (nam)",
+    "voice": "nam",
+    "start": 3.69,
+    "end": 6.39,
+    "text": "昨天我去电影院看电影。",
+    "hz": 155
+   },
+   {
+    "no": "3.0",
+    "role": "Câu 17.4 – người nói (nữ)",
+    "voice": "nu",
+    "start": 7.19,
+    "end": 12.21,
+    "text": "星期六我在家休息，星期日我和小丽（Xiǎo Lì: tên người）去北京。",
+    "hz": 216
+   },
+   {
+    "no": "4.0",
+    "role": "Câu 17.4 – câu hỏi",
+    "voice": "nu",
+    "start": 13.01,
+    "end": 15.78,
+    "text": "请问：他们星期几去北京？",
+    "hz": 208
+   },
+   {
+    "no": "5.0",
+    "role": "Câu 17.5 – người nói (nam)",
+    "voice": "nam",
+    "start": 16.58,
+    "end": 18.81,
+    "text": "星期天我在家休息。",
+    "hz": 124
+   },
+   {
+    "no": "6.0",
+    "role": "Câu 17.6 – người nói (nữ)",
+    "voice": "nu",
+    "start": 19.61,
+    "end": 22.28,
+    "text": "明天星期天，我想看电影。",
+    "hz": 225
+   },
+   {
+    "no": "7.0",
+    "role": "Câu 7 – người nói (nam)",
+    "voice": "nam",
+    "start": 23.08,
+    "end": 25.89,
+    "text": "明天我想去机场见我哥哥。",
+    "hz": 135
+   }
+  ]
+ },
+ "21|KN-034|我们去饭店吧 {wǒmen qù fàndiàn ba}": {
+  "file": "B21_KN-034_women-qu-fandian-ba.mp3",
+  "secs": 29.31,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "Nam – đoạn 1",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 3.02,
+    "text": "明天晚上我们去饭店吧？",
+    "hz": 149
+   },
+   {
+    "no": "2.0",
+    "role": "Nữ – đoạn 1",
+    "voice": "nu",
+    "start": 3.82,
+    "end": 4.78,
+    "text": "好，几点？",
+    "hz": 229
+   },
+   {
+    "no": "3.0",
+    "role": "Nam – đoạn 1",
+    "voice": "nam",
+    "start": 5.58,
+    "end": 7.24,
+    "text": "七点半，可以吗？",
+    "hz": 184
+   },
+   {
+    "no": "4.0",
+    "role": "Nữ – đoạn 1",
+    "voice": "nu",
+    "start": 8.04,
+    "end": 9.29,
+    "text": "可以，没问题。",
+    "hz": 232
+   },
+   {
+    "no": "5.0",
+    "role": "Nữ – đoạn 2",
+    "voice": "nu",
+    "start": 10.89,
+    "end": 12.67,
+    "text": "请问，王（Wáng: họ Vương）先生呢？",
+    "hz": 229
+   },
+   {
+    "no": "6.0",
+    "role": "Nam – đoạn 2",
+    "voice": "nam",
+    "start": 13.47,
+    "end": 15.14,
+    "text": "他在打电话呢。",
+    "hz": 171
+   },
+   {
+    "no": "7.0",
+    "role": "Nữ – đoạn 3",
+    "voice": "nu",
+    "start": 16.74,
+    "end": 18.39,
+    "text": "今天我请你吧。",
+    "hz": 211
+   },
+   {
+    "no": "8.0",
+    "role": "Nam – đoạn 3",
+    "voice": "nam",
+    "start": 19.19,
+    "end": 21.69,
+    "text": "没事，我们一人一半吧。",
+    "hz": 132
+   },
+   {
+    "no": "9.0",
+    "role": "Nam – đoạn 4",
+    "voice": "nam",
+    "start": 23.29,
+    "end": 26.07,
+    "text": "你明天几点给我打电话？",
+    "hz": 132
+   },
+   {
+    "no": "10.0",
+    "role": "Nữ – đoạn 4",
+    "voice": "nu",
+    "start": 26.87,
+    "end": 28.81,
+    "text": "上午十点，可以吗？",
+    "hz": 216
+   }
+  ]
+ },
+ "22|KN-036|今天有点儿冷 {jīntiān yǒudiǎnr lěng}": {
+  "file": "B22_KN-036_jintian-youdianr-leng.mp3",
+  "secs": 25.36,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "Nữ – đoạn 1",
+    "voice": "nu",
+    "start": 0.4,
+    "end": 1.5,
+    "text": "今天冷吗？",
+    "hz": 223
+   },
+   {
+    "no": "2.0",
+    "role": "Nam – đoạn 1",
+    "voice": "nam",
+    "start": 2.31,
+    "end": 4.82,
+    "text": "有点儿冷，外边下雨了。",
+    "hz": 149
+   },
+   {
+    "no": "3.0",
+    "role": "Nam – đoạn 2",
+    "voice": "nam",
+    "start": 6.42,
+    "end": 8.09,
+    "text": "你在哪儿上班？",
+    "hz": 143
+   },
+   {
+    "no": "4.0",
+    "role": "Nữ – đoạn 2",
+    "voice": "nu",
+    "start": 8.89,
+    "end": 12.5,
+    "text": "我在医院上班，医院在学校后边。",
+    "hz": 221
+   },
+   {
+    "no": "5.0",
+    "role": "Nữ – đoạn 3",
+    "voice": "nu",
+    "start": 14.1,
+    "end": 15.68,
+    "text": "北京下雪了吗？",
+    "hz": 208
+   },
+   {
+    "no": "6.0",
+    "role": "Nam – đoạn 3",
+    "voice": "nam",
+    "start": 16.48,
+    "end": 18.07,
+    "text": "下雪了，很冷。",
+    "hz": 138
+   },
+   {
+    "no": "7.0",
+    "role": "Nam – đoạn 4",
+    "voice": "nam",
+    "start": 19.67,
+    "end": 21.57,
+    "text": "明天你来我家吧？",
+    "hz": 135
+   },
+   {
+    "no": "8.0",
+    "role": "Nữ – đoạn 4",
+    "voice": "nu",
+    "start": 22.37,
+    "end": 24.86,
+    "text": "好，我们在你家看电影。",
+    "hz": 222
+   }
+  ]
+ },
+ "25|KN-042|在包子店 {zài bāozi diàn}": {
+  "file": "B25_KN-042_zai-baozi-dian.mp3",
+  "secs": 44.45,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "Nữ – đoạn 1",
+    "voice": "nu",
+    "start": 0.4,
+    "end": 2.11,
+    "text": "包子多少钱一个？",
+    "hz": 240
+   },
+   {
+    "no": "2.0",
+    "role": "Nam – đoạn 1",
+    "voice": "nam",
+    "start": 2.91,
+    "end": 4.3,
+    "text": "两块五一个。",
+    "hz": 130
+   },
+   {
+    "no": "3.0",
+    "role": "Nam – đoạn 2",
+    "voice": "nam",
+    "start": 5.9,
+    "end": 7.01,
+    "text": "你要什么？",
+    "hz": 134
+   },
+   {
+    "no": "4.0",
+    "role": "Nữ – đoạn 2",
+    "voice": "nu",
+    "start": 7.81,
+    "end": 10.8,
+    "text": "我要一杯牛奶和两个包子。",
+    "hz": 226
+   },
+   {
+    "no": "5.0",
+    "role": "Nữ – đoạn 3",
+    "voice": "nu",
+    "start": 12.4,
+    "end": 14.34,
+    "text": "这儿的菜好吃吗？",
+    "hz": 224
+   },
+   {
+    "no": "6.0",
+    "role": "Nam – đoạn 3",
+    "voice": "nam",
+    "start": 15.14,
+    "end": 18.21,
+    "text": "非常好吃！我喜欢这儿的菜。",
+    "hz": 135
+   },
+   {
+    "no": "7.0",
+    "role": "Nam – đoạn 4",
+    "voice": "nam",
+    "start": 19.81,
+    "end": 21.05,
+    "text": "米饭多少钱？",
+    "hz": 132
+   },
+   {
+    "no": "8.0",
+    "role": "Nữ – đoạn 4",
+    "voice": "nu",
+    "start": 21.85,
+    "end": 24.07,
+    "text": "米饭两块，菜十六块。",
+    "hz": 220
+   },
+   {
+    "no": "9.0",
+    "role": "Nữ – đoạn 5",
+    "voice": "nu",
+    "start": 25.67,
+    "end": 27.91,
+    "text": "你中午在哪儿吃午饭？",
+    "hz": 221
+   },
+   {
+    "no": "10.0",
+    "role": "Nam – đoạn 5",
+    "voice": "nam",
+    "start": 28.71,
+    "end": 33.18,
+    "text": "在公司。公司的饭不好吃，我中午吃包子。",
+    "hz": 144
+   },
+   {
+    "no": "11.0",
+    "role": "Nam – đoạn 6",
+    "voice": "nam",
+    "start": 34.78,
+    "end": 42.33,
+    "text": "牛奶四块五一杯，包子一块五一个。我要一杯牛奶、两个包子，多少钱？",
+    "hz": 146
+   },
+   {
+    "no": "12.0",
+    "role": "Nữ – đoạn 6",
+    "voice": "nu",
+    "start": 43.13,
+    "end": 43.95,
+    "text": "七块五。",
+    "hz": 225
+   }
+  ]
+ },
+ "28|KN-047|你在做什么呢？ {Nǐ zài zuò shénme ne?}": {
+  "file": "B28_KN-047_Ni-zai-zuo-shenme-ne.mp3",
+  "secs": 29.38,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "A (nữ) – đoạn 1",
+    "voice": "nu",
+    "start": 0.4,
+    "end": 2.06,
+    "text": "你在做什么呢？",
+    "hz": 224
+   },
+   {
+    "no": "2.0",
+    "role": "B (nam) – đoạn 1",
+    "voice": "nam",
+    "start": 2.86,
+    "end": 4.39,
+    "text": "我在写汉字呢。",
+    "hz": 143
+   },
+   {
+    "no": "3.0",
+    "role": "A (nữ) – đoạn 1",
+    "voice": "nu",
+    "start": 5.19,
+    "end": 7.14,
+    "text": "你会写哪些汉字？",
+    "hz": 228
+   },
+   {
+    "no": "4.0",
+    "role": "B (nam) – đoạn 1",
+    "voice": "nam",
+    "start": 7.94,
+    "end": 9.6,
+    "text": "我会写“汉”和“字”。",
+    "hz": 143
+   },
+   {
+    "no": "5.0",
+    "role": "A (nữ) – đoạn 2",
+    "voice": "nu",
+    "start": 11.2,
+    "end": 12.94,
+    "text": "你哥哥在睡觉吗？",
+    "hz": 219
+   },
+   {
+    "no": "6.0",
+    "role": "B (nam) – đoạn 2",
+    "voice": "nam",
+    "start": 13.74,
+    "end": 15.6,
+    "text": "没有，他在听歌呢。",
+    "hz": 174
+   },
+   {
+    "no": "7.0",
+    "role": "A (nữ) – đoạn 3",
+    "voice": "nu",
+    "start": 17.2,
+    "end": 18.71,
+    "text": "你要去电影院吗？",
+    "hz": 226
+   },
+   {
+    "no": "8.0",
+    "role": "B (nam) – đoạn 3",
+    "voice": "nam",
+    "start": 19.51,
+    "end": 22.58,
+    "text": "不想去，我要在家学习汉语。",
+    "hz": 158
+   },
+   {
+    "no": "9.0",
+    "role": "A (nữ) – đoạn 4",
+    "voice": "nu",
+    "start": 24.18,
+    "end": 26.13,
+    "text": "你们都是学生吗？",
+    "hz": 219
+   },
+   {
+    "no": "10.0",
+    "role": "B (nam) – đoạn 4",
+    "voice": "nam",
+    "start": 26.93,
+    "end": 28.88,
+    "text": "对，我们都是学生。",
+    "hz": 136
+   }
+  ]
+ },
+ "31|KN-055|怎么去大兴机场？ {Zěnme qù Dàxīng Jīchǎng?}": {
+  "file": "B31_KN-055_Zenme-qu-Daxing-Jichang.mp3",
+  "secs": 20.72,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "A (nam) – du khách",
+    "voice": "nam",
+    "start": 0.4,
+    "end": 4.03,
+    "text": "请问，你知道怎么去大兴机场吗？",
+    "hz": 160
+   },
+   {
+    "no": "2.0",
+    "role": "B (nữ)",
+    "voice": "nu",
+    "start": 4.83,
+    "end": 8.77,
+    "text": "你可以坐火车去，也可以坐出租车去。",
+    "hz": 217
+   },
+   {
+    "no": "3.0",
+    "role": "A (nam) – du khách",
+    "voice": "nam",
+    "start": 9.57,
+    "end": 10.96,
+    "text": "火车几点开？",
+    "hz": 134
+   },
+   {
+    "no": "4.0",
+    "role": "B (nữ)",
+    "voice": "nu",
+    "start": 11.76,
+    "end": 12.49,
+    "text": "八点半。",
+    "hz": 214
+   },
+   {
+    "no": "5.0",
+    "role": "A (nam) – du khách",
+    "voice": "nam",
+    "start": 13.29,
+    "end": 16.06,
+    "text": "太晚了！我坐出租车去吧。",
+    "hz": 134
+   },
+   {
+    "no": "6.0",
+    "role": "B (nữ)",
+    "voice": "nu",
+    "start": 16.86,
+    "end": 18.8,
+    "text": "好，出租车在外边。",
+    "hz": 214
+   },
+   {
+    "no": "7.0",
+    "role": "A (nam) – du khách",
+    "voice": "nam",
+    "start": 19.6,
+    "end": 20.22,
+    "text": "谢谢！",
+    "hz": 147
+   }
+  ]
+ },
+ "33|KN-058|苹果多少钱一斤？ {Píngguǒ duōshao qián yī jīn?}": {
+  "file": "B33_KN-058_Pingguo-duoshao-qian-yi-jin.mp3",
+  "secs": 14.93,
+  "lines": [
+   {
+    "no": "1.0",
+    "role": "A (nữ) – khách",
+    "voice": "customer_f",
+    "start": 0.4,
+    "end": 2.34,
+    "text": "苹果多少钱一斤？",
+    "hz": 208
+   },
+   {
+    "no": "2.0",
+    "role": "B (nam) – người bán",
+    "voice": "uncle",
+    "start": 3.14,
+    "end": 5.0,
+    "text": "这些五块一斤。",
+    "hz": 88
+   },
+   {
+    "no": "3.0",
+    "role": "A (nữ) – khách",
+    "voice": "customer_f",
+    "start": 5.8,
+    "end": 7.46,
+    "text": "太贵了！那些呢？",
+    "hz": 263
+   },
+   {
+    "no": "4.0",
+    "role": "B (nam) – người bán",
+    "voice": "uncle",
+    "start": 8.26,
+    "end": 10.81,
+    "text": "那些三块一斤，也很好吃。",
+    "hz": 166
+   },
+   {
+    "no": "5.0",
+    "role": "A (nữ) – khách",
+    "voice": "customer_f",
+    "start": 11.61,
+    "end": 12.99,
+    "text": "好，我买两斤。",
+    "hz": 224
+   },
+   {
+    "no": "6.0",
+    "role": "B (nam) – người bán",
+    "voice": "uncle",
+    "start": 13.79,
+    "end": 14.43,
+    "text": "六块。",
+    "hz": 171
+   }
+  ]
+ }
+}
