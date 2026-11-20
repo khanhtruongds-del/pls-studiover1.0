@@ -52,7 +52,7 @@ def upload(api, headers, path, category):
         body, content_type = build_multipart({'category': category}, 'file', name, f.read(), ctype)
     req = urllib.request.Request(api, data=body, method='POST',
                                  headers=dict(headers, **{'Content-Type': content_type}))
-    with urllib.request.urlopen(req, timeout=120) as r:
+    with urllib.request.urlopen(req, timeout=60) as r:
         return json.loads(r.read().decode('utf-8') or '{}')
 
 
@@ -109,12 +109,13 @@ def main():
             if os.path.getsize(p) > MAX_BYTES:
                 w.writerow([rel, 'skip', '', 'quá 20 MB']); fail += 1
                 print(f'[{i}/{len(todo)}] BỎ QUA (>20MB) {rel}'); continue
+            print(f'[{i}/{len(todo)}] đang tải {rel} …', flush=True)
             for attempt in range(4):
                 try:
                     res = upload(a.api, headers, p, a.category)
                     fid = (res.get('data') or {}).get('id', '')
                     w.writerow([rel, 'ok', fid, '']); ok += 1
-                    print(f'[{i}/{len(todo)}] OK {rel}')
+                    print(f'[{i}/{len(todo)}] OK {rel}', flush=True)
                     break
                 except urllib.error.HTTPError as e:
                     msg = e.read().decode('utf-8', 'replace')[:200]
@@ -126,8 +127,13 @@ def main():
                         w.writerow([rel, 'fail', '', f'{e.code} {msg}']); fail += 1
                         print(f'[{i}/{len(todo)}] LỖI {e.code} {rel}: {msg}'); break
                     err = f'{e.code} {msg}'
-                except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
-                    err = str(e)
+                except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+                    err = str(getattr(e, 'reason', e))
+                    if 'CERTIFICATE_VERIFY_FAILED' in err:
+                        sys.exit('\nLỗi chứng chỉ SSL của Python trên Mac. Chạy lệnh sau một lần rồi chạy lại script:\n'
+                                 '  open "/Applications/Python 3*/Install Certificates.command"\n'
+                                 '(hoặc: pip3 install --upgrade certifi)')
+                print(f'   … lần {attempt + 1} lỗi: {err} — thử lại', flush=True)
                 time.sleep(2 ** attempt * 2)
             else:
                 w.writerow([rel, 'fail', '', err]); fail += 1
