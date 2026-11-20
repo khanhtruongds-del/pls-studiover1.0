@@ -10,6 +10,8 @@ Dùng:
     python3 ics-grid.py                 # lấy mẫu 12 tấm rải đều (nhanh)
     python3 ics-grid.py --sample 20     # lấy mẫu 20 tấm
     python3 ics-grid.py --all           # tất cả (~135 tấm, tải ~4000 ảnh)
+    python3 ics-grid.py --cols 5 --rows 4   # 20 ảnh/tấm cho thoáng
+    python3 ics-grid.py --thumb         # dùng ảnh thu nhỏ của ICS (nhẹ hơn, nhưng có ảnh bị thiếu)
 
 Kết quả nằm ở ~/Downloads/ics-grid/ :
     index.json, index.csv   danh sách đầy đủ (tên, từ khoá, mô tả, trung tâm)
@@ -24,8 +26,7 @@ except ImportError:
     sys.exit('Thiếu Pillow. Chạy một lần:  pip3 install pillow')
 
 ORIGIN = 'https://icstest.pls.edu.vn'
-COLS, ROWS = 6, 5
-CELL_W, CELL_H, LABEL_H, HEAD_H = 220, 220, 30, 34
+CELL_W, CELL_H, LABEL_H, HEAD_H = 240, 240, 34, 34
 IMG_EXT = ('png', 'jpg', 'jpeg', 'webp')
 
 
@@ -121,7 +122,7 @@ def to_rgb(raw):
 
 def short(name):
     base = os.path.splitext(name)[0]
-    return re.sub(r'^vocabulary_\d+_', '', base)
+    return re.sub(r'^vocabulary_', '', base)[-22:]
 
 
 def main():
@@ -134,6 +135,9 @@ def main():
     ap.add_argument('--all', action='store_true')
     ap.add_argument('--refresh', action='store_true', help='lấy lại danh sách từ ICS')
     ap.add_argument('--delay', type=float, default=0.1)
+    ap.add_argument('--cols', type=int, default=6)
+    ap.add_argument('--rows', type=int, default=5)
+    ap.add_argument('--thumb', action='store_true', help='dùng thumbnail của ICS thay vì ảnh gốc')
     a = ap.parse_args()
 
     tok = os.environ.get('ICS_TOKEN', '').strip()
@@ -172,7 +176,10 @@ def main():
         print(f'Đã lưu danh sách: {len(items)} ảnh (không tính file âm thanh, không tính CA/CAU).')
         # link/thumbnail hết hạn sau ~4 giờ; nếu chạy lại sau đó dùng --refresh
 
+    COLS, ROWS = a.cols, a.rows
     per = COLS * ROWS
+    sub = 'thumbs' if a.thumb else 'full'
+    os.makedirs(os.path.join(out, sub), exist_ok=True)
     nsheets = (len(items) + per - 1) // per
     if a.all or a.sample >= nsheets:
         chosen = list(range(nsheets))
@@ -188,12 +195,12 @@ def main():
         sheet = Image.new('RGB', (W, H), (245, 245, 245))
         d = ImageDraw.Draw(sheet)
         d.text((8, 7), f'Tấm {si + 1}/{nsheets} · ảnh {si * per + 1}–{si * per + len(batch)} · '
-                       f'mã ghi dưới mỗi ảnh là số cuối của tên file', fill=(60, 60, 60), font=hfont)
+                       f'#số thứ tự trong danh sách + mã cuối tên file', fill=(60, 60, 60), font=hfont)
         for i, it in enumerate(batch):
-            tp = os.path.join(out, 'thumbs', it['id'] + '.bin')
+            tp = os.path.join(out, sub, it['id'] + '.bin')
             try:
                 if not os.path.exists(tp):
-                    url = it.get('thumbnail') or it.get('link')
+                    url = (it.get('thumbnail') or it.get('link')) if a.thumb else (it.get('link') or it.get('thumbnail'))
                     open(tp, 'wb').write(cl.fetch(url))
                 im = to_rgb(open(tp, 'rb').read())
                 im.thumbnail((CELL_W - 10, CELL_H - 10))
@@ -203,7 +210,7 @@ def main():
                 print(f'   ! {it["name"]}: {e}', flush=True)
             x0, y0 = (i % COLS) * CELL_W, HEAD_H + (i // COLS) * (CELL_H + LABEL_H)
             sheet.paste(im, (x0 + (CELL_W - im.width) // 2, y0 + (CELL_H - im.height) // 2))
-            d.text((x0 + 8, y0 + CELL_H + 4), short(it['name']), fill=(0, 0, 0), font=font)
+            d.text((x0 + 8, y0 + CELL_H + 6), f'#{si * per + i + 1}  {short(it["name"])}', fill=(0, 0, 0), font=font)
         p = os.path.join(out, 'sheets', f'sheet_{si + 1:03d}.jpg')
         sheet.save(p, quality=85)
         print(f'[{n}/{len(chosen)}] đã tạo {p}', flush=True)
