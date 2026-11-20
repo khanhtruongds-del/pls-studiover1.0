@@ -24,7 +24,7 @@ Script ghi nhật ký vào <thư mục>/_ics_upload_log.csv. Chạy lại thì f
 tải thành công sẽ được bỏ qua, nên dừng giữa chừng (Ctrl+C) rồi chạy tiếp vẫn an toàn.
 Chỉ dùng thư viện chuẩn của Python 3, không cần cài thêm gì.
 """
-import argparse, csv, json, unicodedata, mimetypes, os, sys, time, uuid, urllib.request, urllib.error
+import argparse, csv, getpass, json, unicodedata, mimetypes, os, sys, time, uuid, urllib.request, urllib.error
 
 DEFAULT_API = 'https://icstestsapi.pls.edu.vn/files/upload'
 ORIGIN = 'https://icstest.pls.edu.vn'
@@ -122,22 +122,38 @@ def main():
                 w.writerow([rel, 'skip', '', 'quá 20 MB']); fail += 1
                 print(f'[{i}/{len(todo)}] BỎ QUA (>20MB) {rel}'); continue
             print(f'[{i}/{len(todo)}] đang tải {rel} …', flush=True)
-            for attempt in range(4):
+            attempt, done_file = 0, False
+            while attempt < 4:
                 try:
                     res = upload(a.api, headers, p, a.category)
                     fid = (res.get('data') or {}).get('id', '')
                     w.writerow([rel, 'ok', fid, '']); ok += 1
                     print(f'[{i}/{len(todo)}] OK {rel}', flush=True)
-                    break
+                    done_file = True; break
                 except urllib.error.HTTPError as e:
                     msg = e.read().decode('utf-8', 'replace')[:200]
                     if e.code in (401, 403):
                         lf.flush()
-                        sys.exit(f'\nLỗi {e.code}: token hết hạn hoặc sai. Lấy token mới rồi chạy lại '
-                                 f'(file đã tải sẽ được bỏ qua).\n{msg}')
+                        print(f'\n⚠️  Lỗi {e.code}: token hết hạn hoặc sai. {msg}', flush=True)
+                        print('Lấy token mới trong DevTools (dòng authorization), dán vào đây rồi Enter.')
+                        print('(Chữ sẽ không hiện khi dán — bình thường. Để trống + Enter để thoát.)')
+                        try:
+                            new_tok = getpass.getpass('Token mới: ').strip()
+                        except (EOFError, KeyboardInterrupt):
+                            new_tok = ''
+                        if not new_tok:
+                            sys.exit('Đã dừng. Chạy lại lệnh cũ để tiếp tục (file đã tải sẽ được bỏ qua).')
+                        if new_tok.lower().startswith('bearer '):
+                            new_tok = new_tok[7:].strip()
+                        if 'Cookie' in headers and 'Authorization' not in headers:
+                            headers['Cookie'] = new_tok
+                        else:
+                            headers['Authorization'] = 'Bearer ' + new_tok
+                        print('Đã cập nhật token — chạy tiếp.\n', flush=True)
+                        continue
                     if e.code < 500 and e.code != 429:
                         w.writerow([rel, 'fail', '', f'{e.code} {msg}']); fail += 1
-                        print(f'[{i}/{len(todo)}] LỖI {e.code} {rel}: {msg}'); break
+                        print(f'[{i}/{len(todo)}] LỖI {e.code} {rel}: {msg}'); done_file = True; break
                     err = f'{e.code} {msg}'
                 except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
                     err = str(getattr(e, 'reason', e))
@@ -147,7 +163,8 @@ def main():
                                  '(hoặc: pip3 install --upgrade certifi)')
                 print(f'   … lần {attempt + 1} lỗi: {err} — thử lại', flush=True)
                 time.sleep(2 ** attempt * 2)
-            else:
+                attempt += 1
+            if not done_file:
                 w.writerow([rel, 'fail', '', err]); fail += 1
                 print(f'[{i}/{len(todo)}] LỖI {rel}: {err}')
             lf.flush()
