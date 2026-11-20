@@ -24,7 +24,7 @@ Script ghi nhật ký vào <thư mục>/_ics_upload_log.csv. Chạy lại thì f
 tải thành công sẽ được bỏ qua, nên dừng giữa chừng (Ctrl+C) rồi chạy tiếp vẫn an toàn.
 Chỉ dùng thư viện chuẩn của Python 3, không cần cài thêm gì.
 """
-import argparse, csv, json, mimetypes, os, sys, time, uuid, urllib.request, urllib.error
+import argparse, csv, json, unicodedata, mimetypes, os, sys, time, uuid, urllib.request, urllib.error
 
 DEFAULT_API = 'https://icstestsapi.pls.edu.vn/files/upload'
 ORIGIN = 'https://icstest.pls.edu.vn'
@@ -78,6 +78,18 @@ def main():
         headers['Cookie'] = cookie
 
     folder = os.path.expanduser(a.folder)
+    if not os.path.isdir(folder):
+        parent = os.path.dirname(folder.rstrip('/')) or '.'
+        key = unicodedata.normalize('NFC', os.path.basename(folder.rstrip('/'))).strip().lower()
+        alts = []
+        if os.path.isdir(parent):
+            alts = [n for n in os.listdir(parent) if os.path.isdir(os.path.join(parent, n))
+                    and key[:4] in unicodedata.normalize('NFC', n).lower()]
+        msg = f'Không tìm thấy thư mục: {folder!r}'
+        if alts:
+            msg += '\nCó phải một trong các thư mục này không? (chú ý dấu cách thừa)\n' + \
+                   '\n'.join(f'  {os.path.join(parent, n)!r}' for n in alts)
+        sys.exit(msg)
     log_path = os.path.join(folder, '_ics_upload_log.csv')
     done = set()
     if os.path.exists(log_path):
